@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Api;
 
+/**
+ * @api
+ */
 interface AuthenticationOptionsInterface
 {
     /**

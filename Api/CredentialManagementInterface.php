@@ -8,6 +8,9 @@ use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use Magento\Framework\Exception\AuthorizationException;
 use Magento\Framework\Exception\NoSuchEntityException;
 
+/**
+ * @api
+ */
 interface CredentialManagementInterface
 {
     /**

@@ -6,6 +6,9 @@ namespace MageOS\PasskeyAuth\Api;
 
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 
+/**
+ * @api
+ */
 interface RegistrationVerifierInterface
 {
     /**

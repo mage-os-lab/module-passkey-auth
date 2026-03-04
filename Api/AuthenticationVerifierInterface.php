@@ -6,6 +6,9 @@ namespace MageOS\PasskeyAuth\Api;
 
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 
+/**
+ * @api
+ */
 interface AuthenticationVerifierInterface
 {
     /**
