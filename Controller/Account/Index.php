@@ -7,6 +7,7 @@ namespace MageOS\PasskeyAuth\Controller\Account;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Framework\Controller\Result\RedirectFactory;
+use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\View\Result\PageFactory;
 
 class Index implements HttpGetActionInterface
@@ -18,7 +19,7 @@ class Index implements HttpGetActionInterface
     ) {
     }
 
-    public function execute()
+    public function execute(): ResultInterface
     {
         if (!$this->customerSession->isLoggedIn()) {
             $redirect = $this->redirectFactory->create();

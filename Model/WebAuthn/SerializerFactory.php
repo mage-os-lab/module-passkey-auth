@@ -17,7 +17,7 @@ class SerializerFactory
     ) {
     }
 
-    public function create(): SerializerInterface
+    public function get(): SerializerInterface
     {
         if ($this->serializer === null) {
             $factory = new BaseSerializerFactory($this->attestationStatementSupportManager);

@@ -3,8 +3,9 @@ define([
     'MageOS_PasskeyAuth/js/passkey-core',
     'mage/translate',
     'Magento_Ui/js/modal/confirm',
+    'Magento_Ui/js/modal/prompt',
     'jquery/ui'
-], function ($, passkeyCore, $t, confirm) {
+], function ($, passkeyCore, $t, confirm, prompt) {
     'use strict';
 
     $.widget('mageOS.passkeyManage', {
@@ -30,7 +31,24 @@ define([
                 return;
             }
 
-            var friendlyName = prompt($t('Give this passkey a name (optional):'), '');
+            prompt({
+                title: $t('Register a Passkey'),
+                content: $t('Give this passkey a name (optional):'),
+                value: '',
+                actions: {
+                    confirm: function (friendlyName) {
+                        self._doRegistration(friendlyName || null);
+                    },
+                    cancel: function () {
+                        // User cancelled naming — proceed without name
+                        self._doRegistration(null);
+                    }
+                }
+            });
+        },
+
+        _doRegistration: function (friendlyName) {
+            var self = this;
 
             this._clearMessage();
 
@@ -54,7 +72,7 @@ define([
                         data: JSON.stringify({
                             challengeToken: challengeToken,
                             credential: serialized,
-                            friendlyName: friendlyName || null
+                            friendlyName: friendlyName
                         }),
                         dataType: 'json'
                     });

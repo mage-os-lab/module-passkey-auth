@@ -1,42 +1,43 @@
-<?php
+<?php declare(strict_types=1);
 /** @var \MageOS\PasskeyAuth\Block\Account\Passkeys $block */
+/** @var \Magento\Framework\Escaper $escaper */
 $credentials = $block->getCredentials();
 ?>
 <div class="passkey-management" id="passkey-management">
     <?php if (empty($credentials)): ?>
         <div class="passkey-empty-state">
-            <p><?= $block->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?></p>
+            <p><?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?></p>
             <button type="button" class="action primary add-passkey" id="passkey-add-btn">
-                <span><?= $block->escapeHtml(__('Add a Passkey')) ?></span>
+                <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
             </button>
         </div>
     <?php else: ?>
         <table class="passkey-list">
             <thead>
                 <tr>
-                    <th><?= $block->escapeHtml(__('Name')) ?></th>
-                    <th><?= $block->escapeHtml(__('Created')) ?></th>
-                    <th><?= $block->escapeHtml(__('Last Used')) ?></th>
-                    <th><?= $block->escapeHtml(__('Actions')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Name')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Created')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Last Used')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Actions')) ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($credentials as $credential): ?>
-                    <tr data-entity-id="<?= $block->escapeHtmlAttr((string) $credential->getEntityId()) ?>">
+                    <tr data-entity-id="<?= $escaper->escapeHtmlAttr((string) $credential->getEntityId()) ?>">
                         <td class="passkey-name">
-                            <span class="name-display"><?= $block->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?></span>
+                            <span class="name-display"><?= $escaper->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?></span>
                             <input type="text" class="name-edit" style="display:none;"
-                                   value="<?= $block->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
+                                   value="<?= $escaper->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
                                    maxlength="255"/>
                         </td>
-                        <td><?= $block->escapeHtml($credential->getCreatedAt() ?? '') ?></td>
-                        <td><?= $block->escapeHtml($credential->getLastUsedAt() ?? __('Never')) ?></td>
+                        <td><?= $escaper->escapeHtml($credential->getCreatedAt() ?? '') ?></td>
+                        <td><?= $escaper->escapeHtml($credential->getLastUsedAt() ?? __('Never')) ?></td>
                         <td class="passkey-actions">
-                            <button type="button" class="action rename" title="<?= $block->escapeHtmlAttr(__('Rename')) ?>">
-                                <?= $block->escapeHtml(__('Rename')) ?>
+                            <button type="button" class="action rename" title="<?= $escaper->escapeHtmlAttr(__('Rename')) ?>">
+                                <?= $escaper->escapeHtml(__('Rename')) ?>
                             </button>
-                            <button type="button" class="action delete" title="<?= $block->escapeHtmlAttr(__('Delete')) ?>">
-                                <?= $block->escapeHtml(__('Delete')) ?>
+                            <button type="button" class="action delete" title="<?= $escaper->escapeHtmlAttr(__('Delete')) ?>">
+                                <?= $escaper->escapeHtml(__('Delete')) ?>
                             </button>
                         </td>
                     </tr>
@@ -45,7 +46,7 @@ $credentials = $block->getCredentials();
         </table>
         <div class="passkey-add-action">
             <button type="button" class="action primary add-passkey" id="passkey-add-btn">
-                <span><?= $block->escapeHtml(__('Add a Passkey')) ?></span>
+                <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
             </button>
         </div>
     <?php endif; ?>
@@ -58,10 +59,10 @@ $credentials = $block->getCredentials();
 {
     "#passkey-management": {
         "MageOS_PasskeyAuth/js/passkey-manage": {
-            "registrationOptionsUrl": "<?= $block->escapeUrl($block->getRegistrationOptionsUrl()) ?>",
-            "registrationVerifyUrl": "<?= $block->escapeUrl($block->getRegistrationVerifyUrl()) ?>",
-            "deleteUrl": "<?= $block->escapeUrl($block->getDeleteUrl()) ?>",
-            "renameUrl": "<?= $block->escapeUrl($block->getRenameUrl()) ?>"
+            "registrationOptionsUrl": "<?= $escaper->escapeUrl($block->getRegistrationOptionsUrl()) ?>",
+            "registrationVerifyUrl": "<?= $escaper->escapeUrl($block->getRegistrationVerifyUrl()) ?>",
+            "deleteUrl": "<?= $escaper->escapeUrl($block->getDeleteUrl()) ?>",
+            "renameUrl": "<?= $escaper->escapeUrl($block->getRenameUrl()) ?>"
         }
     }
 }
