@@ -1,16 +1,40 @@
 define([
     'jquery',
+    'Magento_Customer/js/customer-data',
     'jquery/ui'
-], function ($) {
+], function ($, customerData) {
     'use strict';
 
     $.widget('mageOS.enrollmentPrompt', {
         _create: function () {
-            if (sessionStorage.getItem('passkey_enrollment_dismissed')) {
-                this.element.hide();
-                return;
-            }
+            this.element.hide();
+            this._bindEvents();
+            this._subscribeToSection();
+        },
 
+        _subscribeToSection: function () {
+            var self = this;
+            var passkeySection = customerData.get('passkey');
+
+            passkeySection.subscribe(function (data) {
+                self._handleSectionUpdate(data);
+            });
+
+            // Check initial data
+            this._handleSectionUpdate(passkeySection());
+        },
+
+        _handleSectionUpdate: function (data) {
+            if (data && data.show_enrollment_prompt
+                && !sessionStorage.getItem('passkey_enrollment_dismissed')
+            ) {
+                this.element.show();
+            } else {
+                this.element.hide();
+            }
+        },
+
+        _bindEvents: function () {
             this.element.find('#passkey-enrollment-dismiss').on('click', this._onDismiss.bind(this));
         },
 

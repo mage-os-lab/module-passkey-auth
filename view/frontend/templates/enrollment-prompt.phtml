@@ -1,20 +1,21 @@
-<?php
+<?php declare(strict_types=1);
 /** @var \MageOS\PasskeyAuth\Block\EnrollmentPrompt $block */
+/** @var \Magento\Framework\Escaper $escaper */
 ?>
-<div class="passkey-enrollment-prompt" id="passkey-enrollment-prompt">
+<div class="passkey-enrollment-prompt" id="passkey-enrollment-prompt" style="display:none;">
     <div class="enrollment-message">
-        <strong><?= $block->escapeHtml(__('Sign in faster with a passkey')) ?></strong>
-        <span><?= $block->escapeHtml(__('Use your fingerprint, face, or security key for quick and secure sign-in.')) ?></span>
+        <strong><?= $escaper->escapeHtml(__('Sign in faster with a passkey')) ?></strong>
+        <span><?= $escaper->escapeHtml(__('Use your fingerprint, face, or security key for quick and secure sign-in.')) ?></span>
     </div>
     <div class="enrollment-actions">
-        <a href="<?= $block->escapeUrl($block->getPasskeysUrl()) ?>"
+        <a href="<?= $escaper->escapeUrl($block->getPasskeysUrl()) ?>"
            class="action primary setup"
-           title="<?= $block->escapeHtmlAttr(__('Set up a Passkey')) ?>">
-            <span><?= $block->escapeHtml(__('Set up')) ?></span>
+           title="<?= $escaper->escapeHtmlAttr(__('Set up a Passkey')) ?>">
+            <span><?= $escaper->escapeHtml(__('Set up')) ?></span>
         </a>
         <button type="button" class="action dismiss" id="passkey-enrollment-dismiss"
-                title="<?= $block->escapeHtmlAttr(__('Not now')) ?>">
-            <span><?= $block->escapeHtml(__('Not now')) ?></span>
+                title="<?= $escaper->escapeHtmlAttr(__('Not now')) ?>">
+            <span><?= $escaper->escapeHtml(__('Not now')) ?></span>
         </button>
     </div>
 </div>
