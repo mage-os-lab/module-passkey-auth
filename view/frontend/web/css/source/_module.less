@@ -1,0 +1,192 @@
+// MageOS PasskeyAuth Styles
+
+.passkey-login-section {
+    margin-top: 20px;
+}
+
+.passkey-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+
+    &::before,
+    &::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #ccc;
+    }
+
+    span {
+        padding: 0 15px;
+        color: #999;
+        font-size: 13px;
+        text-transform: uppercase;
+    }
+}
+
+.passkey-login-actions {
+    text-align: center;
+
+    .action.passkey-login {
+        width: 100%;
+        max-width: 400px;
+        padding: 12px 20px;
+        font-size: 16px;
+        cursor: pointer;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    }
+}
+
+.passkey-login-message {
+    margin-top: 10px;
+    padding: 10px 15px;
+    border-radius: 3px;
+    text-align: center;
+
+    &.message-error {
+        background-color: #fae5e5;
+        color: #e02b27;
+        border: 1px solid #e02b27;
+    }
+
+    &.message-success {
+        background-color: #e5efe5;
+        color: #006400;
+        border: 1px solid #006400;
+    }
+}
+
+// Preferred mode: passkey button is more prominent
+.passkey-mode-preferred {
+    .passkey-login-actions {
+        .action.passkey-login {
+            font-size: 18px;
+            padding: 14px 24px;
+        }
+    }
+}
+
+// My Account passkeys page
+.passkey-management {
+    .passkey-list {
+        width: 100%;
+        border-collapse: collapse;
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            font-weight: 600;
+            background-color: #f5f5f5;
+        }
+
+        .passkey-actions {
+            white-space: nowrap;
+
+            .action {
+                margin-right: 8px;
+                cursor: pointer;
+                background: none;
+                border: none;
+                color: #006bb4;
+                text-decoration: underline;
+                padding: 0;
+
+                &:hover {
+                    color: #0059a1;
+                }
+
+                &.delete {
+                    color: #e02b27;
+
+                    &:hover {
+                        color: #b21e1a;
+                    }
+                }
+            }
+        }
+    }
+
+    .passkey-empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        margin-bottom: 20px;
+
+        p {
+            margin-bottom: 15px;
+            color: #666;
+        }
+    }
+
+    .passkey-add-action {
+        margin-top: 20px;
+
+        .action.add-passkey {
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+    }
+}
+
+// Enrollment prompt banner
+.passkey-enrollment-prompt {
+    background-color: #e8f4fd;
+    border: 1px solid #b3d7f2;
+    border-radius: 4px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    .enrollment-message {
+        flex: 1;
+        min-width: 200px;
+
+        strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        span {
+            color: #555;
+            font-size: 13px;
+        }
+    }
+
+    .enrollment-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+
+        .action.setup {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+
+        .action.dismiss {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+
+            &:hover {
+                color: #333;
+            }
+        }
+    }
+}

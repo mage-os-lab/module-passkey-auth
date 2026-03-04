@@ -1,0 +1,29 @@
+<?php
+/** @var \MageOS\PasskeyAuth\Block\Login\PasskeyButton $block */
+$uiMode = $block->escapeHtmlAttr($block->getUiMode());
+?>
+<div class="passkey-login-section passkey-mode-<?= $uiMode ?>" id="passkey-login-container" style="display:none;">
+    <div class="passkey-divider">
+        <span><?= $block->escapeHtml(__('or')) ?></span>
+    </div>
+    <div class="passkey-login-actions">
+        <button type="button"
+                class="action passkey-login primary"
+                id="passkey-login-btn"
+                title="<?= $block->escapeHtmlAttr(__('Sign in with Passkey')) ?>">
+            <span><?= $block->escapeHtml(__('Sign in with Passkey')) ?></span>
+        </button>
+    </div>
+    <div class="passkey-login-message" id="passkey-login-message" style="display:none;" role="alert">
+    </div>
+</div>
+<script type="text/x-magento-init">
+{
+    "#passkey-login-container": {
+        "MageOS_PasskeyAuth/js/passkey-login": {
+            "optionsUrl": "<?= $block->escapeUrl($block->getOptionsUrl()) ?>",
+            "verifyUrl": "<?= $block->escapeUrl($block->getVerifyUrl()) ?>"
+        }
+    }
+}
+</script>

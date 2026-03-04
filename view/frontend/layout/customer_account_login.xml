@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="customer.login.container">
+            <block class="MageOS\PasskeyAuth\Block\Login\PasskeyButton"
+                   name="customer.login.passkey"
+                   template="MageOS_PasskeyAuth::login/passkey-buttons.phtml"
+                   ifconfig="passkey_auth/general/enabled"
+                   after="customer.login"/>
+        </referenceContainer>
+    </body>
+</page>
