@@ -1,0 +1,19 @@
+{
+    "name": "mage-os/module-passkey-auth",
+    "description": "Passkey (WebAuthn) authentication for customer accounts",
+    "type": "magento2-module",
+    "license": "OSL-3.0",
+    "require": {
+        "php": ">=8.2",
+        "magento/framework": "*",
+        "magento/module-customer": "*"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "MageOS\\PasskeyAuth\\": ""
+        }
+    }
+}
