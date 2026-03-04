@@ -11,9 +11,6 @@ use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
 
 class CeremonyStepManagerProvider
 {
-    private ?CeremonyStepManager $creationCeremony = null;
-    private ?CeremonyStepManager $requestCeremony = null;
-
     public function __construct(
         private readonly Config $config,
         private readonly AttestationStatementSupportManager $attestationStatementSupportManager
@@ -22,18 +19,12 @@ class CeremonyStepManagerProvider
 
     public function getCreationCeremony(): CeremonyStepManager
     {
-        if ($this->creationCeremony === null) {
-            $this->creationCeremony = $this->buildFactory()->creationCeremony();
-        }
-        return $this->creationCeremony;
+        return $this->buildFactory()->creationCeremony();
     }
 
     public function getRequestCeremony(): CeremonyStepManager
     {
-        if ($this->requestCeremony === null) {
-            $this->requestCeremony = $this->buildFactory()->requestCeremony();
-        }
-        return $this->requestCeremony;
+        return $this->buildFactory()->requestCeremony();
     }
 
     private function buildFactory(): CeremonyStepManagerFactory

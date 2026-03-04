@@ -12,9 +12,11 @@ use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\Result\Json;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadataFactory;
 use Magento\Framework\Stdlib\CookieManagerInterface;
+use Psr\Log\LoggerInterface;
 
 class Verify implements HttpPostActionInterface
 {
@@ -27,7 +29,8 @@ class Verify implements HttpPostActionInterface
         private readonly RateLimiter $rateLimiter,
         private readonly JsonSerializer $json,
         private readonly CookieManagerInterface $cookieManager,
-        private readonly CookieMetadataFactory $cookieMetadataFactory
+        private readonly CookieMetadataFactory $cookieMetadataFactory,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -59,10 +62,18 @@ class Verify implements HttpPostActionInterface
                 'errors' => false,
                 'message' => __('Login successful.'),
             ]);
+        } catch (LocalizedException $e) {
+            $ip = $this->request->getClientIp() ?? 'unknown';
+            $this->rateLimiter->recordVerifyFailure($ip);
+            $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
+            return $resultJson->setHttpResponseCode(400)->setData([
+                'errors' => true,
+                'message' => __('Passkey verification failed. Please try again.'),
+            ]);
         } catch (\Exception $e) {
             $ip = $this->request->getClientIp() ?? 'unknown';
             $this->rateLimiter->recordVerifyFailure($ip);
-
+            $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,
                 'message' => __('Passkey verification failed. Please try again.'),
