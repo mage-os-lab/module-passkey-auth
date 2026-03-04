@@ -60,6 +60,8 @@ class CredentialRepository implements CredentialRepositoryInterface
 
     public function save(CredentialInterface $credential): CredentialInterface
     {
+        $this->validateCredential($credential);
+
         $model = $this->credentialFactory->create();
         if ($credential->getEntityId()) {
             $this->resource->load($model, $credential->getEntityId());
@@ -117,6 +119,22 @@ class CredentialRepository implements CredentialRepositoryInterface
         $collection = $this->collectionFactory->create();
         $collection->addFieldToFilter('customer_id', $customerId);
         return $collection->getSize();
+    }
+
+    private function validateCredential(CredentialInterface $credential): void
+    {
+        if ($credential->getCustomerId() <= 0) {
+            throw new CouldNotSaveException(__('Invalid customer ID for passkey credential.'));
+        }
+        if ($credential->getCredentialId() === '') {
+            throw new CouldNotSaveException(__('Credential ID cannot be empty.'));
+        }
+        if ($credential->getPublicKey() === '') {
+            throw new CouldNotSaveException(__('Public key cannot be empty.'));
+        }
+        if ($credential->getSignCount() < 0) {
+            throw new CouldNotSaveException(__('Sign count cannot be negative.'));
+        }
     }
 
     private function toDTO(Credential $model): CredentialInterface

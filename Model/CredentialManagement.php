@@ -9,6 +9,7 @@ use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\AuthorizationException;
+use Magento\Framework\Exception\LocalizedException;
 
 class CredentialManagement implements CredentialManagementInterface
 {
@@ -40,11 +41,27 @@ class CredentialManagement implements CredentialManagementInterface
 
     public function renameCredential(int $customerId, int $entityId, string $friendlyName): CredentialInterface
     {
+        $this->validateFriendlyName($friendlyName);
+
         $credential = $this->credentialRepository->getById($entityId);
         $this->assertOwnership($credential, $customerId);
 
         $credential->setFriendlyName($friendlyName);
         return $this->credentialRepository->save($credential);
+    }
+
+    public function validateFriendlyName(string $friendlyName): void
+    {
+        $friendlyName = trim($friendlyName);
+        if ($friendlyName === '') {
+            throw new LocalizedException(__('Passkey name cannot be empty.'));
+        }
+        if (mb_strlen($friendlyName) > 255) {
+            throw new LocalizedException(__('Passkey name must be 255 characters or fewer.'));
+        }
+        if (preg_match('/[<>&]/', $friendlyName)) {
+            throw new LocalizedException(__('Passkey name contains invalid characters.'));
+        }
     }
 
     private function assertOwnership(CredentialInterface $credential, int $customerId): void

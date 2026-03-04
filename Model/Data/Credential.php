@@ -119,4 +119,10 @@ class Credential extends DataObject implements CredentialInterface
     {
         return $this->setData(self::LAST_USED_AT, $lastUsedAt);
     }
+
+    public function getTransportsArray(): array
+    {
+        $transports = $this->getTransports();
+        return $transports ? explode(',', $transports) : [];
+    }
 }
