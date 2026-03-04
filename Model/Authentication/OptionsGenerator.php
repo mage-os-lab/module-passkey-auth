@@ -13,6 +13,7 @@ use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Model\StoreManagerInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
@@ -29,7 +30,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         private readonly SerializerFactory $serializerFactory,
         private readonly StoreManagerInterface $storeManager,
         private readonly Json $json,
-        private readonly RateLimiter $rateLimiter
+        private readonly RateLimiter $rateLimiter,
+        private readonly RemoteAddress $remoteAddress
     ) {
     }
 
@@ -39,7 +41,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
 
-        $this->rateLimiter->checkOptionsRate('auth_' . ($email ?? 'anonymous'));
+        $ip = $this->remoteAddress->getRemoteAddress() ?: 'unknown';
+        $this->rateLimiter->checkOptionsRate('auth_' . ($email ?? 'anonymous') . '_' . $ip);
 
         $allowCredentials = [];
         $customerId = null;

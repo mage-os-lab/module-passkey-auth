@@ -41,6 +41,7 @@ class CredentialManagement implements CredentialManagementInterface
 
     public function renameCredential(int $customerId, int $entityId, string $friendlyName): CredentialInterface
     {
+        $friendlyName = trim($friendlyName);
         $this->validateFriendlyName($friendlyName);
 
         $credential = $this->credentialRepository->getById($entityId);
