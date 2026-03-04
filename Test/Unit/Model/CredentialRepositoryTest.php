@@ -371,6 +371,83 @@ class CredentialRepositoryTest extends TestCase
         $this->assertSame(3, $this->repository->countByCustomerId(7));
     }
 
+    public function testDeleteByIdSuccess(): void
+    {
+        // getById creates model #1, loads it, converts to DTO
+        $model1 = $this->createCredentialModel();
+        // delete creates model #2, loads it, deletes it
+        $model2 = $this->createCredentialModel();
+
+        $this->credentialModelFactory->method('create')
+            ->willReturnOnConsecutiveCalls($model1, $model2);
+
+        $dto = new CredentialDTO();
+        $this->credentialDTOFactory->method('create')->willReturn($dto);
+
+        $loadCount = 0;
+        $this->resource->method('load')
+            ->willReturnCallback(function (CredentialModel $m, $id) use (&$loadCount) {
+                $loadCount++;
+                $m->setData('entity_id', 42);
+                $m->setData('customer_id', 1);
+                return $this->resource;
+            });
+
+        $this->resource->expects($this->once())
+            ->method('delete')
+            ->with($model2);
+
+        $result = $this->repository->deleteById(42);
+        $this->assertTrue($result);
+    }
+
+    public function testSaveWrapsResourceException(): void
+    {
+        $credential = $this->createCredentialInterfaceMock(
+            entityId: null,
+            customerId: 1,
+            credentialId: 'cred-abc',
+            publicKey: 'pk-data',
+            signCount: 0
+        );
+
+        $model = $this->createCredentialModel();
+        $this->credentialModelFactory->method('create')->willReturn($model);
+
+        $this->resource->expects($this->once())
+            ->method('save')
+            ->willThrowException(new \RuntimeException('DB error'));
+
+        $this->expectException(CouldNotSaveException::class);
+        $this->expectExceptionMessage('Could not save passkey credential: DB error');
+        $this->repository->save($credential);
+    }
+
+    public function testDeleteWrapsResourceException(): void
+    {
+        $credential = $this->createMock(CredentialInterface::class);
+        $credential->method('getEntityId')->willReturn(42);
+
+        $model = $this->createCredentialModel();
+        $this->credentialModelFactory->method('create')->willReturn($model);
+
+        $this->resource->expects($this->once())
+            ->method('load')
+            ->with($model, 42)
+            ->willReturnCallback(function (CredentialModel $m) {
+                $m->setData('entity_id', 42);
+                return $this->resource;
+            });
+
+        $this->resource->expects($this->once())
+            ->method('delete')
+            ->willThrowException(new \RuntimeException('FK violation'));
+
+        $this->expectException(CouldNotDeleteException::class);
+        $this->expectExceptionMessage('Could not delete passkey credential: FK violation');
+        $this->repository->delete($credential);
+    }
+
     /**
      * Create a CredentialModel mock that uses real DataObject data storage.
      *

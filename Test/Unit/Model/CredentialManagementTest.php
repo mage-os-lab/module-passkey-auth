@@ -140,6 +140,14 @@ class CredentialManagementTest extends TestCase
         $this->credentialManagement->renameCredential($customerId, $entityId, $friendlyName);
     }
 
+    public function testRenameCredentialRejectsEmptyName(): void
+    {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey name cannot be empty.');
+
+        $this->credentialManagement->renameCredential(10, 55, '   ');
+    }
+
     public function testValidateFriendlyNameEmpty(): void
     {
         $this->expectException(LocalizedException::class);
