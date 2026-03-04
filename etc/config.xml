@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <passkey_auth>
+            <general>
+                <enabled>0</enabled>
+                <ui_mode>standard</ui_mode>
+                <max_credentials>10</max_credentials>
+            </general>
+            <webauthn>
+                <user_verification>preferred</user_verification>
+                <authenticator_attachment/>
+                <attestation_conveyance>none</attestation_conveyance>
+                <ceremony_timeout>60000</ceremony_timeout>
+            </webauthn>
+            <enrollment>
+                <prompt_after_login>1</prompt_after_login>
+                <prompt_on_registration>0</prompt_on_registration>
+            </enrollment>
+        </passkey_auth>
+    </default>
+</config>

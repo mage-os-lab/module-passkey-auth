@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+
+    <table name="passkey_credential" resource="default" engine="innodb"
+           comment="Passkey WebAuthn Credentials">
+        <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true"
+                comment="Entity ID"/>
+        <column xsi:type="int" name="customer_id" unsigned="true" nullable="false"
+                comment="Customer ID"/>
+        <column xsi:type="varbinary" name="credential_id" nullable="false" length="1024"
+                comment="WebAuthn Credential ID"/>
+        <column xsi:type="blob" name="public_key" nullable="false"
+                comment="Serialized PublicKeyCredentialSource"/>
+        <column xsi:type="varbinary" name="user_handle" nullable="false" length="64"
+                comment="WebAuthn User Handle"/>
+        <column xsi:type="int" name="sign_count" unsigned="true" nullable="false" default="0"
+                comment="Signature Counter"/>
+        <column xsi:type="varchar" name="transports" nullable="true" length="255"
+                comment="Comma-separated transport types"/>
+        <column xsi:type="varchar" name="friendly_name" nullable="true" length="255"
+                comment="User-assigned credential name"/>
+        <column xsi:type="varchar" name="aaguid" nullable="true" length="36"
+                comment="Authenticator AAGUID"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP"
+                comment="Created At"/>
+        <column xsi:type="timestamp" name="last_used_at" nullable="true"
+                comment="Last Used At"/>
+
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="PASSKEY_CREDENTIAL_CREDENTIAL_ID">
+            <column name="credential_id"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="PASSKEY_CRED_CUSTOMER_ID_CUST_ENTITY_ENTITY_ID"
+                    table="passkey_credential" column="customer_id"
+                    referenceTable="customer_entity" referenceColumn="entity_id"
+                    onDelete="CASCADE"/>
+        <index referenceId="PASSKEY_CREDENTIAL_CUSTOMER_ID" indexType="btree">
+            <column name="customer_id"/>
+        </index>
+    </table>
+
+    <table name="passkey_challenge" resource="default" engine="innodb"
+           comment="Passkey WebAuthn Challenge Storage">
+        <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true"
+                comment="Entity ID"/>
+        <column xsi:type="varchar" name="token" nullable="false" length="64"
+                comment="Challenge Token"/>
+        <column xsi:type="blob" name="challenge_data" nullable="false"
+                comment="Serialized Challenge Options"/>
+        <column xsi:type="varchar" name="type" nullable="false" length="20"
+                comment="Challenge Type (registration|authentication)"/>
+        <column xsi:type="int" name="customer_id" unsigned="true" nullable="true"
+                comment="Customer ID (null for authentication)"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP"
+                comment="Created At"/>
+
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="PASSKEY_CHALLENGE_TOKEN">
+            <column name="token"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="PASSKEY_CHALLENGE_CUSTOMER_ID_CUST_ENTITY_ENTITY_ID"
+                    table="passkey_challenge" column="customer_id"
+                    referenceTable="customer_entity" referenceColumn="entity_id"
+                    onDelete="CASCADE"/>
+        <index referenceId="PASSKEY_CHALLENGE_CREATED_AT" indexType="btree">
+            <column name="created_at"/>
+        </index>
+    </table>
+</schema>

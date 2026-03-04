@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Data interfaces -->
+    <preference for="MageOS\PasskeyAuth\Api\Data\CredentialInterface"
+                type="MageOS\PasskeyAuth\Model\Data\Credential"/>
+
+    <!-- Repository -->
+    <preference for="MageOS\PasskeyAuth\Api\CredentialRepositoryInterface"
+                type="MageOS\PasskeyAuth\Model\CredentialRepository"/>
+
+    <!-- Registration services -->
+    <preference for="MageOS\PasskeyAuth\Api\RegistrationOptionsInterface"
+                type="MageOS\PasskeyAuth\Model\Registration\OptionsGenerator"/>
+    <preference for="MageOS\PasskeyAuth\Api\RegistrationVerifierInterface"
+                type="MageOS\PasskeyAuth\Model\Registration\Verifier"/>
+</config>

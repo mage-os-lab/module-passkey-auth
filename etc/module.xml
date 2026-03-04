@@ -4,6 +4,8 @@
     <module name="MageOS_PasskeyAuth">
         <sequence>
             <module name="Magento_Customer"/>
+            <module name="Magento_Integration"/>
+            <module name="Magento_Store"/>
         </sequence>
     </module>
 </config>

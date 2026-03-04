@@ -6,7 +6,10 @@
     "require": {
         "php": ">=8.2",
         "magento/framework": "*",
-        "magento/module-customer": "*"
+        "magento/module-customer": "*",
+        "magento/module-integration": "*",
+        "magento/module-store": "*",
+        "web-auth/webauthn-lib": "^5.0"
     },
     "autoload": {
         "files": [
