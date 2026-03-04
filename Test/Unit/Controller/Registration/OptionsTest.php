@@ -24,7 +24,7 @@ class OptionsTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private MockObject $requestMock;
+    private RequestInterface&MockObject $requestMock;
     private RegistrationOptionsInterface&MockObject $registrationOptionsMock;
     private ResultFactory&MockObject $resultFactoryMock;
     private Options $controller;

@@ -26,7 +26,7 @@ class VerifyTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private MockObject $requestMock;
+    private RequestInterface&MockObject $requestMock;
     private RegistrationVerifierInterface&MockObject $registrationVerifierMock;
     private JsonSerializer&MockObject $jsonSerializerMock;
     private ResultFactory&MockObject $resultFactoryMock;
