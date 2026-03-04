@@ -8,11 +8,11 @@
                 comment="Entity ID"/>
         <column xsi:type="int" name="customer_id" unsigned="true" nullable="false"
                 comment="Customer ID"/>
-        <column xsi:type="varbinary" name="credential_id" nullable="false" length="1024"
-                comment="WebAuthn Credential ID"/>
+        <column xsi:type="varchar" name="credential_id" nullable="false" length="1400"
+                comment="WebAuthn Credential ID (base64-encoded)"/>
         <column xsi:type="blob" name="public_key" nullable="false"
                 comment="Serialized PublicKeyCredentialSource"/>
-        <column xsi:type="varbinary" name="user_handle" nullable="false" length="64"
+        <column xsi:type="varbinary" name="user_handle" nullable="false" length="128"
                 comment="WebAuthn User Handle"/>
         <column xsi:type="int" name="sign_count" unsigned="true" nullable="false" default="0"
                 comment="Signature Counter"/>

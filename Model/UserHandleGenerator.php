@@ -24,6 +24,6 @@ class UserHandleGenerator
             return (string) $existing->getData('user_handle');
         }
 
-        return base64_encode(random_bytes(64));
+        return base64_encode(random_bytes(32));
     }
 }
