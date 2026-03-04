@@ -75,7 +75,13 @@ class Config
     {
         $baseUrl = $this->storeManager->getStore()->getBaseUrl();
         $parsed = parse_url($baseUrl);
-        return $parsed['host'] ?? 'localhost';
+        $host = $parsed['host'] ?? null;
+        if ($host === null) {
+            throw new \RuntimeException(
+                'Cannot determine RP ID: store base URL has no host component.'
+            );
+        }
+        return $host;
     }
 
     public function getRpName(): string
@@ -87,8 +93,13 @@ class Config
     {
         $baseUrl = $this->storeManager->getStore()->getBaseUrl();
         $parsed = parse_url($baseUrl);
-        $scheme = $parsed['scheme'] ?? 'https';
-        $host = $parsed['host'] ?? 'localhost';
+        $scheme = $parsed['scheme'] ?? null;
+        $host = $parsed['host'] ?? null;
+        if ($scheme === null || $host === null) {
+            throw new \RuntimeException(
+                'Cannot determine allowed origins: store base URL is missing scheme or host.'
+            );
+        }
         $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
         return [$scheme . '://' . $host . $port];
     }

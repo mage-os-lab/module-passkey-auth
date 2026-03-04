@@ -14,6 +14,7 @@ use MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider;
 use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
+use Psr\Log\LoggerInterface;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorAttestationResponseValidator;
 use Webauthn\PublicKeyCredential;
@@ -28,7 +29,8 @@ class Verifier implements RegistrationVerifierInterface
         private readonly CeremonyStepManagerProvider $ceremonyProvider,
         private readonly CredentialRepositoryInterface $credentialRepository,
         private readonly CredentialInterfaceFactory $credentialFactory,
-        private readonly EventManager $eventManager
+        private readonly EventManager $eventManager,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -42,9 +44,22 @@ class Verifier implements RegistrationVerifierInterface
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
 
-        $serializer = $this->serializerFactory->create();
+        if ($friendlyName !== null) {
+            $friendlyName = trim($friendlyName);
+            if ($friendlyName === '') {
+                $friendlyName = null;
+            } elseif (mb_strlen($friendlyName) > 255 || preg_match('/[<>&]/', $friendlyName)) {
+                throw new LocalizedException(__('Invalid passkey name.'));
+            }
+        }
 
-        $storedOptionsJson = $this->challengeManager->consume($challengeToken, 'registration');
+        $serializer = $this->serializerFactory->get();
+
+        $storedOptionsJson = $this->challengeManager->consume(
+            $challengeToken,
+            ChallengeManager::TYPE_REGISTRATION,
+            $customerId
+        );
 
         $creationOptions = $serializer->deserialize(
             $storedOptionsJson,
@@ -65,11 +80,29 @@ class Verifier implements RegistrationVerifierInterface
         $creationCSM = $this->ceremonyProvider->getCreationCeremony();
         $validator = AuthenticatorAttestationResponseValidator::create($creationCSM);
 
-        $credentialSource = $validator->check(
-            $publicKeyCredential->response,
-            $creationOptions,
-            $this->config->getRpId()
-        );
+        try {
+            $credentialSource = $validator->check(
+                $publicKeyCredential->response,
+                $creationOptions,
+                $this->config->getRpId()
+            );
+        } catch (\Exception $e) {
+            $this->logger->error('Passkey registration verification failed', [
+                'exception' => $e->getMessage(),
+                'customer_id' => $customerId,
+            ]);
+            $this->eventManager->dispatch('passkey_registration_failure', [
+                'customer_id' => $customerId,
+                'reason' => $e->getMessage(),
+            ]);
+            throw new LocalizedException(__('Passkey registration verification failed. Please try again.'), $e);
+        }
+
+        // Re-check max credentials to prevent race condition from concurrent registrations
+        $maxCredentials = $this->config->getMaxCredentials();
+        if ($this->credentialRepository->countByCustomerId($customerId) >= $maxCredentials) {
+            throw new LocalizedException(__('Maximum number of passkeys (%1) reached.', $maxCredentials));
+        }
 
         $transports = $publicKeyCredential->response->getTransports();
 
