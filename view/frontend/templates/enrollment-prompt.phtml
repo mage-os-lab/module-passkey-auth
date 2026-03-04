@@ -1,0 +1,27 @@
+<?php
+/** @var \MageOS\PasskeyAuth\Block\EnrollmentPrompt $block */
+?>
+<div class="passkey-enrollment-prompt" id="passkey-enrollment-prompt">
+    <div class="enrollment-message">
+        <strong><?= $block->escapeHtml(__('Sign in faster with a passkey')) ?></strong>
+        <span><?= $block->escapeHtml(__('Use your fingerprint, face, or security key for quick and secure sign-in.')) ?></span>
+    </div>
+    <div class="enrollment-actions">
+        <a href="<?= $block->escapeUrl($block->getPasskeysUrl()) ?>"
+           class="action primary setup"
+           title="<?= $block->escapeHtmlAttr(__('Set up a Passkey')) ?>">
+            <span><?= $block->escapeHtml(__('Set up')) ?></span>
+        </a>
+        <button type="button" class="action dismiss" id="passkey-enrollment-dismiss"
+                title="<?= $block->escapeHtmlAttr(__('Not now')) ?>">
+            <span><?= $block->escapeHtml(__('Not now')) ?></span>
+        </button>
+    </div>
+</div>
+<script type="text/x-magento-init">
+{
+    "#passkey-enrollment-prompt": {
+        "MageOS_PasskeyAuth/js/enrollment-prompt": {}
+    }
+}
+</script>

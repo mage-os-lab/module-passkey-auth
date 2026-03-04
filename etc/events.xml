@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!--
+    Events dispatched by MageOS_PasskeyAuth:
+
+    passkey_credential_register_after
+        - customer_id (int)
+        - credential (CredentialInterface)
+
+    passkey_authentication_success
+        - customer_id (int)
+        - credential (CredentialInterface)
+
+    passkey_authentication_failure
+        - credential_id (string, base64)
+        - reason (string)
+
+    passkey_credential_remove_after
+        - customer_id (int)
+        - credential_id (int)
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+</config>
