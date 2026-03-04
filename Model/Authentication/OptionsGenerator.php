@@ -8,6 +8,7 @@ use MageOS\PasskeyAuth\Api\AuthenticationOptionsInterface;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -27,7 +28,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         private readonly ChallengeManager $challengeManager,
         private readonly SerializerFactory $serializerFactory,
         private readonly StoreManagerInterface $storeManager,
-        private readonly Json $json
+        private readonly Json $json,
+        private readonly RateLimiter $rateLimiter
     ) {
     }
 
@@ -36,6 +38,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         if (!$this->config->isEnabled()) {
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
+
+        $this->rateLimiter->checkOptionsRate('auth_' . ($email ?? 'anonymous'));
 
         $allowCredentials = [];
         $customerId = null;
@@ -47,9 +51,7 @@ class OptionsGenerator implements AuthenticationOptionsInterface
                 $customerId = (int) $customer->getId();
 
                 foreach ($this->credentialRepository->getByCustomerId($customerId) as $credential) {
-                    $transports = $credential->getTransports()
-                        ? explode(',', $credential->getTransports())
-                        : [];
+                    $transports = $credential->getTransportsArray();
                     $allowCredentials[] = PublicKeyCredentialDescriptor::create(
                         PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                         base64_decode($credential->getCredentialId()),
@@ -69,13 +71,13 @@ class OptionsGenerator implements AuthenticationOptionsInterface
             timeout: $this->config->getCeremonyTimeout(),
         );
 
-        $serializer = $this->serializerFactory->create();
+        $serializer = $this->serializerFactory->get();
         $serializedOptions = $serializer->serialize($options, 'json', [
             AbstractObjectNormalizer::SKIP_NULL_VALUES => true,
         ]);
 
         $challengeToken = $this->challengeManager->create(
-            'authentication',
+            ChallengeManager::TYPE_AUTHENTICATION,
             $serializedOptions,
             $customerId
         );

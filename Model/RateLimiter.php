@@ -7,6 +7,11 @@ namespace MageOS\PasskeyAuth\Model;
 use Magento\Framework\App\CacheInterface;
 use Magento\Framework\Exception\LocalizedException;
 
+/**
+ * Note: The check-then-increment pattern is inherently non-atomic in cache-based storage.
+ * Under very high concurrency, a few extra requests may slip through. This is acceptable
+ * for rate limiting where exact precision is not required.
+ */
 class RateLimiter
 {
     private const OPTIONS_LIMIT = 10;
@@ -21,37 +26,34 @@ class RateLimiter
 
     public function checkOptionsRate(string $identifier): void
     {
-        $this->check(
-            'passkey_options_' . md5($identifier),
-            self::OPTIONS_LIMIT,
-            self::OPTIONS_WINDOW,
-            __('Too many passkey requests. Please try again later.')
-        );
+        $key = 'passkey_options_' . md5($identifier);
+        $this->checkOnly($key, self::OPTIONS_LIMIT, __('Too many passkey requests. Please try again later.'));
+        $this->increment($key, self::OPTIONS_WINDOW);
     }
 
     public function checkVerifyFailRate(string $ip): void
     {
-        $this->check(
-            'passkey_verify_fail_' . md5($ip),
-            self::VERIFY_FAIL_LIMIT,
-            self::VERIFY_FAIL_WINDOW,
-            __('Too many failed passkey attempts. Please try again later.')
-        );
+        $key = 'passkey_verify_fail_' . md5($ip);
+        $this->checkOnly($key, self::VERIFY_FAIL_LIMIT, __('Too many failed passkey attempts. Please try again later.'));
     }
 
     public function recordVerifyFailure(string $ip): void
     {
         $key = 'passkey_verify_fail_' . md5($ip);
-        $count = (int) $this->cache->load($key);
-        $this->cache->save((string) ($count + 1), $key, [], self::VERIFY_FAIL_WINDOW);
+        $this->increment($key, self::VERIFY_FAIL_WINDOW);
     }
 
-    private function check(string $key, int $limit, int $window, \Magento\Framework\Phrase $message): void
+    private function checkOnly(string $key, int $limit, \Magento\Framework\Phrase $message): void
     {
         $count = (int) $this->cache->load($key);
         if ($count >= $limit) {
             throw new LocalizedException($message);
         }
+    }
+
+    private function increment(string $key, int $window): void
+    {
+        $count = (int) $this->cache->load($key);
         $this->cache->save((string) ($count + 1), $key, [], $window);
     }
 }
