@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi:etc/webapi.xsd">
+
+    <!-- Registration (authenticated customer only) -->
+    <route url="/V1/passkey/registration/options" method="POST">
+        <service class="MageOS\PasskeyAuth\Api\RegistrationOptionsInterface" method="generate"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+
+    <route url="/V1/passkey/registration/verify" method="POST">
+        <service class="MageOS\PasskeyAuth\Api\RegistrationVerifierInterface" method="verify"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+
+    <!-- Authentication (anonymous) -->
+    <route url="/V1/passkey/authentication/options" method="POST">
+        <service class="MageOS\PasskeyAuth\Api\AuthenticationOptionsInterface" method="generate"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <route url="/V1/passkey/authentication/verify" method="POST">
+        <service class="MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface" method="verify"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <!-- Credential management (authenticated customer only) -->
+    <route url="/V1/passkey/credentials" method="GET">
+        <service class="MageOS\PasskeyAuth\Api\CredentialManagementInterface" method="listCredentials"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+
+    <route url="/V1/passkey/credentials/:entityId" method="DELETE">
+        <service class="MageOS\PasskeyAuth\Api\CredentialManagementInterface" method="deleteCredential"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+
+    <route url="/V1/passkey/credentials/:entityId" method="PUT">
+        <service class="MageOS\PasskeyAuth\Api\CredentialManagementInterface" method="renameCredential"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+</routes>

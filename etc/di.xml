@@ -15,4 +15,16 @@
                 type="MageOS\PasskeyAuth\Model\Registration\OptionsGenerator"/>
     <preference for="MageOS\PasskeyAuth\Api\RegistrationVerifierInterface"
                 type="MageOS\PasskeyAuth\Model\Registration\Verifier"/>
+
+    <!-- Authentication services -->
+    <preference for="MageOS\PasskeyAuth\Api\AuthenticationOptionsInterface"
+                type="MageOS\PasskeyAuth\Model\Authentication\OptionsGenerator"/>
+    <preference for="MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface"
+                type="MageOS\PasskeyAuth\Model\Authentication\Verifier"/>
+    <preference for="MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface"
+                type="MageOS\PasskeyAuth\Model\Data\AuthenticationResult"/>
+
+    <!-- Credential management -->
+    <preference for="MageOS\PasskeyAuth\Api\CredentialManagementInterface"
+                type="MageOS\PasskeyAuth\Model\CredentialManagement"/>
 </config>
