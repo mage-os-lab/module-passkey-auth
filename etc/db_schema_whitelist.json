@@ -4,6 +4,7 @@
             "entity_id": true,
             "customer_id": true,
             "credential_id": true,
+            "credential_id_hash": true,
             "public_key": true,
             "user_handle": true,
             "sign_count": true,
@@ -18,7 +19,7 @@
         },
         "constraint": {
             "PRIMARY": true,
-            "PASSKEY_CREDENTIAL_CREDENTIAL_ID": true,
+            "PASSKEY_CREDENTIAL_CREDENTIAL_ID_HASH": true,
             "PASSKEY_CRED_CUSTOMER_ID_CUST_ENTITY_ENTITY_ID": true
         }
     },

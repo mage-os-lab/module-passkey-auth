@@ -20,12 +20,19 @@ interface CredentialManagementInterface
     public function listCredentials(int $customerId): array;
 
     /**
+     * @param int $customerId
+     * @param int $entityId
+     * @return bool
      * @throws AuthorizationException
      * @throws NoSuchEntityException
      */
     public function deleteCredential(int $customerId, int $entityId): bool;
 
     /**
+     * @param int $customerId
+     * @param int $entityId
+     * @param string $friendlyName
+     * @return CredentialInterface
      * @throws AuthorizationException
      * @throws NoSuchEntityException
      */

@@ -72,6 +72,7 @@ class CredentialRepository implements CredentialRepositoryInterface
 
         $model->setData('customer_id', $credential->getCustomerId());
         $model->setData('credential_id', $credential->getCredentialId());
+        $model->setData('credential_id_hash', hash('sha256', $credential->getCredentialId()));
         $model->setData('public_key', $credential->getPublicKey());
         $model->setData('user_handle', $credential->getUserHandle());
         $model->setData('sign_count', $credential->getSignCount());

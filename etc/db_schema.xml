@@ -8,8 +8,10 @@
                 comment="Entity ID"/>
         <column xsi:type="int" name="customer_id" unsigned="true" nullable="false"
                 comment="Customer ID"/>
-        <column xsi:type="varchar" name="credential_id" nullable="false" length="1400"
-                comment="WebAuthn Credential ID (base64-encoded)"/>
+        <column xsi:type="text" name="credential_id" nullable="false"
+                comment="WebAuthn Credential ID (base64url-encoded)"/>
+        <column xsi:type="varchar" name="credential_id_hash" nullable="false" length="64"
+                comment="SHA-256 hash of credential_id for unique indexing"/>
         <column xsi:type="blob" name="public_key" nullable="false"
                 comment="Serialized PublicKeyCredentialSource"/>
         <column xsi:type="varbinary" name="user_handle" nullable="false" length="128"
@@ -30,8 +32,8 @@
         <constraint xsi:type="primary" referenceId="PRIMARY">
             <column name="entity_id"/>
         </constraint>
-        <constraint xsi:type="unique" referenceId="PASSKEY_CREDENTIAL_CREDENTIAL_ID">
-            <column name="credential_id"/>
+        <constraint xsi:type="unique" referenceId="PASSKEY_CREDENTIAL_CREDENTIAL_ID_HASH">
+            <column name="credential_id_hash"/>
         </constraint>
         <constraint xsi:type="foreign" referenceId="PASSKEY_CRED_CUSTOMER_ID_CUST_ENTITY_ENTITY_ID"
                     table="passkey_credential" column="customer_id"
