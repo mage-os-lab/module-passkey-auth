@@ -27,7 +27,12 @@ define([
             var self = this;
 
             if (!passkeyCore.isAvailable()) {
-                this._showMessage($t('Your browser does not support passkeys.'), 'error');
+                this._showMessage(
+                    window.isSecureContext
+                        ? $t('Your browser does not support passkeys.')
+                        : $t('Passkeys require a secure (HTTPS) connection.'),
+                    'error'
+                );
                 return;
             }
 
@@ -179,14 +184,14 @@ define([
 
         _showMessage: function (text, type) {
             this.$message
-                .text(text)
-                .removeClass('message-success message-error')
-                .addClass('message-' + type)
-                .show();
+                .removeClass('error success info')
+                .addClass(type)
+                .find('div').text(text);
+            this.$message.show();
         },
 
         _clearMessage: function () {
-            this.$message.hide().text('');
+            this.$message.hide().find('div').text('');
         }
     });
 

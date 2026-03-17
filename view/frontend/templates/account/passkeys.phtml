@@ -5,14 +5,18 @@ $credentials = $block->getCredentials();
 ?>
 <div class="passkey-management" id="passkey-management">
     <?php if (empty($credentials)): ?>
-        <div class="passkey-empty-state">
-            <p><?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?></p>
+        <div class="message info">
+            <div>
+                <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
+            </div>
+        </div>
+        <div class="passkey-add-action">
             <button type="button" class="action primary add-passkey" id="passkey-add-btn">
                 <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
             </button>
         </div>
     <?php else: ?>
-        <table class="passkey-list">
+        <table class="data table passkey-list">
             <thead>
                 <tr>
                     <th><?= $escaper->escapeHtml(__('Name')) ?></th>
@@ -51,7 +55,8 @@ $credentials = $block->getCredentials();
         </div>
     <?php endif; ?>
 
-    <div class="passkey-login-message" id="passkey-manage-message" style="display:none;" role="alert">
+    <div class="message" id="passkey-manage-message" style="display:none;" role="alert">
+        <div></div>
     </div>
 </div>
 

@@ -104,7 +104,7 @@ class Verifier implements RegistrationVerifierInterface
             throw new LocalizedException(__('Maximum number of passkeys (%1) reached.', $maxCredentials));
         }
 
-        $transports = $publicKeyCredential->response->getTransports();
+        $transports = $publicKeyCredential->response->transports;
 
         /** @var CredentialInterface $credential */
         $credential = $this->credentialFactory->create();

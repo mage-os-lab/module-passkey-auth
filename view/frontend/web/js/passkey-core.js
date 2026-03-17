@@ -3,10 +3,11 @@ define([], function () {
 
     return {
         /**
-         * Check if WebAuthn is available in this browser.
+         * Check if WebAuthn API is present (requires secure context).
          */
         isAvailable: function () {
-            return typeof window.PublicKeyCredential !== 'undefined';
+            return window.isSecureContext
+                && typeof window.PublicKeyCredential !== 'undefined';
         },
 
         /**
@@ -44,44 +45,51 @@ define([], function () {
          * Prepare creation options received from server for navigator.credentials.create().
          */
         prepareCreationOptions: function (options) {
-            var prepared = Object.assign({}, options);
+            var self = this;
+            var publicKey = {
+                challenge: this.base64urlToBuffer(options.challenge),
+                rp: options.rp,
+                user: Object.assign({}, options.user, {
+                    id: this.base64urlToBuffer(options.user.id)
+                }),
+                pubKeyCredParams: options.pubKeyCredParams,
+                authenticatorSelection: options.authenticatorSelection,
+                attestation: options.attestation,
+                timeout: options.timeout
+            };
 
-            prepared.challenge = this.base64urlToBuffer(prepared.challenge);
-
-            if (prepared.user && prepared.user.id) {
-                prepared.user.id = this.base64urlToBuffer(prepared.user.id);
-            }
-
-            if (prepared.excludeCredentials) {
-                var self = this;
-                prepared.excludeCredentials = prepared.excludeCredentials.map(function (cred) {
+            if (options.excludeCredentials && options.excludeCredentials.length) {
+                publicKey.excludeCredentials = options.excludeCredentials.map(function (cred) {
                     return Object.assign({}, cred, {
                         id: self.base64urlToBuffer(cred.id)
                     });
                 });
             }
 
-            return { publicKey: prepared };
+            return { publicKey: publicKey };
         },
 
         /**
          * Prepare request options received from server for navigator.credentials.get().
          */
         prepareRequestOptions: function (options) {
-            var prepared = Object.assign({}, options);
+            var self = this;
+            var publicKey = {
+                challenge: this.base64urlToBuffer(options.challenge),
+                rpId: options.rpId,
+                userVerification: options.userVerification,
+                timeout: options.timeout
+            };
 
-            prepared.challenge = this.base64urlToBuffer(prepared.challenge);
-
-            if (prepared.allowCredentials) {
-                var self = this;
-                prepared.allowCredentials = prepared.allowCredentials.map(function (cred) {
+            if (options.allowCredentials && options.allowCredentials.length) {
+                publicKey.allowCredentials = options.allowCredentials.map(function (cred) {
                     return Object.assign({}, cred, {
                         id: self.base64urlToBuffer(cred.id)
                     });
                 });
             }
 
-            return { publicKey: prepared };
+            return { publicKey: publicKey };
         },
 
         /**

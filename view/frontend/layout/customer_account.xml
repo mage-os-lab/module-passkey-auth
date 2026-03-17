@@ -13,5 +13,12 @@
                 </arguments>
             </block>
         </referenceBlock>
+        <referenceContainer name="content">
+            <block class="MageOS\PasskeyAuth\Block\EnrollmentPrompt"
+                   name="passkey.enrollment.prompt"
+                   template="MageOS_PasskeyAuth::enrollment-prompt.phtml"
+                   ifconfig="passkey_auth/general/enabled"
+                   after="-"/>
+        </referenceContainer>
     </body>
 </page>

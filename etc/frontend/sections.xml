@@ -7,4 +7,7 @@
     <action name="customer/account/createpost">
         <section name="passkey"/>
     </action>
+    <action name="passkey/registration/verify">
+        <section name="passkey"/>
+    </action>
 </config>
