@@ -17,13 +17,10 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 
 ### Credential Management
 - **My Account page**: Customers add, rename, and delete passkeys from their account dashboard
-- **Configurable limit**: Cap the number of passkeys per customer (default: 10)
 - **Clone detection**: Sign-count tracking detects copied authenticators
 
 ### Store Admin Controls
-- **UI modes**: Standard (passkey button alongside password) or Preferred (passkey as primary login)
-- **Enrollment prompts**: Optional banners after password login or account creation to encourage passkey adoption
-- **WebAuthn tuning**: User verification, authenticator attachment, attestation conveyance, and ceremony timeout
+- **Enrollment prompts**: Optional banners on account pages after password login or account creation to encourage passkey adoption
 - **Rate limiting**: Built-in cache-based limits on options requests and verification failures
 
 ## Requirements
@@ -43,33 +40,17 @@ bin/magento setup:upgrade
 
 ## Configuration
 
-Navigate to **Stores > Configuration > Customers > Passkey Authentication**.
-
-### General
+Navigate to **Stores > Configuration > Customers > Customer Configuration > Passkey Authentication**.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| **Enable Passkey Authentication** | Master on/off switch | No |
-| **UI Mode** | `Standard` (alongside password) or `Preferred` (passkey-first) | Standard |
-| **Maximum Passkeys Per Customer** | Cap on registered credentials | 10 |
-
-### WebAuthn Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **User Verification** | `preferred`, `required`, or `discouraged` | preferred |
-| **Authenticator Attachment** | `platform` (built-in biometrics), `cross-platform` (security keys), or any | any |
-| **Attestation Conveyance** | `none`, `indirect`, `direct`, or `enterprise` | none |
-| **Ceremony Timeout** | How long the user has to complete the passkey prompt (ms) | 60000 |
-
-### Enrollment Prompts
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Prompt After Password Login** | Show enrollment banner after password sign-in | Yes |
-| **Prompt After Account Creation** | Show enrollment banner after registration | No |
+| **Enable Passkey Authentication** | Master on/off switch | Yes |
+| **Prompt After Password Login** | Show enrollment banner on account pages after password sign-in | Yes |
+| **Prompt After Account Creation** | Show enrollment banner on account pages after registration | No |
 
 The Relying Party (RP) ID and allowed origins are derived automatically from the store's base URL — no manual configuration required.
+
+WebAuthn parameters (user verification, attestation conveyance, ceremony timeout, authenticator attachment, and max credentials per customer) use sane defaults internally and are not exposed as admin settings.
 
 ## Architecture
 
@@ -111,7 +92,7 @@ All business logic is exposed through `Api` interfaces:
 
 ### Database
 
-**`passkey_credential`** — Stores registered WebAuthn credentials. One customer can have multiple credentials. Foreign key to `customer_entity` with `CASCADE` delete.
+**`passkey_credential`** — Stores registered WebAuthn credentials. One customer can have multiple credentials (up to 10). Foreign key to `customer_entity` with `CASCADE` delete.
 
 **`passkey_challenge`** — Temporary single-use challenges with a 5-minute TTL. Cleaned up by the `passkey_challenge_cleanup` cron job.
 
@@ -144,11 +125,11 @@ The module provides three jQuery UI widgets that can be extended via RequireJS m
 - `passkeyManage` — My Account credential management (add/rename/delete)
 - `enrollmentPrompt` — Enrollment banner after password login
 
-Templates are in `view/frontend/templates/` and can be overridden via theme fallback.
+Templates are in `view/frontend/templates/` and can be overridden via theme fallback. Styles use Luma/blank theme variables and patterns (`.message.info`, `.data.table`, `.action.primary`) for native theme consistency.
 
 ## Security
 
-- **HTTPS required**: WebAuthn ceremonies are rejected by browsers on non-secure origins.
+- **HTTPS required**: WebAuthn ceremonies are rejected by browsers on non-secure origins. The module detects non-secure contexts and displays a specific error message.
 - **Single-use challenges**: Each challenge token is consumed on verification and cannot be reused.
 - **Rate limiting**: Options generation (10 requests/60s) and verification failures (5 failures/900s) are rate-limited per customer.
 - **Sign-count validation**: Detects cloned authenticators by tracking the signature counter.

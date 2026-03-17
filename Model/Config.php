@@ -9,15 +9,14 @@ use Magento\Store\Model\StoreManagerInterface;
 
 class Config
 {
-    public const XML_PATH_ENABLED = 'passkey_auth/general/enabled';
-    public const XML_PATH_UI_MODE = 'passkey_auth/general/ui_mode';
-    public const XML_PATH_MAX_CREDENTIALS = 'passkey_auth/general/max_credentials';
-    public const XML_PATH_USER_VERIFICATION = 'passkey_auth/webauthn/user_verification';
-    public const XML_PATH_AUTHENTICATOR_ATTACHMENT = 'passkey_auth/webauthn/authenticator_attachment';
-    public const XML_PATH_ATTESTATION_CONVEYANCE = 'passkey_auth/webauthn/attestation_conveyance';
-    public const XML_PATH_CEREMONY_TIMEOUT = 'passkey_auth/webauthn/ceremony_timeout';
-    public const XML_PATH_PROMPT_AFTER_LOGIN = 'passkey_auth/enrollment/prompt_after_login';
-    public const XML_PATH_PROMPT_ON_REGISTRATION = 'passkey_auth/enrollment/prompt_on_registration';
+    public const XML_PATH_ENABLED = 'customer/passkey/enabled';
+    public const XML_PATH_PROMPT_AFTER_LOGIN = 'customer/passkey/prompt_after_login';
+    public const XML_PATH_PROMPT_ON_REGISTRATION = 'customer/passkey/prompt_on_registration';
+
+    private const MAX_CREDENTIALS = 10;
+    private const USER_VERIFICATION = 'preferred';
+    private const ATTESTATION_CONVEYANCE = 'none';
+    private const CEREMONY_TIMEOUT = 60000;
 
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
@@ -30,35 +29,29 @@ class Config
         return $this->scopeConfig->isSetFlag(self::XML_PATH_ENABLED);
     }
 
-    public function getUiMode(): string
-    {
-        return (string) $this->scopeConfig->getValue(self::XML_PATH_UI_MODE);
-    }
-
     public function getMaxCredentials(): int
     {
-        return (int) $this->scopeConfig->getValue(self::XML_PATH_MAX_CREDENTIALS);
+        return self::MAX_CREDENTIALS;
     }
 
     public function getUserVerification(): string
     {
-        return (string) $this->scopeConfig->getValue(self::XML_PATH_USER_VERIFICATION);
+        return self::USER_VERIFICATION;
     }
 
     public function getAuthenticatorAttachment(): ?string
     {
-        $value = $this->scopeConfig->getValue(self::XML_PATH_AUTHENTICATOR_ATTACHMENT);
-        return $value ?: null;
+        return null;
     }
 
     public function getAttestationConveyance(): string
     {
-        return (string) $this->scopeConfig->getValue(self::XML_PATH_ATTESTATION_CONVEYANCE);
+        return self::ATTESTATION_CONVEYANCE;
     }
 
     public function getCeremonyTimeout(): int
     {
-        return (int) $this->scopeConfig->getValue(self::XML_PATH_CEREMONY_TIMEOUT);
+        return self::CEREMONY_TIMEOUT;
     }
 
     public function isPromptAfterLoginEnabled(): bool

@@ -5,7 +5,7 @@
         <referenceBlock name="customer_account_navigation">
             <block class="Magento\Customer\Block\Account\SortLinkInterface"
                    name="customer-account-navigation-passkeys-link"
-                   ifconfig="passkey_auth/general/enabled">
+                   ifconfig="customer/passkey/enabled">
                 <arguments>
                     <argument name="label" xsi:type="string" translate="true">Passkeys</argument>
                     <argument name="path" xsi:type="string">passkey/account</argument>
@@ -17,7 +17,7 @@
             <block class="MageOS\PasskeyAuth\Block\EnrollmentPrompt"
                    name="passkey.enrollment.prompt"
                    template="MageOS_PasskeyAuth::enrollment-prompt.phtml"
-                   ifconfig="passkey_auth/general/enabled"
+                   ifconfig="customer/passkey/enabled"
                    after="-"/>
         </referenceContainer>
     </body>

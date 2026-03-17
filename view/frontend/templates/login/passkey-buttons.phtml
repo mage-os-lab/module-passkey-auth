@@ -1,9 +1,8 @@
 <?php declare(strict_types=1);
 /** @var \MageOS\PasskeyAuth\Block\Login\PasskeyButton $block */
 /** @var \Magento\Framework\Escaper $escaper */
-$uiMode = $escaper->escapeHtmlAttr($block->getUiMode());
 ?>
-<div class="passkey-login-section passkey-mode-<?= $uiMode ?>" id="passkey-login-container" style="display:none;">
+<div class="passkey-login-section" id="passkey-login-container" style="display:none;">
     <div class="passkey-divider">
         <span><?= $escaper->escapeHtml(__('or')) ?></span>
     </div>

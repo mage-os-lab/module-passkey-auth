@@ -2,16 +2,10 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
     <system>
-        <section id="passkey_auth" translate="label" type="text" sortOrder="200"
-                 showInDefault="1" showInWebsite="1" showInStore="0">
-            <class>separator-top</class>
-            <label>Passkey Authentication</label>
-            <tab>customer</tab>
-            <resource>MageOS_PasskeyAuth::config</resource>
-
-            <group id="general" translate="label" sortOrder="10"
+        <section id="customer">
+            <group id="passkey" translate="label" sortOrder="75"
                    showInDefault="1" showInWebsite="1" showInStore="0">
-                <label>General</label>
+                <label>Passkey Authentication</label>
 
                 <field id="enabled" translate="label" type="select" sortOrder="10"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
@@ -19,80 +13,24 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
 
-                <field id="ui_mode" translate="label comment" type="select" sortOrder="20"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>UI Mode</label>
-                    <source_model>MageOS\PasskeyAuth\Model\Config\Source\UiMode</source_model>
-                    <comment>Standard: passkey button alongside password. Preferred: passkey is primary login method.</comment>
-                    <depends>
-                        <field id="enabled">1</field>
-                    </depends>
-                </field>
-
-                <field id="max_credentials" translate="label comment" type="text" sortOrder="30"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Maximum Passkeys Per Customer</label>
-                    <validate>validate-digits</validate>
-                    <comment>Maximum number of passkeys a customer can register.</comment>
-                    <depends>
-                        <field id="enabled">1</field>
-                    </depends>
-                </field>
-            </group>
-
-            <group id="webauthn" translate="label" sortOrder="20"
-                   showInDefault="1" showInWebsite="0" showInStore="0">
-                <label>WebAuthn Settings</label>
-                <depends>
-                    <field id="passkey_auth/general/enabled">1</field>
-                </depends>
-
-                <field id="user_verification" translate="label" type="select" sortOrder="10"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>User Verification</label>
-                    <source_model>MageOS\PasskeyAuth\Model\Config\Source\UserVerification</source_model>
-                </field>
-
-                <field id="authenticator_attachment" translate="label comment" type="select" sortOrder="20"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Authenticator Attachment</label>
-                    <source_model>MageOS\PasskeyAuth\Model\Config\Source\AuthenticatorAttachment</source_model>
-                    <comment>Restrict to platform (built-in biometrics) or cross-platform (security keys), or allow any.</comment>
-                </field>
-
-                <field id="attestation_conveyance" translate="label" type="select" sortOrder="30"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Attestation Conveyance</label>
-                    <source_model>MageOS\PasskeyAuth\Model\Config\Source\AttestationConveyance</source_model>
-                </field>
-
-                <field id="ceremony_timeout" translate="label comment" type="text" sortOrder="40"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Ceremony Timeout (ms)</label>
-                    <validate>validate-digits</validate>
-                    <comment>How long the user has to complete the passkey prompt (in milliseconds).</comment>
-                </field>
-            </group>
-
-            <group id="enrollment" translate="label" sortOrder="30"
-                   showInDefault="1" showInWebsite="1" showInStore="0">
-                <label>Enrollment Prompts</label>
-                <depends>
-                    <field id="passkey_auth/general/enabled">1</field>
-                </depends>
-
-                <field id="prompt_after_login" translate="label comment" type="select" sortOrder="10"
+                <field id="prompt_after_login" translate="label comment" type="select" sortOrder="20"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Prompt After Password Login</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment>Show a passkey enrollment banner after a customer logs in with their password.</comment>
+                    <comment>Show a passkey enrollment banner on account pages after a customer logs in with their password.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
                 </field>
 
-                <field id="prompt_on_registration" translate="label comment" type="select" sortOrder="20"
+                <field id="prompt_on_registration" translate="label comment" type="select" sortOrder="30"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Prompt After Account Creation</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment>Show a passkey enrollment banner after a new customer account is created.</comment>
+                    <comment>Show a passkey enrollment banner on account pages after a new customer account is created.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
                 </field>
             </group>
         </section>

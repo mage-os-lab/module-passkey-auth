@@ -6,7 +6,7 @@
             <block class="MageOS\PasskeyAuth\Block\Login\PasskeyButton"
                    name="customer.login.passkey"
                    template="MageOS_PasskeyAuth::login/passkey-buttons.phtml"
-                   ifconfig="passkey_auth/general/enabled"
+                   ifconfig="customer/passkey/enabled"
                    after="-"/>
         </referenceContainer>
     </body>
