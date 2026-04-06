@@ -1,14 +1,10 @@
 (function (root, factory) {
-    'use strict';
-
     if (typeof define === 'function' && define.amd) {
         define([], factory);
     } else {
         root.passkeyCore = factory();
     }
 }(typeof self !== 'undefined' ? self : this, function () {
-    'use strict';
-
     return {
         /**
          * Check if WebAuthn API is present (requires secure context).

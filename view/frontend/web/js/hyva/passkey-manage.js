@@ -1,5 +1,3 @@
-'use strict';
-
 window.addEventListener('alpine:init', () => {
 
     Alpine.data('passkeyManage', () => ({
