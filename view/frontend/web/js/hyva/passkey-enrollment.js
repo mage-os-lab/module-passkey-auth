@@ -1,10 +1,12 @@
 'use strict';
 
-function passkeyEnrollment(config) {
-    return {
+window.addEventListener('alpine:init', () => {
+    Alpine.data('passkeyEnrollment', () => ({
         visible: false,
 
-        receiveCustomerData(data) {
+        receiveCustomerData(event) {
+            const data = event.detail.data;
+
             if (data.passkey
                 && data.passkey.show_enrollment_prompt
                 && !sessionStorage.getItem('passkey_enrollment_dismissed')
@@ -17,5 +19,5 @@ function passkeyEnrollment(config) {
             sessionStorage.setItem('passkey_enrollment_dismissed', '1');
             this.visible = false;
         }
-    };
-}
+    }));
+}, {once: true});

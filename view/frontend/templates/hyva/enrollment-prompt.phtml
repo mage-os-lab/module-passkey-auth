@@ -2,12 +2,8 @@
 /** @var \MageOS\PasskeyAuth\Block\EnrollmentPrompt $block */
 /** @var \Magento\Framework\Escaper $escaper */
 ?>
-<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-enrollment.js')) ?>"></script>
-
-<div x-data="passkeyEnrollment({
-        passkeysUrl: '<?= $escaper->escapeJs($block->getPasskeysUrl()) ?>'
-     })"
-     @private-content-loaded.window="receiveCustomerData($event.detail.data)"
+<div x-data="passkeyEnrollment"
+     @private-content-loaded.window="receiveCustomerData"
      x-cloak
      x-show="visible"
      x-transition
@@ -27,7 +23,7 @@
         </a>
         <button type="button"
                 class="text-sm text-gray-500 underline hover:text-gray-700"
-                @click="dismiss()">
+                @click="dismiss">
             <?= $escaper->escapeHtml(__('Not now')) ?>
         </button>
     </div>

@@ -1,113 +1,69 @@
 'use strict';
 
-function passkeyManage(config) {
-    return {
+window.addEventListener('alpine:init', () => {
+
+    Alpine.data('passkeyManage', () => ({
         message: '',
         messageType: '',
-        editingId: null,
-        editName: '',
+
+        get hasMessage() { return this.message !== ''; },
+        get messageClasses() {
+            if (this.messageType === 'error') return 'bg-red-100 text-red-700';
+            if (this.messageType === 'success') return 'bg-green-100 text-green-700';
+            return 'bg-blue-100 text-blue-700';
+        },
+
+        init() {
+            this.registrationOptionsUrl = this.$el.dataset.registrationOptionsUrl;
+            this.registrationVerifyUrl = this.$el.dataset.registrationVerifyUrl;
+        },
+
+        handleMessage(event) {
+            this.message = event.detail.text;
+            this.messageType = event.detail.type;
+        },
 
         async register() {
             if (!passkeyCore.isAvailable()) {
-                this.showMessage(
-                    window.isSecureContext
-                        ? 'Your browser does not support passkeys.'
-                        : 'Passkeys require a secure (HTTPS) connection.',
-                    'error'
-                );
+                this.message = window.isSecureContext
+                    ? 'Your browser does not support passkeys.'
+                    : 'Passkeys require a secure (HTTPS) connection.';
+                this.messageType = 'error';
                 return;
             }
 
             const friendlyName = prompt('Give this passkey a name (optional):') || null;
-            this.clearMessage();
+            this.message = '';
+            this.messageType = '';
 
             try {
-                const options = await this.postJson(config.registrationOptionsUrl, {});
+                const options = await this.postJson(this.registrationOptionsUrl, {});
                 const challengeToken = options.challengeToken;
                 const creationOptions = passkeyCore.prepareCreationOptions(options);
                 const credential = await navigator.credentials.create(creationOptions);
                 const serialized = passkeyCore.serializeAttestationResponse(credential);
 
-                const result = await this.postJson(config.registrationVerifyUrl, {
+                const result = await this.postJson(this.registrationVerifyUrl, {
                     challengeToken: challengeToken,
                     credential: serialized,
                     friendlyName: friendlyName
                 });
 
                 if (result.errors) {
-                    this.showMessage(result.message, 'error');
+                    this.message = result.message;
+                    this.messageType = 'error';
                 } else {
-                    this.showMessage('Passkey registered successfully.', 'success');
+                    this.message = 'Passkey registered successfully.';
+                    this.messageType = 'success';
                     setTimeout(function () { window.location.reload(); }, 1000);
                 }
             } catch (err) {
                 if (err.name === 'NotAllowedError') {
-                    this.showMessage('Passkey registration was cancelled.', 'error');
+                    this.message = 'Passkey registration was cancelled.';
                 } else {
-                    this.showMessage(err.message || 'Registration failed.', 'error');
+                    this.message = err.message || 'Registration failed.';
                 }
-            }
-        },
-
-        async deletePasskey(entityId, row) {
-            if (!confirm('Are you sure you want to delete this passkey?')) {
-                return;
-            }
-
-            try {
-                const result = await this.postForm(config.deleteUrl, {entity_id: entityId});
-
-                if (result.errors) {
-                    this.showMessage(result.message, 'error');
-                } else {
-                    row.style.transition = 'opacity 0.3s';
-                    row.style.opacity = '0';
-                    setTimeout(function () { row.remove(); }, 300);
-                    this.showMessage('Passkey deleted.', 'success');
-                }
-            } catch (e) {
-                this.showMessage('Failed to delete passkey.', 'error');
-            }
-        },
-
-        startRename(entityId, currentName) {
-            this.editingId = entityId;
-            this.editName = currentName;
-            this.$nextTick(() => {
-                const input = this.$refs['nameInput' + entityId];
-                if (input) {
-                    input.focus();
-                    input.select();
-                }
-            });
-        },
-
-        cancelRename() {
-            this.editingId = null;
-            this.editName = '';
-        },
-
-        async saveRename(entityId, displayEl) {
-            const newName = this.editName.trim();
-            this.editingId = null;
-
-            if (!newName) {
-                return;
-            }
-
-            try {
-                const result = await this.postJson(config.renameUrl, {
-                    entity_id: entityId,
-                    friendly_name: newName
-                });
-
-                if (result.errors) {
-                    this.showMessage(result.message, 'error');
-                } else {
-                    displayEl.textContent = result.friendly_name || newName;
-                }
-            } catch (e) {
-                this.showMessage('Failed to rename passkey.', 'error');
+                this.messageType = 'error';
             }
         },
 
@@ -119,32 +75,103 @@ function passkeyManage(config) {
                 credentials: 'same-origin'
             });
             return response.json();
+        }
+    }));
+
+    Alpine.data('passkeyRow', () => ({
+        editing: false,
+        editName: '',
+
+        get notEditing() { return !this.editing; },
+
+        init() {
+            this.entityId = parseInt(this.$el.dataset.entityId);
+            this.friendlyName = this.$el.dataset.friendlyName || '';
+            this.editName = this.friendlyName;
+            this.deleteUrl = this.$el.closest('[data-delete-url]').dataset.deleteUrl;
+            this.renameUrl = this.$el.closest('[data-rename-url]').dataset.renameUrl;
         },
 
-        async postForm(url, params) {
-            const formData = new URLSearchParams();
-            formData.append('form_key', hyva.getFormKey());
-            for (const [key, value] of Object.entries(params)) {
-                formData.append(key, value);
+        startRename() {
+            this.editing = true;
+            this.editName = this.friendlyName;
+            this.$nextTick(() => {
+                if (this.$refs.nameInput) {
+                    this.$refs.nameInput.focus();
+                    this.$refs.nameInput.select();
+                }
+            });
+        },
+
+        cancelRename() {
+            this.editing = false;
+        },
+
+        updateEditName(event) {
+            this.editName = event.target.value;
+        },
+
+        async saveRename() {
+            const newName = this.editName.trim();
+            this.editing = false;
+
+            if (!newName) {
+                return;
             }
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: formData.toString(),
-                credentials: 'same-origin'
-            });
-            return response.json();
+            try {
+                const response = await fetch(this.renameUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        entity_id: this.entityId,
+                        friendly_name: newName
+                    }),
+                    credentials: 'same-origin'
+                });
+                const result = await response.json();
+
+                if (result.errors) {
+                    this.$dispatch('passkey-message', {text: result.message, type: 'error'});
+                } else {
+                    this.friendlyName = result.friendly_name || newName;
+                    this.$refs.nameDisplay.textContent = this.friendlyName;
+                }
+            } catch (e) {
+                this.$dispatch('passkey-message', {text: 'Failed to rename passkey.', type: 'error'});
+            }
         },
 
-        showMessage(text, type) {
-            this.message = text;
-            this.messageType = type;
-        },
+        async deleteRow() {
+            if (!confirm('Are you sure you want to delete this passkey?')) {
+                return;
+            }
 
-        clearMessage() {
-            this.message = '';
-            this.messageType = '';
+            const formData = new URLSearchParams();
+            formData.append('form_key', hyva.getFormKey());
+            formData.append('entity_id', this.entityId);
+
+            try {
+                const response = await fetch(this.deleteUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: formData.toString(),
+                    credentials: 'same-origin'
+                });
+                const result = await response.json();
+
+                if (result.errors) {
+                    this.$dispatch('passkey-message', {text: result.message, type: 'error'});
+                } else {
+                    this.$el.style.transition = 'opacity 0.3s';
+                    this.$el.style.opacity = '0';
+                    setTimeout(() => this.$el.remove(), 300);
+                    this.$dispatch('passkey-message', {text: 'Passkey deleted.', type: 'success'});
+                }
+            } catch (e) {
+                this.$dispatch('passkey-message', {text: 'Failed to delete passkey.', type: 'error'});
+            }
         }
-    };
-}
+    }));
+
+}, {once: true});

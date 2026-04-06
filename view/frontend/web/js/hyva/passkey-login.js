@@ -1,14 +1,24 @@
 'use strict';
 
-function passkeyLogin(config) {
-    return {
+window.addEventListener('alpine:init', () => {
+    Alpine.data('passkeyLogin', () => ({
         available: false,
         loading: false,
         message: '',
         messageType: '',
 
+        get notLoading() { return !this.loading; },
+        get hasMessage() { return this.message !== ''; },
+        get messageClasses() {
+            if (this.messageType === 'error') return 'bg-red-100 text-red-700';
+            if (this.messageType === 'success') return 'bg-green-100 text-green-700';
+            return 'bg-blue-100 text-blue-700';
+        },
+
         init() {
             this.available = passkeyCore.isAvailable();
+            this.optionsUrl = this.$el.dataset.optionsUrl;
+            this.verifyUrl = this.$el.dataset.verifyUrl;
         },
 
         getEmail() {
@@ -17,7 +27,8 @@ function passkeyLogin(config) {
         },
 
         async login() {
-            this.clearMessage();
+            this.message = '';
+            this.messageType = '';
             this.loading = true;
 
             try {
@@ -26,13 +37,14 @@ function passkeyLogin(config) {
                 await this.verifyAssertion(result.challengeToken, result.credential);
                 window.location.reload();
             } catch (error) {
-                this.showMessage(error.message || 'Passkey sign-in failed.', 'error');
+                this.message = error.message || 'Passkey sign-in failed.';
+                this.messageType = 'error';
                 this.loading = false;
             }
         },
 
         async fetchOptions(email) {
-            const response = await fetch(config.optionsUrl, {
+            const response = await fetch(this.optionsUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({email: email}),
@@ -66,7 +78,7 @@ function passkeyLogin(config) {
         },
 
         async verifyAssertion(challengeToken, credential) {
-            const response = await fetch(config.verifyUrl, {
+            const response = await fetch(this.verifyUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -82,16 +94,6 @@ function passkeyLogin(config) {
             }
 
             return data;
-        },
-
-        showMessage(text, type) {
-            this.message = text;
-            this.messageType = type;
-        },
-
-        clearMessage() {
-            this.message = '';
-            this.messageType = '';
         }
-    };
-}
+    }));
+}, {once: true});
