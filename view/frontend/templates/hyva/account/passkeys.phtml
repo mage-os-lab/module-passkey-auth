@@ -1,0 +1,108 @@
+<?php declare(strict_types=1);
+/** @var \MageOS\PasskeyAuth\Block\Account\Passkeys $block */
+/** @var \Magento\Framework\Escaper $escaper */
+$credentials = $block->getCredentials();
+?>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/passkey-core.js')) ?>"></script>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-manage.js')) ?>"></script>
+
+<div x-data="passkeyManage({
+        registrationOptionsUrl: '<?= $escaper->escapeJs($block->getRegistrationOptionsUrl()) ?>',
+        registrationVerifyUrl: '<?= $escaper->escapeJs($block->getRegistrationVerifyUrl()) ?>',
+        deleteUrl: '<?= $escaper->escapeJs($block->getDeleteUrl()) ?>',
+        renameUrl: '<?= $escaper->escapeJs($block->getRenameUrl()) ?>'
+     })">
+
+    <?php if (empty($credentials)): ?>
+        <div class="p-4 mb-4 bg-blue-50 border border-blue-200 rounded text-sm">
+            <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
+        </div>
+        <button type="button" class="btn btn-primary" @click="register()">
+            <?= $escaper->escapeHtml(__('Add a Passkey')) ?>
+        </button>
+    <?php else: ?>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="border-b border-gray-300">
+                        <th class="py-2 pr-4 font-semibold"><?= $escaper->escapeHtml(__('Name')) ?></th>
+                        <th class="py-2 pr-4 font-semibold"><?= $escaper->escapeHtml(__('Created')) ?></th>
+                        <th class="py-2 pr-4 font-semibold"><?= $escaper->escapeHtml(__('Last Used')) ?></th>
+                        <th class="py-2 font-semibold"><?= $escaper->escapeHtml(__('Actions')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($credentials as $credential): ?>
+                        <?php $entityId = (int) $credential->getEntityId(); ?>
+                        <tr class="border-b border-gray-200" x-ref="row<?= $entityId ?>">
+                            <td class="py-3 pr-4">
+                                <span x-show="editingId !== <?= $entityId ?>"
+                                      x-ref="display<?= $entityId ?>">
+                                    <?= $escaper->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?>
+                                </span>
+                                <input x-show="editingId === <?= $entityId ?>"
+                                       x-model="editName"
+                                       x-ref="nameInput<?= $entityId ?>"
+                                       @keydown.enter="saveRename(<?= $entityId ?>, $refs.display<?= $entityId ?>)"
+                                       @keydown.escape="cancelRename()"
+                                       type="text"
+                                       maxlength="255"
+                                       class="border border-gray-300 rounded px-2 py-1 text-sm w-full max-w-xs"
+                                       x-cloak />
+                            </td>
+                            <td class="py-3 pr-4"><?= $escaper->escapeHtml($credential->getCreatedAt() ?? '') ?></td>
+                            <td class="py-3 pr-4"><?= $escaper->escapeHtml($credential->getLastUsedAt() ?? __('Never')) ?></td>
+                            <td class="py-3">
+                                <div class="flex gap-2">
+                                    <button type="button"
+                                            x-show="editingId !== <?= $entityId ?>"
+                                            class="text-sm underline hover:text-gray-700"
+                                            @click="startRename(<?= $entityId ?>, '<?= $escaper->escapeJs($credential->getFriendlyName() ?? '') ?>')">
+                                        <?= $escaper->escapeHtml(__('Rename')) ?>
+                                    </button>
+                                    <button type="button"
+                                            x-show="editingId === <?= $entityId ?>"
+                                            x-cloak
+                                            class="text-sm underline hover:text-gray-700"
+                                            @click="saveRename(<?= $entityId ?>, $refs.display<?= $entityId ?>)">
+                                        <?= $escaper->escapeHtml(__('Save')) ?>
+                                    </button>
+                                    <button type="button"
+                                            x-show="editingId === <?= $entityId ?>"
+                                            x-cloak
+                                            class="text-sm underline text-gray-500 hover:text-gray-700"
+                                            @click="cancelRename()">
+                                        <?= $escaper->escapeHtml(__('Cancel')) ?>
+                                    </button>
+                                    <button type="button"
+                                            class="text-sm underline text-red-600 hover:text-red-800"
+                                            @click="deletePasskey(<?= $entityId ?>, $refs.row<?= $entityId ?>)">
+                                        <?= $escaper->escapeHtml(__('Delete')) ?>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4">
+            <button type="button" class="btn btn-primary" @click="register()">
+                <?= $escaper->escapeHtml(__('Add a Passkey')) ?>
+            </button>
+        </div>
+    <?php endif; ?>
+
+    <template x-if="message">
+        <div class="mt-4 p-3 rounded text-sm"
+             :class="{
+                 'bg-red-100 text-red-700': messageType === 'error',
+                 'bg-green-100 text-green-700': messageType === 'success',
+                 'bg-blue-100 text-blue-700': messageType === 'info'
+             }"
+             role="alert"
+             x-text="message">
+        </div>
+    </template>
+</div>
