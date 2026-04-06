@@ -1,0 +1,30 @@
+<?php declare(strict_types=1);
+/** @var \MageOS\PasskeyAuth\Block\EnrollmentPrompt $block */
+/** @var \Magento\Framework\Escaper $escaper */
+?>
+<div x-data="passkeyEnrollment"
+     @private-content-loaded.window="receiveCustomerData"
+     x-cloak
+     x-show="visible"
+     x-transition
+     class="flex flex-wrap items-center justify-between gap-3 p-4 mb-4 bg-blue-50 border border-blue-200 rounded">
+
+    <div>
+        <strong class="block"><?= $escaper->escapeHtml(__('Sign in faster with a passkey')) ?></strong>
+        <span class="text-sm text-gray-600">
+            <?= $escaper->escapeHtml(__('Use your fingerprint, face, or security key for quick and secure sign-in.')) ?>
+        </span>
+    </div>
+
+    <div class="flex items-center gap-3">
+        <a href="<?= $escaper->escapeUrl($block->getPasskeysUrl()) ?>"
+           class="btn btn-primary">
+            <?= $escaper->escapeHtml(__('Set up')) ?>
+        </a>
+        <button type="button"
+                class="text-sm text-gray-500 underline hover:text-gray-700"
+                @click="dismiss">
+            <?= $escaper->escapeHtml(__('Not now')) ?>
+        </button>
+    </div>
+</div>
