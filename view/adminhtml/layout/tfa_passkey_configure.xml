@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      layout="admin-login"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="tfa_screen"/>
+    <body>
+        <referenceContainer name="content">
+            <block class="Magento\Backend\Block\Template"
+                   name="tfa_passkey_configure"
+                   template="MageOS_PasskeyAuth::tfa/passkey/configure.phtml">
+                <arguments>
+                    <argument name="jsLayout" xsi:type="array">
+                        <item name="components" xsi:type="array">
+                            <item name="tfa-passkey-configure" xsi:type="array">
+                                <item name="component" xsi:type="string">MageOS_PasskeyAuth/js/passkey-tfa-configure</item>
+                            </item>
+                        </item>
+                    </argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

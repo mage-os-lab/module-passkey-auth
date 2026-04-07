@@ -1,0 +1,26 @@
+<?php
+/** @var \Magento\Backend\Block\Template $block */
+$provider = $block->getRequest()->getParam('provider', 'passkey');
+?>
+<div id="tfa-passkey-configure-container"
+     data-bind="scope: 'tfa-passkey-configure'">
+    <!-- ko template: getTemplate() --><!-- /ko -->
+</div>
+<script type="text/x-magento-init">
+{
+    "#tfa-passkey-configure-container": {
+        "Magento_Ui/js/core/app": <?= /* @noEscape */ json_encode(array_replace_recursive(
+            $block->getJsLayout(),
+            [
+                'components' => [
+                    'tfa-passkey-configure' => [
+                        'postUrl' => $block->escapeUrl($block->getUrl('tfa/passkey/configurePost', ['provider' => $provider])),
+                        'successUrl' => $block->escapeUrl($block->getUrl('adminhtml/dashboard')),
+                        'provider' => $block->escapeHtmlAttr($provider),
+                    ],
+                ],
+            ]
+        )) ?>
+    }
+}
+</script>
