@@ -1,0 +1,58 @@
+<div class="tfa-passkey-configure">
+    <!-- ko if: currentStep() === 'idle' -->
+    <fieldset class="admin__fieldset">
+        <legend class="admin__legend"><span data-bind="i18n: 'Register Your Passkey'"></span></legend>
+        <p data-bind="i18n: 'You will be asked to verify your identity (biometric or PIN) each time you authenticate.'"></p>
+        <div class="admin__field">
+            <label class="admin__field-label" for="passkey-friendly-name">
+                <span data-bind="i18n: 'Name (optional)'"></span>
+            </label>
+            <div class="admin__field-control">
+                <input type="text"
+                       id="passkey-friendly-name"
+                       class="admin__control-text"
+                       data-bind="value: friendlyName"
+                       placeholder="e.g., My YubiKey"
+                       maxlength="255" />
+            </div>
+        </div>
+        <div class="admin__field">
+            <div class="admin__field-control">
+                <button type="button"
+                        class="action-primary"
+                        data-bind="click: register">
+                    <span data-bind="i18n: 'Register Passkey'"></span>
+                </button>
+            </div>
+        </div>
+    </fieldset>
+    <!-- /ko -->
+
+    <!-- ko if: currentStep() === 'registering' -->
+    <div class="tfa-loading">
+        <div class="spinner"></div>
+        <p data-bind="i18n: 'Follow your browser\'s prompts to register your passkey...'"></p>
+    </div>
+    <!-- /ko -->
+
+    <!-- ko if: currentStep() === 'registered' -->
+    <div class="message message-success">
+        <span data-bind="i18n: 'Passkey registered successfully! Redirecting...'"></span>
+    </div>
+    <!-- /ko -->
+
+    <!-- ko if: currentStep() === 'error' -->
+    <div class="message message-error">
+        <span data-bind="text: errorMessage"></span>
+    </div>
+    <button type="button" class="action-secondary" data-bind="click: retry">
+        <span data-bind="i18n: 'Try Again'"></span>
+    </button>
+    <!-- /ko -->
+
+    <!-- ko if: currentStep() === 'no-webauthn' -->
+    <div class="message message-error">
+        <span data-bind="i18n: 'Your browser does not support passkeys. Please use a modern browser over HTTPS.'"></span>
+    </div>
+    <!-- /ko -->
+</div>
