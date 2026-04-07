@@ -3,25 +3,25 @@
 $provider = $block->getRequest()->getParam('provider', 'passkey');
 ?>
 <div id="tfa-passkey-auth-container"
-     data-bind="scope: 'tfa-passkey-auth'"
-     data-mage-init='<?= $block->escapeHtmlAttr(json_encode([
-         'Magento_Ui/js/core/app' => $block->getJsLayout()
-     ])) ?>'>
+     data-bind="scope: 'tfa-passkey-auth'">
     <!-- ko template: getTemplate() --><!-- /ko -->
 </div>
 <?= $block->getChildHtml('tfa-change-provider') ?>
 <script type="text/x-magento-init">
 {
     "#tfa-passkey-auth-container": {
-        "Magento_Ui/js/core/app": {
-            "components": {
-                "tfa-passkey-auth": {
-                    "postUrl": "<?= $block->escapeUrl($block->getUrl('tfa/passkey/authPost', ['provider' => $provider])) ?>",
-                    "successUrl": "<?= $block->escapeUrl($block->getUrl('adminhtml/dashboard')) ?>",
-                    "provider": "<?= $block->escapeHtmlAttr($provider) ?>"
-                }
-            }
-        }
+        "Magento_Ui/js/core/app": <?= /* @noEscape */ json_encode(array_replace_recursive(
+            $block->getJsLayout(),
+            [
+                'components' => [
+                    'tfa-passkey-auth' => [
+                        'postUrl' => $block->escapeUrl($block->getUrl('tfa/passkey/authPost', ['provider' => $provider])),
+                        'successUrl' => $block->escapeUrl($block->getUrl('adminhtml/dashboard')),
+                        'provider' => $block->escapeHtmlAttr($provider),
+                    ],
+                ],
+            ]
+        )) ?>
     }
 }
 </script>
