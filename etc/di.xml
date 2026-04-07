@@ -31,4 +31,84 @@
     <!-- Credential management -->
     <preference for="MageOS\PasskeyAuth\Api\CredentialManagementInterface"
                 type="MageOS\PasskeyAuth\Model\CredentialManagement"/>
+
+    <!-- Admin TFA: API preferences -->
+    <preference for="MageOS\PasskeyAuth\Api\AdminTfa\ConfigureInterface"
+                type="MageOS\PasskeyAuth\Model\AdminTfa\Configure" />
+    <preference for="MageOS\PasskeyAuth\Api\AdminTfa\AuthenticateInterface"
+                type="MageOS\PasskeyAuth\Model\AdminTfa\Authenticate" />
+
+    <!-- Admin TFA: CeremonyStepManagerProvider with admin origins -->
+    <virtualType name="MageOS\PasskeyAuth\Model\WebAuthn\AdminCeremonyStepManagerProvider"
+                 type="MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider">
+        <arguments>
+            <argument name="config" xsi:type="object">MageOS\PasskeyAuth\Model\AdminTfa\AdminTfaConfig</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Admin TFA: Configure service with admin ceremony provider -->
+    <type name="MageOS\PasskeyAuth\Model\AdminTfa\Configure">
+        <arguments>
+            <argument name="ceremonyStepManagerProvider" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\AdminCeremonyStepManagerProvider</argument>
+        </arguments>
+    </type>
+
+    <!-- Admin TFA: Authenticate service with admin ceremony provider -->
+    <type name="MageOS\PasskeyAuth\Model\AdminTfa\Authenticate">
+        <arguments>
+            <argument name="ceremonyStepManagerProvider" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\AdminCeremonyStepManagerProvider</argument>
+        </arguments>
+    </type>
+
+    <!-- Admin TFA: Engine variants -->
+    <virtualType name="MageOS\PasskeyAuth\Model\AdminTfa\Engine\AllPasskeys"
+                 type="MageOS\PasskeyAuth\Model\AdminTfa\Engine">
+        <arguments>
+            <argument name="authenticatorPolicy" xsi:type="string">all</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="MageOS\PasskeyAuth\Model\AdminTfa\Engine\HardwareOnly"
+                 type="MageOS\PasskeyAuth\Model\AdminTfa\Engine">
+        <arguments>
+            <argument name="authenticatorPolicy" xsi:type="string">hardware</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Admin TFA: Provider wrappers -->
+    <virtualType name="MageOS\PasskeyAuth\Model\Provider\Passkey"
+                 type="Magento\TwoFactorAuth\Model\Provider">
+        <arguments>
+            <argument name="engine" xsi:type="object">MageOS\PasskeyAuth\Model\AdminTfa\Engine\AllPasskeys</argument>
+            <argument name="code" xsi:type="string">passkey</argument>
+            <argument name="name" xsi:type="string">Passkey</argument>
+            <argument name="icon" xsi:type="string">MageOS_PasskeyAuth::images/providers/passkey.png</argument>
+            <argument name="configureAction" xsi:type="string">tfa/passkey/configure</argument>
+            <argument name="authAction" xsi:type="string">tfa/passkey/auth</argument>
+            <argument name="canReset" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="MageOS\PasskeyAuth\Model\Provider\PasskeyHardware"
+                 type="Magento\TwoFactorAuth\Model\Provider">
+        <arguments>
+            <argument name="engine" xsi:type="object">MageOS\PasskeyAuth\Model\AdminTfa\Engine\HardwareOnly</argument>
+            <argument name="code" xsi:type="string">passkey_hardware</argument>
+            <argument name="name" xsi:type="string">Passkey (Hardware Key Only)</argument>
+            <argument name="icon" xsi:type="string">MageOS_PasskeyAuth::images/providers/passkey-hardware.png</argument>
+            <argument name="configureAction" xsi:type="string">tfa/passkey/configure</argument>
+            <argument name="authAction" xsi:type="string">tfa/passkey/auth</argument>
+            <argument name="canReset" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Admin TFA: Register providers in pool -->
+    <type name="Magento\TwoFactorAuth\Api\ProviderPoolInterface">
+        <arguments>
+            <argument name="providers" xsi:type="array">
+                <item name="passkey" xsi:type="object">MageOS\PasskeyAuth\Model\Provider\Passkey</item>
+                <item name="passkey_hardware" xsi:type="object">MageOS\PasskeyAuth\Model\Provider\PasskeyHardware</item>
+            </argument>
+        </arguments>
+    </type>
 </config>
