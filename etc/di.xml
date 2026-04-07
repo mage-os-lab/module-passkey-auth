@@ -111,4 +111,13 @@
             </argument>
         </arguments>
     </type>
+
+    <!-- CLI Commands -->
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="passkey_tfa_reset_all" xsi:type="object">MageOS\PasskeyAuth\Console\Command\ResetPasskeyTfaCommand</item>
+            </argument>
+        </arguments>
+    </type>
 </config>
