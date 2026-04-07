@@ -6,6 +6,7 @@ namespace MageOS\PasskeyAuth\Model\AdminTfa;
 
 use Magento\Framework\DataObject;
 use Magento\Framework\Exception\LocalizedException;
+use MageOS\PasskeyAuth\Api\AdminTfa\AuthenticateInterface;
 use Magento\TwoFactorAuth\Api\EngineInterface;
 use Magento\TwoFactorAuth\Api\UserConfigManagerInterface;
 use Magento\User\Api\Data\UserInterface;
@@ -18,7 +19,7 @@ class Engine implements EngineInterface
     public function __construct(
         private readonly UserConfigManagerInterface $userConfigManager,
         private readonly OriginValidator $originValidator,
-        private readonly Authenticate $authenticate,
+        private readonly AuthenticateInterface $authenticate,
         private readonly string $authenticatorPolicy = 'all'
     ) {
     }

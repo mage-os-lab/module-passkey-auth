@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Controller\Adminhtml\Passkey;
 
-use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\Auth\Session;
 use Magento\Framework\App\Action\HttpGetActionInterface;
@@ -12,8 +11,9 @@ use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\View\Result\Page;
 use Magento\TwoFactorAuth\Api\TfaInterface;
 use Magento\TwoFactorAuth\Api\UserConfigManagerInterface;
+use Magento\TwoFactorAuth\Controller\Adminhtml\AbstractAction;
 
-class Auth extends Action implements HttpGetActionInterface
+class Auth extends AbstractAction implements HttpGetActionInterface
 {
     public function __construct(
         Context $context,

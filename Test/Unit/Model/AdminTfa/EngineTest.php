@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Test\Unit\Model\AdminTfa;
 
-use MageOS\PasskeyAuth\Model\AdminTfa\Authenticate;
+use MageOS\PasskeyAuth\Api\AdminTfa\AuthenticateInterface;
 use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 use MageOS\PasskeyAuth\Model\AdminTfa\OriginValidator;
 use Magento\Framework\DataObject;
@@ -18,14 +18,14 @@ class EngineTest extends TestCase
 {
     private UserConfigManagerInterface&MockObject $userConfigManager;
     private OriginValidator&MockObject $originValidator;
-    private Authenticate&MockObject $authenticate;
+    private AuthenticateInterface&MockObject $authenticate;
     private Engine $engine;
 
     protected function setUp(): void
     {
         $this->userConfigManager = $this->createMock(UserConfigManagerInterface::class);
         $this->originValidator = $this->createMock(OriginValidator::class);
-        $this->authenticate = $this->createMock(Authenticate::class);
+        $this->authenticate = $this->createMock(AuthenticateInterface::class);
 
         $this->engine = new Engine(
             $this->userConfigManager,

@@ -9,7 +9,6 @@ use Magento\Backend\Model\Auth\Session;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\ResultInterface;
-use Magento\TwoFactorAuth\Api\TfaInterface;
 use Magento\TwoFactorAuth\Api\TfaSessionInterface;
 use Magento\TwoFactorAuth\Controller\Adminhtml\AbstractConfigureAction;
 use Magento\TwoFactorAuth\Model\AlertInterface;
@@ -19,17 +18,19 @@ use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 
 class ConfigurePost extends AbstractConfigureAction implements HttpPostActionInterface
 {
+    private Session $session;
+
     public function __construct(
         Context $context,
         Session $session,
-        TfaInterface $tfa,
+        HtmlAreaTokenVerifier $tokenVerifier,
         private readonly JsonFactory $jsonFactory,
         private readonly TfaSessionInterface $tfaSession,
         private readonly ConfigureInterface $configure,
-        private readonly AlertInterface $alert,
-        private readonly HtmlAreaTokenVerifier $tokenVerifier
+        private readonly AlertInterface $alert
     ) {
-        parent::__construct($context, $session, $tfa);
+        parent::__construct($context, $tokenVerifier);
+        $this->session = $session;
     }
 
     public function execute(): ResultInterface
@@ -38,8 +39,6 @@ class ConfigurePost extends AbstractConfigureAction implements HttpPostActionInt
         $user = $this->session->getUser();
 
         try {
-            $this->tokenVerifier->verify();
-
             $providerCode = $this->getRequest()->getParam('provider', Engine::PROVIDER_CODE_ALL);
             $authenticatorPolicy = $providerCode === Engine::PROVIDER_CODE_HARDWARE ? 'hardware' : 'all';
 
@@ -87,8 +86,12 @@ class ConfigurePost extends AbstractConfigureAction implements HttpPostActionInt
         }
     }
 
-    protected function isAllowed(): bool
+    protected function _isAllowed()
     {
+        if (!parent::_isAllowed()) {
+            return false;
+        }
+
         $user = $this->session->getUser();
         return $user !== null;
     }

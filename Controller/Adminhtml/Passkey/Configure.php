@@ -15,37 +15,47 @@ use Magento\TwoFactorAuth\Model\UserConfig\HtmlAreaTokenVerifier;
 
 class Configure extends AbstractConfigureAction implements HttpGetActionInterface
 {
+    private Session $session;
+    private TfaInterface $tfa;
+
     public function __construct(
         Context $context,
         Session $session,
         TfaInterface $tfa,
-        private readonly HtmlAreaTokenVerifier $tokenVerifier
+        HtmlAreaTokenVerifier $tokenVerifier
     ) {
-        parent::__construct($context, $session, $tfa);
+        parent::__construct($context, $tokenVerifier);
+        $this->session = $session;
+        $this->tfa = $tfa;
     }
 
     public function execute(): Page
     {
-        $this->tokenVerifier->verify();
-
         /** @var Page $page */
         $page = $this->resultFactory->create(ResultFactory::TYPE_PAGE);
         $page->getConfig()->getTitle()->set(__('Passkey Configuration'));
         return $page;
     }
 
-    protected function isAllowed(): bool
+    protected function _isAllowed()
     {
+        if (!parent::_isAllowed()) {
+            return false;
+        }
+
         $user = $this->session->getUser();
         if (!$user) {
             return false;
         }
         $userId = (int) $user->getId();
         $providerCode = $this->getProviderCode();
-        $provider = $this->tfa->getProvider($providerCode);
 
-        return $provider->isEnabled()
-            && !$provider->isActive($userId);
+        try {
+            $provider = $this->tfa->getProvider($providerCode);
+            return $provider->isEnabled() && !$provider->isActive($userId);
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     private function getProviderCode(): string

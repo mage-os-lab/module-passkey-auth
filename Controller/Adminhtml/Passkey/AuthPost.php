@@ -4,27 +4,25 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Controller\Adminhtml\Passkey;
 
-use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\Auth\Session;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\DataObjectFactory;
-use Magento\TwoFactorAuth\Api\TfaInterface;
 use Magento\TwoFactorAuth\Api\TfaSessionInterface;
+use Magento\TwoFactorAuth\Controller\Adminhtml\AbstractAction;
 use Magento\TwoFactorAuth\Model\AlertInterface;
 use MageOS\PasskeyAuth\Api\AdminTfa\AuthenticateInterface;
 use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 
-class AuthPost extends Action implements HttpPostActionInterface
+class AuthPost extends AbstractAction implements HttpPostActionInterface
 {
     public function __construct(
         Context $context,
         private readonly Session $session,
         private readonly JsonFactory $jsonFactory,
         private readonly TfaSessionInterface $tfaSession,
-        private readonly TfaInterface $tfa,
         private readonly AuthenticateInterface $authenticate,
         private readonly DataObjectFactory $dataObjectFactory,
         private readonly AlertInterface $alert
