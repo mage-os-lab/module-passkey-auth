@@ -2,6 +2,10 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
+    <!-- WebAuthn config interface -->
+    <preference for="MageOS\PasskeyAuth\Api\WebAuthnConfigInterface"
+                type="MageOS\PasskeyAuth\Model\Config" />
+
     <!-- Data interfaces -->
     <preference for="MageOS\PasskeyAuth\Api\Data\CredentialInterface"
                 type="MageOS\PasskeyAuth\Model\Data\Credential"/>
