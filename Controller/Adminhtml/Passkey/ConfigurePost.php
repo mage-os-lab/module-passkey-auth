@@ -37,6 +37,12 @@ class ConfigurePost extends AbstractConfigureAction implements HttpPostActionInt
     {
         $result = $this->jsonFactory->create();
         $user = $this->session->getUser();
+        if ($user === null) {
+            return $result->setData([
+                'success' => false,
+                'message' => __('Session expired. Please sign in again.'),
+            ]);
+        }
 
         try {
             $providerCode = $this->getRequest()->getParam('provider', Engine::PROVIDER_CODE_ALL);

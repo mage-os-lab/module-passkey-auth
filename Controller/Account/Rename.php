@@ -57,6 +57,9 @@ class Rename implements HttpPostActionInterface, CsrfAwareActionInterface
 
         try {
             $body = $this->json->unserialize($this->request->getContent());
+            if (!is_array($body)) {
+                $body = [];
+            }
             $entityId = (int) ($body['entity_id'] ?? 0);
             $friendlyName = (string) ($body['friendly_name'] ?? '');
             $customerId = (int) $this->customerSession->getCustomerId();
