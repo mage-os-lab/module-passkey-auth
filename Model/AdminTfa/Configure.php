@@ -81,6 +81,9 @@ class Configure implements ConfigureInterface
         $challengeToken = $this->challengeManager->create(self::CHALLENGE_TYPE, $optionsJson);
 
         $optionsArray = json_decode($optionsJson, true);
+        if (!is_array($optionsArray)) {
+            throw new LocalizedException(__('Failed to decode registration options.'));
+        }
         $optionsArray['challengeToken'] = $challengeToken;
 
         return $optionsArray;
