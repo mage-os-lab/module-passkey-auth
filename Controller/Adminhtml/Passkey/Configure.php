@@ -52,7 +52,7 @@ class Configure extends AbstractConfigureAction implements HttpGetActionInterfac
 
         try {
             $provider = $this->tfa->getProvider($providerCode);
-            return $provider->isEnabled() && !$provider->isActive($userId);
+            return $provider !== null && $provider->isEnabled() && !$provider->isActive($userId);
         } catch (\Exception $e) {
             return false;
         }

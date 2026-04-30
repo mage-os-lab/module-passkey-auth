@@ -27,10 +27,13 @@ class Auth extends AbstractAction implements HttpGetActionInterface
     public function execute(): Page
     {
         $providerCode = $this->getRequest()->getParam('provider', 'passkey');
-        $this->userConfigManager->setDefaultProvider(
-            (int) $this->session->getUser()->getId(),
-            $providerCode
-        );
+        $user = $this->session->getUser();
+        if ($user) {
+            $this->userConfigManager->setDefaultProvider(
+                (int) $user->getId(),
+                $providerCode
+            );
+        }
 
         /** @var Page $page */
         $page = $this->resultFactory->create(ResultFactory::TYPE_PAGE);
@@ -49,7 +52,7 @@ class Auth extends AbstractAction implements HttpGetActionInterface
 
         try {
             $provider = $this->tfa->getProvider($providerCode);
-            return $provider->isEnabled() && $provider->isActive($userId);
+            return $provider !== null && $provider->isEnabled() && $provider->isActive($userId);
         } catch (\Exception $e) {
             return false;
         }
