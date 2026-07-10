@@ -30,7 +30,10 @@ window.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const friendlyName = prompt('Give this passkey a name (optional):') || null;
+            const friendlyName = prompt(
+                'Give this passkey a name so you can recognize it later:',
+                passkeyCore.suggestName()
+            ) || null;
             this.message = '';
             this.messageType = '';
 
@@ -58,6 +61,8 @@ window.addEventListener('alpine:init', () => {
             } catch (err) {
                 if (err.name === 'NotAllowedError') {
                     this.message = 'Passkey registration was cancelled.';
+                } else if (err.name === 'InvalidStateError') {
+                    this.message = 'This device already has a passkey for your account. Try signing in with it instead.';
                 } else {
                     this.message = err.message || 'Registration failed.';
                 }
@@ -141,7 +146,8 @@ window.addEventListener('alpine:init', () => {
         },
 
         async deleteRow() {
-            if (!confirm('Are you sure you want to delete this passkey?')) {
+            const name = this.friendlyName || 'this passkey';
+            if (!confirm('Delete "' + name + '"? You will no longer be able to sign in with it.')) {
                 return;
             }
 

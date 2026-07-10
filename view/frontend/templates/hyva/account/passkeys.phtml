@@ -51,8 +51,16 @@ $credentials = $block->getCredentials();
                                        class="border border-gray-300 rounded px-2 py-1 text-sm w-full max-w-xs"
                                        x-cloak />
                             </td>
-                            <td class="py-3 pr-4"><?= $escaper->escapeHtml($credential->getCreatedAt() ?? '') ?></td>
-                            <td class="py-3 pr-4"><?= $escaper->escapeHtml($credential->getLastUsedAt() ?? __('Never')) ?></td>
+                            <td class="py-3 pr-4">
+                                <?= $escaper->escapeHtml($credential->getCreatedAt()
+                                    ? $block->formatDate($credential->getCreatedAt(), \IntlDateFormatter::MEDIUM)
+                                    : '') ?>
+                            </td>
+                            <td class="py-3 pr-4">
+                                <?= $escaper->escapeHtml($credential->getLastUsedAt()
+                                    ? $block->formatDate($credential->getLastUsedAt(), \IntlDateFormatter::MEDIUM, true)
+                                    : __('Never')) ?>
+                            </td>
                             <td class="py-3">
                                 <div class="flex gap-2">
                                     <button type="button"

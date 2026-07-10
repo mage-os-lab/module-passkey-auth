@@ -32,6 +32,44 @@
         },
 
         /**
+         * Suggest a default friendly name for a new passkey based on the
+         * current browser/platform, e.g. "Chrome on Windows".
+         */
+        suggestName: function () {
+            var ua = navigator.userAgent,
+                browser = 'Browser',
+                platform = '';
+
+            if (/edg\//i.test(ua)) {
+                browser = 'Edge';
+            } else if (/opr\//i.test(ua)) {
+                browser = 'Opera';
+            } else if (/samsungbrowser/i.test(ua)) {
+                browser = 'Samsung Internet';
+            } else if (/chrome|crios/i.test(ua)) {
+                browser = 'Chrome';
+            } else if (/firefox|fxios/i.test(ua)) {
+                browser = 'Firefox';
+            } else if (/safari/i.test(ua)) {
+                browser = 'Safari';
+            }
+
+            if (/windows/i.test(ua)) {
+                platform = 'Windows';
+            } else if (/iphone|ipad|ipod/i.test(ua)) {
+                platform = 'iOS';
+            } else if (/android/i.test(ua)) {
+                platform = 'Android';
+            } else if (/macintosh|mac os/i.test(ua)) {
+                platform = 'macOS';
+            } else if (/linux/i.test(ua)) {
+                platform = 'Linux';
+            }
+
+            return platform ? browser + ' on ' + platform : browser;
+        },
+
+        /**
          * Convert a base64url-encoded string to an ArrayBuffer.
          */
         base64urlToBuffer: function (base64url) {
