@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="MageOS_PasskeyAuth::credentials"
+             title="Customer Passkeys"
+             translate="title"
+             module="MageOS_PasskeyAuth"
+             sortOrder="50"
+             parent="Magento_Customer::customer"
+             action="mageos_passkey/credentials/index"
+             resource="MageOS_PasskeyAuth::credentials"/>
+    </menu>
+</config>

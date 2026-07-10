@@ -7,6 +7,10 @@
                 <enabled>1</enabled>
                 <prompt_after_login>1</prompt_after_login>
                 <prompt_on_registration>0</prompt_on_registration>
+                <notify_credential_changes>1</notify_credential_changes>
+                <notification_email_identity>general</notification_email_identity>
+                <added_email_template>customer_passkey_added_email_template</added_email_template>
+                <removed_email_template>customer_passkey_removed_email_template</removed_email_template>
             </passkey>
         </customer>
     </default>

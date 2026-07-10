@@ -1,6 +1,10 @@
-define([], function () {
-    'use strict';
-
+(function (root, factory) {
+    if (typeof define === 'function' && define.amd) {
+        define([], factory);
+    } else {
+        root.passkeyCore = factory();
+    }
+}(typeof self !== 'undefined' ? self : this, function () {
     return {
         /**
          * Check if WebAuthn API is present (requires secure context).
@@ -8,6 +12,61 @@ define([], function () {
         isAvailable: function () {
             return window.isSecureContext
                 && typeof window.PublicKeyCredential !== 'undefined';
+        },
+
+        /**
+         * Check if the browser can offer passkeys through the autofill
+         * dropdown (WebAuthn conditional mediation). Resolves to a boolean.
+         */
+        isConditionalMediationAvailable: function () {
+            if (!this.isAvailable()
+                || typeof window.PublicKeyCredential.isConditionalMediationAvailable !== 'function'
+            ) {
+                return Promise.resolve(false);
+            }
+
+            return window.PublicKeyCredential.isConditionalMediationAvailable()
+                .catch(function () {
+                    return false;
+                });
+        },
+
+        /**
+         * Suggest a default friendly name for a new passkey based on the
+         * current browser/platform, e.g. "Chrome on Windows".
+         */
+        suggestName: function () {
+            var ua = navigator.userAgent,
+                browser = 'Browser',
+                platform = '';
+
+            if (/edg\//i.test(ua)) {
+                browser = 'Edge';
+            } else if (/opr\//i.test(ua)) {
+                browser = 'Opera';
+            } else if (/samsungbrowser/i.test(ua)) {
+                browser = 'Samsung Internet';
+            } else if (/chrome|crios/i.test(ua)) {
+                browser = 'Chrome';
+            } else if (/firefox|fxios/i.test(ua)) {
+                browser = 'Firefox';
+            } else if (/safari/i.test(ua)) {
+                browser = 'Safari';
+            }
+
+            if (/windows/i.test(ua)) {
+                platform = 'Windows';
+            } else if (/iphone|ipad|ipod/i.test(ua)) {
+                platform = 'iOS';
+            } else if (/android/i.test(ua)) {
+                platform = 'Android';
+            } else if (/macintosh|mac os/i.test(ua)) {
+                platform = 'macOS';
+            } else if (/linux/i.test(ua)) {
+                platform = 'Linux';
+            }
+
+            return platform ? browser + ' on ' + platform : browser;
         },
 
         /**
@@ -131,4 +190,4 @@ define([], function () {
             };
         }
     };
-});
+}));

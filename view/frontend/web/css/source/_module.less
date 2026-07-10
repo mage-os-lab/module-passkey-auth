@@ -43,6 +43,19 @@
 
     .action.passkey-login {
         width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: @indent__xs;
+
+        .passkey-icon {
+            flex-shrink: 0;
+        }
+
+        &.passkey-busy {
+            opacity: .7;
+            cursor: wait;
+        }
     }
 }
 

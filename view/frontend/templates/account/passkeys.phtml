@@ -28,15 +28,24 @@ $credentials = $block->getCredentials();
             <tbody>
                 <?php foreach ($credentials as $credential): ?>
                     <tr data-entity-id="<?= $escaper->escapeHtmlAttr((string) $credential->getEntityId()) ?>">
-                        <td class="passkey-name">
+                        <td class="passkey-name" data-th="<?= $escaper->escapeHtmlAttr(__('Name')) ?>">
                             <span class="name-display"><?= $escaper->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?></span>
                             <input type="text" class="name-edit" style="display:none;"
                                    value="<?= $escaper->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
+                                   aria-label="<?= $escaper->escapeHtmlAttr(__('Passkey name')) ?>"
                                    maxlength="255"/>
                         </td>
-                        <td><?= $escaper->escapeHtml($credential->getCreatedAt() ?? '') ?></td>
-                        <td><?= $escaper->escapeHtml($credential->getLastUsedAt() ?? __('Never')) ?></td>
-                        <td class="passkey-actions">
+                        <td data-th="<?= $escaper->escapeHtmlAttr(__('Created')) ?>">
+                            <?= $escaper->escapeHtml($credential->getCreatedAt()
+                                ? $block->formatDate($credential->getCreatedAt(), \IntlDateFormatter::MEDIUM)
+                                : '') ?>
+                        </td>
+                        <td data-th="<?= $escaper->escapeHtmlAttr(__('Last Used')) ?>">
+                            <?= $escaper->escapeHtml($credential->getLastUsedAt()
+                                ? $block->formatDate($credential->getLastUsedAt(), \IntlDateFormatter::MEDIUM, true)
+                                : __('Never')) ?>
+                        </td>
+                        <td class="passkey-actions" data-th="<?= $escaper->escapeHtmlAttr(__('Actions')) ?>">
                             <button type="button" class="action rename" title="<?= $escaper->escapeHtmlAttr(__('Rename')) ?>">
                                 <?= $escaper->escapeHtml(__('Rename')) ?>
                             </button>

@@ -1,0 +1,8 @@
+<?php declare(strict_types=1);
+/** @var \Magento\Framework\View\Element\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+?>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/passkey-core.js')) ?>"></script>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-login.js')) ?>"></script>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-enrollment.js')) ?>"></script>
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-manage.js')) ?>"></script>

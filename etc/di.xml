@@ -112,6 +112,22 @@
         </arguments>
     </type>
 
+    <!-- Admin grid: register listing data source -->
+    <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
+        <arguments>
+            <argument name="collections" xsi:type="array">
+                <item name="passkey_credential_listing_data_source" xsi:type="string">MageOS\PasskeyAuth\Model\ResourceModel\Credential\Grid\Collection</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="MageOS\PasskeyAuth\Model\ResourceModel\Credential\Grid\Collection">
+        <arguments>
+            <argument name="mainTable" xsi:type="string">passkey_credential</argument>
+            <argument name="resourceModel" xsi:type="string">MageOS\PasskeyAuth\Model\ResourceModel\Credential</argument>
+        </arguments>
+    </type>
+
     <!-- CLI Commands -->
     <type name="Magento\Framework\Console\CommandListInterface">
         <arguments>
