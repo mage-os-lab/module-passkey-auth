@@ -29,28 +29,32 @@ class CredentialNotifier
 
     public function notifyAdded(int $customerId, ?string $friendlyName): void
     {
-        $this->send($customerId, $this->config->getAddedEmailTemplate(), $friendlyName);
+        $this->send($customerId, 'added', $friendlyName);
     }
 
     public function notifyRemoved(int $customerId, ?string $friendlyName): void
     {
-        $this->send($customerId, $this->config->getRemovedEmailTemplate(), $friendlyName);
+        $this->send($customerId, 'removed', $friendlyName);
     }
 
-    private function send(int $customerId, string $templateId, ?string $friendlyName): void
+    private function send(int $customerId, string $template, ?string $friendlyName): void
     {
-        if (!$this->config->isCredentialNotificationEnabled()) {
-            return;
-        }
-
         try {
             $customer = $this->customerRepository->getById($customerId);
             $storeId = (int) $customer->getStoreId();
             if ($storeId === 0) {
                 $storeId = (int) $this->storeManager->getDefaultStoreView()->getId();
             }
+
+            if (!$this->config->isCredentialNotificationEnabled($storeId)) {
+                return;
+            }
+
             $store = $this->storeManager->getStore($storeId);
             $customerName = trim($customer->getFirstname() . ' ' . $customer->getLastname());
+            $templateId = $template === 'added'
+                ? $this->config->getAddedEmailTemplate($storeId)
+                : $this->config->getRemovedEmailTemplate($storeId);
 
             $transport = $this->transportBuilder
                 ->setTemplateIdentifier($templateId)
@@ -63,7 +67,7 @@ class CredentialNotifier
                     'passkey_name' => $friendlyName ?: (string) __('Unnamed passkey'),
                     'store_name' => $store->getFrontendName(),
                 ])
-                ->setFromByScope($this->config->getNotificationIdentity(), $storeId)
+                ->setFromByScope($this->config->getNotificationIdentity($storeId), $storeId)
                 ->addTo($customer->getEmail(), $customerName)
                 ->getTransport();
 
@@ -72,7 +76,7 @@ class CredentialNotifier
             $this->logger->error('Failed to send passkey notification email', [
                 'exception' => $e->getMessage(),
                 'customer_id' => $customerId,
-                'template' => $templateId,
+                'template' => $template,
             ]);
         }
     }

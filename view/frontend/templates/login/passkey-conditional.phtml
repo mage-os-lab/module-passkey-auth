@@ -6,8 +6,8 @@
 {
     "*": {
         "MageOS_PasskeyAuth/js/passkey-conditional": {
-            "optionsUrl": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getOptionsUrl())) ?>",
-            "verifyUrl": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getVerifyUrl())) ?>",
+            "optionsUrl": "<?= $escaper->escapeUrl($block->getOptionsUrl()) ?>",
+            "verifyUrl": "<?= $escaper->escapeUrl($block->getVerifyUrl()) ?>",
             "emailSelectors": "#customer-email, #login-email, .block-authentication input[name='username']"
         }
     }

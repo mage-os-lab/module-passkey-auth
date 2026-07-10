@@ -7,6 +7,7 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model;
 use MageOS\PasskeyAuth\Model\Config;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Api\Data\StoreInterface;
+use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -60,5 +61,37 @@ class ConfigTest extends TestCase
         $this->store->method('getBaseUrl')->willReturn('//no-scheme.com');
         $this->expectException(\RuntimeException::class);
         $this->config->getAllowedOrigins();
+    }
+
+    public function testIsCredentialNotificationEnabledReadsFlag(): void
+    {
+        $this->scopeConfig->method('isSetFlag')
+            ->with(Config::XML_PATH_NOTIFY_CREDENTIAL_CHANGES, ScopeInterface::SCOPE_STORE, null)
+            ->willReturn(true);
+        $this->assertTrue($this->config->isCredentialNotificationEnabled());
+    }
+
+    public function testGetNotificationIdentityFallsBackToGeneral(): void
+    {
+        $this->scopeConfig->method('getValue')
+            ->with(Config::XML_PATH_NOTIFICATION_EMAIL_IDENTITY, ScopeInterface::SCOPE_STORE, null)
+            ->willReturn(null);
+        $this->assertSame('general', $this->config->getNotificationIdentity());
+    }
+
+    public function testGetAddedEmailTemplateFallsBackToModuleDefault(): void
+    {
+        $this->scopeConfig->method('getValue')
+            ->with(Config::XML_PATH_ADDED_EMAIL_TEMPLATE, ScopeInterface::SCOPE_STORE, null)
+            ->willReturn(null);
+        $this->assertSame('customer_passkey_added_email_template', $this->config->getAddedEmailTemplate());
+    }
+
+    public function testGetRemovedEmailTemplateReadsConfiguredValue(): void
+    {
+        $this->scopeConfig->method('getValue')
+            ->with(Config::XML_PATH_REMOVED_EMAIL_TEMPLATE, ScopeInterface::SCOPE_STORE, null)
+            ->willReturn('custom_template_42');
+        $this->assertSame('custom_template_42', $this->config->getRemovedEmailTemplate());
     }
 }

@@ -6,6 +6,7 @@ namespace MageOS\PasskeyAuth\Model;
 
 use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 
 class Config implements WebAuthnConfigInterface
@@ -69,26 +70,46 @@ class Config implements WebAuthnConfigInterface
         return $this->scopeConfig->isSetFlag(self::XML_PATH_PROMPT_ON_REGISTRATION);
     }
 
-    public function isCredentialNotificationEnabled(): bool
+    public function isCredentialNotificationEnabled(?int $storeId = null): bool
     {
-        return $this->scopeConfig->isSetFlag(self::XML_PATH_NOTIFY_CREDENTIAL_CHANGES);
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_NOTIFY_CREDENTIAL_CHANGES,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
     }
 
-    public function getNotificationIdentity(): string
+    public function getNotificationIdentity(?int $storeId = null): string
     {
-        return (string) ($this->scopeConfig->getValue(self::XML_PATH_NOTIFICATION_EMAIL_IDENTITY) ?: 'general');
+        $identity = $this->scopeConfig->getValue(
+            self::XML_PATH_NOTIFICATION_EMAIL_IDENTITY,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        return (string) ($identity ?: 'general');
     }
 
-    public function getAddedEmailTemplate(): string
+    public function getAddedEmailTemplate(?int $storeId = null): string
     {
-        return (string) ($this->scopeConfig->getValue(self::XML_PATH_ADDED_EMAIL_TEMPLATE)
-            ?: 'customer_passkey_added_email_template');
+        $template = $this->scopeConfig->getValue(
+            self::XML_PATH_ADDED_EMAIL_TEMPLATE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        return (string) ($template ?: 'customer_passkey_added_email_template');
     }
 
-    public function getRemovedEmailTemplate(): string
+    public function getRemovedEmailTemplate(?int $storeId = null): string
     {
-        return (string) ($this->scopeConfig->getValue(self::XML_PATH_REMOVED_EMAIL_TEMPLATE)
-            ?: 'customer_passkey_removed_email_template');
+        $template = $this->scopeConfig->getValue(
+            self::XML_PATH_REMOVED_EMAIL_TEMPLATE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        return (string) ($template ?: 'customer_passkey_removed_email_template');
     }
 
     public function getRpId(): string

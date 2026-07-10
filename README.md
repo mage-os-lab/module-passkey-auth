@@ -12,15 +12,23 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 
 ### Passwordless Authentication
 - **One-tap login**: Customers authenticate with fingerprint, Face ID, Windows Hello, or a hardware security key
+- **Passkey autofill (conditional UI)**: Saved passkeys appear directly in the browser's email-field autofill dropdown on the login page and at checkout — no extra button to discover
 - **Token-based sessions**: Successful passkey authentication issues a standard Magento customer token
 - **Anti-enumeration**: Authentication options return a valid response even for non-existent emails, preventing account discovery
 
 ### Credential Management
 - **My Account page**: Customers add, rename, and delete passkeys from their account dashboard
+- **Security notification emails**: Customers are emailed when a passkey is added to or removed from their account
 - **Clone detection**: Sign-count tracking detects copied authenticators
 
+### Theme & API Coverage
+- **Luma and Hyvä**: Native storefront implementations for both (RequireJS widgets and Alpine.js components sharing one ceremony core)
+- **REST and GraphQL**: Full registration, authentication, and management surface for headless storefronts
+
 ### Store Admin Controls
-- **Enrollment prompts**: Optional banners on account pages after password login or account creation to encourage passkey adoption
+- **Customer Passkeys grid**: View and revoke any customer's passkeys under **Customers > Customer Passkeys** (revocation notifies the customer)
+- **Admin passkey TFA**: Passkey provider (all authenticators or hardware-key-only) for the Magento admin two-factor framework, including a `security:tfa:passkey:reset-all` CLI command
+- **Enrollment prompts**: Optional banners on account pages after password login or account creation, with built-in dismissal cooldown to avoid nagging
 - **Rate limiting**: Built-in cache-based limits on options requests and verification failures
 
 ## Requirements
@@ -47,6 +55,9 @@ Navigate to **Stores > Configuration > Customers > Customer Configuration > Pass
 | **Enable Passkey Authentication** | Master on/off switch | Yes |
 | **Prompt After Password Login** | Show enrollment banner on account pages after password sign-in | Yes |
 | **Prompt After Account Creation** | Show enrollment banner on account pages after registration | No |
+| **Email Customer When Passkeys Change** | Send a security notification when a passkey is added/removed | Yes |
+| **Passkey Notification Email Sender** | Store identity used for notification emails | General Contact |
+| **Passkey Added / Removed Email Template** | Theme-fallback template selection for the two notifications | Module defaults |
 
 The Relying Party (RP) ID and allowed origins are derived automatically from the store's base URL — no manual configuration required.
 
@@ -81,6 +92,31 @@ All business logic is exposed through `Api` interfaces:
 | `PUT` | `/V1/passkey/credentials/:entityId` | Customer (self) | Rename a passkey |
 | `DELETE` | `/V1/passkey/credentials/:entityId` | Customer (self) | Delete a passkey |
 
+### GraphQL API
+
+The schema mirrors the REST surface; WebAuthn ceremony options travel as JSON strings (`options_json`) ready for `navigator.credentials.create()/get()`:
+
+```graphql
+# Guest: start + finish sign-in (returns a customer bearer token)
+mutation { createPasskeyAuthenticationOptions(email: "jane@example.com") { options_json } }
+mutation {
+    verifyPasskeyAuthentication(input: {
+        challenge_token: "…", assertion_response: "…"
+    }) { customer_token }
+}
+
+# Customer (Authorization: Bearer <token>): register + manage
+mutation { createPasskeyRegistrationOptions { options_json } }
+mutation {
+    verifyPasskeyRegistration(input: {
+        challenge_token: "…", attestation_response: "…", name: "Chrome on Windows"
+    }) { id name }
+}
+query { customerPasskeys { id name transports created_at last_used_at } }
+mutation { renameCustomerPasskey(passkeyId: 1, name: "Work laptop") { id name } }
+mutation { deleteCustomerPasskey(passkeyId: 1) { success } }
+```
+
 ### Events
 
 | Event | Payload | Fired When |
@@ -88,7 +124,9 @@ All business logic is exposed through `Api` interfaces:
 | `passkey_credential_register_after` | `customer_id`, `credential` | New passkey registered |
 | `passkey_authentication_success` | `customer_id`, `credential` | Successful passkey login |
 | `passkey_authentication_failure` | `credential_id`, `reason` | Failed passkey login |
-| `passkey_credential_remove_after` | `customer_id`, `credential_id` | Passkey deleted |
+| `passkey_credential_remove_after` | `customer_id`, `credential_id`, `friendly_name` | Passkey deleted |
+
+The bundled notification emails are implemented as observers on the register/remove events, so they fire for every entry point (storefront, REST, GraphQL, admin revocation).
 
 ### Database
 
@@ -127,9 +165,16 @@ The module provides three jQuery UI widgets that can be extended via RequireJS m
 
 Templates are in `view/frontend/templates/` and can be overridden via theme fallback. Styles use Luma/blank theme variables and patterns (`.message.info`, `.data.table`, `.action.primary`) for native theme consistency.
 
+## Testing
+
+- **Unit tests** (standalone, run in CI): `composer install && composer test`
+- **Integration tests** (`Test/Integration`, Magento integration conventions — `@magentoDataFixture`, `@magentoConfigFixture`, `@magentoDbIsolation`): install the module into a Magento instance, then from `dev/tests/integration` run `../../../vendor/bin/phpunit ../../../vendor/mage-os/module-passkey-auth/Test/Integration`
+- **GraphQL api-functional tests** (`Test/Api/GraphQl`): run from `dev/tests/api-functional` with a configured GraphQL endpoint
+
 ## Security
 
 - **HTTPS required**: WebAuthn ceremonies are rejected by browsers on non-secure origins. The module detects non-secure contexts and displays a specific error message.
+- **Change notifications**: Customers are emailed whenever a passkey is added or removed, so silent credential planting is visible. See [SECURITY.md](SECURITY.md) for the disclosure policy.
 - **Single-use challenges**: Each challenge token is consumed on verification and cannot be reused.
 - **Rate limiting**: Options generation (10 requests/60s) and verification failures (5 failures/900s) are rate-limited per customer.
 - **Sign-count validation**: Detects cloned authenticators by tracking the signature counter.
