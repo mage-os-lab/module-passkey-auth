@@ -1,15 +1,17 @@
 define([
     'jquery',
     'MageOS_PasskeyAuth/js/passkey-core',
+    'MageOS_PasskeyAuth/js/passkey-conditional',
     'mage/translate',
     'jquery/ui'
-], function ($, passkeyCore, $t) {
+], function ($, passkeyCore, passkeyConditional, $t) {
     'use strict';
 
     $.widget('mageOS.passkeyLogin', {
         options: {
             optionsUrl: '',
-            verifyUrl: ''
+            verifyUrl: '',
+            emailSelectors: 'input#email, input[name="login[username]"]'
         },
 
         _create: function () {
@@ -21,6 +23,21 @@ define([
             this.$button = this.element.find('#passkey-login-btn');
             this.$message = this.element.find('#passkey-login-message');
             this.$button.on('click', this._onLogin.bind(this));
+
+            this._startConditional();
+        },
+
+        _startConditional: function () {
+            var self = this;
+
+            passkeyConditional.start({
+                optionsUrl: this.options.optionsUrl,
+                verifyUrl: this.options.verifyUrl,
+                emailSelectors: this.options.emailSelectors,
+                onError: function (message) {
+                    self._showMessage(message, 'error');
+                }
+            });
         },
 
         _onLogin: function () {
@@ -28,7 +45,11 @@ define([
             var email = this._getEmailValue();
 
             this._clearMessage();
-            this.$button.prop('disabled', true);
+            this._setBusy(true);
+
+            // Only one WebAuthn request may be active: hand off from the
+            // pending autofill (conditional) request to the modal ceremony.
+            passkeyConditional.abort();
 
             this._fetchOptions(email)
                 .then(function (options) {
@@ -38,12 +59,22 @@ define([
                     return self._verifyAssertion(result.challengeToken, result.credential);
                 })
                 .then(function () {
+                    self._showMessage($t('Signed in. One moment…'), 'success');
                     window.location.reload();
                 })
                 .catch(function (error) {
                     self._showMessage(error.message || $t('Passkey sign-in failed.'), 'error');
-                    self.$button.prop('disabled', false);
+                    self._setBusy(false);
+                    self._startConditional();
                 });
+        },
+
+        _setBusy: function (busy) {
+            this.$button.prop('disabled', busy)
+                .attr('aria-busy', busy ? 'true' : 'false')
+                .toggleClass('passkey-busy', busy)
+                .find('span')
+                .text(busy ? $t('Waiting for your passkey…') : $t('Sign in with Passkey'));
         },
 
         _getEmailValue: function () {

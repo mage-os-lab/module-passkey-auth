@@ -1,0 +1,15 @@
+<?php declare(strict_types=1);
+/** @var \MageOS\PasskeyAuth\Block\Login\ConditionalLogin $block */
+/** @var \Magento\Framework\Escaper $escaper */
+?>
+<script type="text/x-magento-init">
+{
+    "*": {
+        "MageOS_PasskeyAuth/js/passkey-conditional": {
+            "optionsUrl": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getOptionsUrl())) ?>",
+            "verifyUrl": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getVerifyUrl())) ?>",
+            "emailSelectors": "#customer-email, #login-email, .block-authentication input[name='username']"
+        }
+    }
+}
+</script>

@@ -15,6 +15,23 @@
         },
 
         /**
+         * Check if the browser can offer passkeys through the autofill
+         * dropdown (WebAuthn conditional mediation). Resolves to a boolean.
+         */
+        isConditionalMediationAvailable: function () {
+            if (!this.isAvailable()
+                || typeof window.PublicKeyCredential.isConditionalMediationAvailable !== 'function'
+            ) {
+                return Promise.resolve(false);
+            }
+
+            return window.PublicKeyCredential.isConditionalMediationAvailable()
+                .catch(function () {
+                    return false;
+                });
+        },
+
+        /**
          * Convert a base64url-encoded string to an ArrayBuffer.
          */
         base64urlToBuffer: function (base64url) {
