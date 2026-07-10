@@ -34,6 +34,7 @@ class CredentialManagement implements CredentialManagementInterface
         $this->eventManager->dispatch('passkey_credential_remove_after', [
             'customer_id' => $customerId,
             'credential_id' => $entityId,
+            'friendly_name' => $credential->getFriendlyName(),
         ]);
 
         return true;

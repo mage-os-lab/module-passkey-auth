@@ -17,7 +17,16 @@
     passkey_credential_remove_after
         - customer_id (int)
         - credential_id (int)
+        - friendly_name (string|null)
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="passkey_credential_register_after">
+        <observer name="mageos_passkey_notify_added"
+                  instance="MageOS\PasskeyAuth\Observer\NotifyCredentialAdded"/>
+    </event>
+    <event name="passkey_credential_remove_after">
+        <observer name="mageos_passkey_notify_removed"
+                  instance="MageOS\PasskeyAuth\Observer\NotifyCredentialRemoved"/>
+    </event>
 </config>
