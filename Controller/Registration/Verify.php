@@ -57,13 +57,24 @@ class Verify implements HttpPostActionInterface, CsrfAwareActionInterface
 
         try {
             $body = $this->json->unserialize($this->request->getContent());
+            if (!is_array($body)) {
+                $body = [];
+            }
             $customerId = (int) $this->customerSession->getCustomerId();
+
+            $challengeToken = isset($body['challengeToken']) && is_string($body['challengeToken'])
+                ? $body['challengeToken']
+                : '';
+            $credentialData = $body['credential'] ?? [];
+            $friendlyName = isset($body['friendlyName']) && is_string($body['friendlyName'])
+                ? $body['friendlyName']
+                : null;
 
             $credential = $this->registrationVerifier->verify(
                 $customerId,
-                $body['challengeToken'] ?? '',
-                $this->json->serialize($body['credential'] ?? []),
-                $body['friendlyName'] ?? null
+                $challengeToken,
+                $this->json->serialize($credentialData),
+                $friendlyName
             );
 
             return $resultJson->setData([

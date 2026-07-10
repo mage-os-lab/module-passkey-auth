@@ -30,11 +30,18 @@ class Options implements HttpPostActionInterface
 
         try {
             $body = $this->json->unserialize($this->request->getContent());
-            $email = $body['email'] ?? null;
+            if (!is_array($body)) {
+                $body = [];
+            }
+            $email = isset($body['email']) && is_string($body['email']) ? $body['email'] : null;
 
             $optionsJson = $this->authenticationOptions->generate($email);
+            $optionsData = json_decode($optionsJson, true);
+            if (!is_array($optionsData)) {
+                throw new LocalizedException(__('Unable to generate authentication options.'));
+            }
 
-            return $resultJson->setData(json_decode($optionsJson, true));
+            return $resultJson->setData($optionsData);
         } catch (LocalizedException $e) {
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

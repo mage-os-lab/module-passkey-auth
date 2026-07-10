@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Model;
 
+use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\StoreManagerInterface;
 
-class Config
+class Config implements WebAuthnConfigInterface
 {
     public const XML_PATH_ENABLED = 'customer/passkey/enabled';
     public const XML_PATH_PROMPT_AFTER_LOGIN = 'customer/passkey/prompt_after_login';

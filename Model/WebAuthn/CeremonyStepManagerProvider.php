@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Model\WebAuthn;
 
-use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\CeremonyStep\CeremonyStepManager;
 use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
@@ -12,7 +12,7 @@ use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
 class CeremonyStepManagerProvider
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly WebAuthnConfigInterface $config,
         private readonly AttestationStatementSupportManager $attestationStatementSupportManager
     ) {
     }

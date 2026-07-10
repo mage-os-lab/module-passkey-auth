@@ -105,6 +105,9 @@ class OptionsGenerator implements RegistrationOptionsInterface
         );
 
         $optionsArray = $this->json->unserialize($serializedOptions);
+        if (!is_array($optionsArray)) {
+            throw new LocalizedException(__('Failed to decode registration options.'));
+        }
         $optionsArray['challengeToken'] = $challengeToken;
 
         return $this->json->serialize($optionsArray);
