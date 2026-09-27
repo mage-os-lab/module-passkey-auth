@@ -6,14 +6,20 @@
     "require": {
         "php": ">=8.2",
         "magento/framework": "*",
+        "magento/module-authorization": "*",
+        "magento/module-backend": "*",
+        "magento/module-config": "*",
         "magento/module-customer": "*",
+        "magento/module-email": "*",
         "magento/module-integration": "*",
         "magento/module-store": "*",
         "magento/module-two-factor-auth": "*",
-        "web-auth/webauthn-lib": "^5.0"
+        "magento/module-ui": "*",
+        "magento/module-user": "*",
+        "web-auth/webauthn-lib": "^5.2"
     },
     "require-dev": {
-        "phpunit/phpunit": "^9.5||^10.0"
+        "phpunit/phpunit": "^9.5 || ^10.0 || ^11.0 || ^12.0"
     },
     "suggest": {
         "magento/module-graph-ql": "Enables the passkey GraphQL API for headless storefronts",

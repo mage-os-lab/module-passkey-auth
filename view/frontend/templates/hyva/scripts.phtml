@@ -5,8 +5,10 @@
  */
 /** @var \Magento\Framework\View\Element\Template $block */
 /** @var \Magento\Framework\Escaper $escaper */
+
+// Not deferred: the components must register before Hyvä's deferred Alpine module starts.
 ?>
-<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/passkey-core.js')) ?>"></script>
-<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-login.js')) ?>"></script>
-<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-enrollment.js')) ?>"></script>
-<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-manage.js')) ?>"></script>
+<script src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/passkey-core.js')) ?>"></script>
+<script src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-login.js')) ?>"></script>
+<script src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-enrollment.js')) ?>"></script>
+<script src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageOS_PasskeyAuth::js/hyva/passkey-manage.js')) ?>"></script>

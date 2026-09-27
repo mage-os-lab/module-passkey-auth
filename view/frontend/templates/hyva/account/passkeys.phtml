@@ -12,17 +12,15 @@ $credentials = $block->getCredentials();
      data-registration-verify-url="<?= $escaper->escapeHtmlAttr($block->getRegistrationVerifyUrl()) ?>"
      data-delete-url="<?= $escaper->escapeHtmlAttr($block->getDeleteUrl()) ?>"
      data-rename-url="<?= $escaper->escapeHtmlAttr($block->getRenameUrl()) ?>"
-     @passkey-message="handleMessage">
+     @passkey-message="handleMessage"
+     @passkey-deleted="rowDeleted">
 
-    <?php if (empty($credentials)): ?>
-        <div class="p-4 mb-4 bg-blue-50 border border-blue-200 rounded text-sm">
-            <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
-        </div>
-        <button type="button" class="btn btn-primary" @click="register">
-            <?= $escaper->escapeHtml(__('Add a Passkey')) ?>
-        </button>
-    <?php else: ?>
-        <div class="overflow-x-auto">
+    <div class="p-4 mb-4 bg-blue-50 border border-blue-200 rounded text-sm"
+         x-show="isEmpty"<?= $credentials ? ' x-cloak' : '' ?>>
+        <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
+    </div>
+    <?php if ($credentials): ?>
+        <div class="overflow-x-auto mb-4" x-show="hasRows">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b border-gray-300">
@@ -36,7 +34,7 @@ $credentials = $block->getCredentials();
                     <?php foreach ($credentials as $credential): ?>
                         <?php $entityId = (int) $credential->getEntityId(); ?>
                         <tr x-data="passkeyRow"
-                            data-entity-id="<?= $entityId ?>"
+                            data-entity-id="<?= /* @noEscape */ $entityId ?>"
                             data-friendly-name="<?= $escaper->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
                             class="border-b border-gray-200">
                             <td class="py-3 pr-4">
@@ -52,6 +50,7 @@ $credentials = $block->getCredentials();
                                        @keydown.escape="cancelRename"
                                        type="text"
                                        maxlength="255"
+                                       aria-label="<?= $escaper->escapeHtmlAttr(__('Passkey name')) ?>"
                                        class="border border-gray-300 rounded px-2 py-1 text-sm w-full max-w-xs"
                                        x-cloak />
                             </td>
@@ -95,13 +94,10 @@ $credentials = $block->getCredentials();
                 </tbody>
             </table>
         </div>
-
-        <div class="mt-4">
-            <button type="button" class="btn btn-primary" @click="register">
-                <?= $escaper->escapeHtml(__('Add a Passkey')) ?>
-            </button>
-        </div>
     <?php endif; ?>
+    <button type="button" class="btn btn-primary" :disabled="busy" :aria-busy="busy" @click="register">
+        <?= $escaper->escapeHtml(__('Add a Passkey')) ?>
+    </button>
 
     <div x-show="hasMessage"
          x-cloak

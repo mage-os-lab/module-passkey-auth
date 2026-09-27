@@ -28,6 +28,15 @@ class ConditionalLogin extends PasskeyButton
         parent::__construct($context, $data);
     }
 
+    /**
+     * Autofill outside the login page reloads the current page instead of
+     * following a referer.
+     */
+    protected function getVerifyUrlParams(): array
+    {
+        return [];
+    }
+
     protected function _toHtml(): string
     {
         if ($this->httpContext->getValue(CustomerContext::CONTEXT_AUTH)) {

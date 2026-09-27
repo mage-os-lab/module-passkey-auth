@@ -45,10 +45,10 @@ define([
          * hook never sees: invalidate all sections so the header, minicart
          * etc. reload for the signed-in customer.
          */
-        _onSignedIn: function () {
+        _onSignedIn: function (result) {
             this._showMessage($t('Signed in. One moment…'), 'success');
             customerData.invalidate(['*']);
-            window.location.reload();
+            passkeyCore.completeSignIn(result);
         },
 
         _onLogin: function () {
@@ -77,8 +77,8 @@ define([
                         $t('Passkey verification failed. Please try again.')
                     );
                 })
-                .then(function () {
-                    self._onSignedIn();
+                .then(function (result) {
+                    self._onSignedIn(result);
                 })
                 .catch(function (error) {
                     self._showMessage(error.message || $t('Passkey sign-in failed.'), 'error');

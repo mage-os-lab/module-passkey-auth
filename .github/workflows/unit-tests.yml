@@ -9,7 +9,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   unit-test:
@@ -19,10 +19,11 @@ jobs:
           - 8.2
           - 8.3
           - 8.4
+          - 8.5
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: mage-os/github-actions/unit-test@main
+      - uses: actions/checkout@v4
+      - uses: mage-os/github-actions/unit-test@d27b0e883b655809e7399c8e5c831e1f6f503f3e # main, 2026-09-08
         with:
           php_version: ${{ matrix.php_version }}
           composer_auth: ${{ secrets.COMPOSER_AUTH }}

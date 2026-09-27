@@ -97,6 +97,34 @@
         },
 
         /**
+         * After a successful sign-in, go to the verify reply's redirect_url
+         * (the page password sign-in would land on), or reload.
+         */
+        completeSignIn: function (result) {
+            var url = result && typeof result.redirect_url === 'string' ? result.redirect_url : '',
+                here = window.location.href.split('#')[0],
+                target = null;
+
+            if (url) {
+                try {
+                    target = new URL(url, here);
+                } catch (e) {
+                    target = null;
+                }
+            }
+
+            // Same page (or only a new #fragment): assign() would not reload.
+            if (target
+                && (target.protocol === 'https:' || target.protocol === 'http:')
+                && target.href.split('#')[0] !== here
+            ) {
+                window.location.assign(target.href);
+            } else {
+                window.location.reload();
+            }
+        },
+
+        /**
          * Advertise passkey support to the browser's autofill on the email
          * fields. Fields rendered later (e.g. the checkout authentication
          * popup) are marked on first focus.
@@ -120,7 +148,7 @@
          * the email field's autofill dropdown. No-op when unsupported.
          *
          * config: {optionsUrl, verifyUrl, selectors?, onError?, onSuccess?}
-         * onSuccess defaults to reloading the page.
+         * onSuccess receives the verify reply; it defaults to completeSignIn().
          */
         startConditional: function (config) {
             var self = this;
@@ -192,11 +220,11 @@
                         credential: self.serializeAssertionResponse(credential)
                     });
                 });
-            }).then(function () {
+            }).then(function (result) {
                 if (typeof conditional.config.onSuccess === 'function') {
-                    conditional.config.onSuccess();
+                    conditional.config.onSuccess(result);
                 } else {
-                    window.location.reload();
+                    self.completeSignIn(result);
                 }
             }).catch(function (err) {
                 // Aborting is the expected path when the user signs in another

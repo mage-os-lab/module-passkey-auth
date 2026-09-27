@@ -3,7 +3,15 @@
  * See LICENSE.txt for license details.
  */
 
-window.addEventListener('alpine:init', () => {
+// Hyvä loads Alpine as a deferred module; register now if it is already
+// there, otherwise when it initialises.
+(function (register) {
+    if (window.Alpine) {
+        register();
+    } else {
+        window.addEventListener('alpine:init', register, {once: true});
+    }
+}(() => {
     Alpine.data('passkeyLogin', () => ({
         available: false,
         loading: false,
@@ -56,8 +64,12 @@ window.addEventListener('alpine:init', () => {
                     'Unable to sign in with passkey. Please use your password.'
                 );
                 const result = await this.performAssertion(options);
-                await passkeyCore.postJson(this.verifyUrl, result, 'Passkey verification failed. Please try again.');
-                window.location.reload();
+                const reply = await passkeyCore.postJson(
+                    this.verifyUrl,
+                    result,
+                    'Passkey verification failed. Please try again.'
+                );
+                passkeyCore.completeSignIn(reply);
             } catch (error) {
                 this.message = error.message || 'Passkey sign-in failed.';
                 this.messageType = 'error';
@@ -84,4 +96,4 @@ window.addEventListener('alpine:init', () => {
             }
         }
     }));
-}, {once: true});
+}));

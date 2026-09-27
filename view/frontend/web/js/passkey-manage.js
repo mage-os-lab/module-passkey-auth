@@ -5,12 +5,13 @@
 
 define([
     'jquery',
+    'underscore',
     'MageOS_PasskeyAuth/js/passkey-core',
     'mage/translate',
     'Magento_Ui/js/modal/confirm',
     'Magento_Ui/js/modal/prompt',
     'jquery-ui-modules/widget'
-], function ($, passkeyCore, $t, confirm, prompt) {
+], function ($, _, passkeyCore, $t, confirm, prompt) {
     'use strict';
 
     $.widget('mageOS.passkeyManage', {
@@ -152,7 +153,11 @@ define([
 
             confirm({
                 title: $t('Delete Passkey'),
-                content: $t('Delete "%1"? You will no longer be able to sign in with it.').replace('%1', name),
+                // Modal content is rendered as HTML.
+                content: $t('Delete "%1"? You will no longer be able to sign in with it.')
+                    .replace('%1', function () {
+                        return _.escape(name);
+                    }),
                 buttons: [{
                     text: $t('Cancel'),
                     class: 'action-secondary action-dismiss',

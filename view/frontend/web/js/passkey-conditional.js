@@ -18,6 +18,8 @@ define([
             optionsUrl: config.optionsUrl,
             verifyUrl: config.verifyUrl,
             selectors: config.selectors,
+            // Stay on this page (e.g. checkout) rather than follow the
+            // verify reply's redirect_url, which targets the login page flow.
             onSuccess: function () {
                 customerData.invalidate(['*']);
                 window.location.reload();
