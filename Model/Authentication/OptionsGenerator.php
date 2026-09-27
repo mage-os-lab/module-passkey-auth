@@ -45,7 +45,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         }
 
         $ip = $this->remoteAddress->getRemoteAddress() ?: 'unknown';
-        $this->rateLimiter->checkOptionsRate('auth_' . ($email ?? 'anonymous') . '_' . $ip);
+        $emailKey = $email !== null ? mb_strtolower(trim($email)) : 'anonymous';
+        $this->rateLimiter->checkOptionsRate('auth_' . $emailKey . '_' . $ip);
 
         $allowCredentials = [];
         $customerId = null;

@@ -72,7 +72,7 @@ class Delete implements HttpPostActionInterface, CsrfAwareActionInterface
                 'errors' => true,
                 'message' => $e->getMessage(),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Passkey delete error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

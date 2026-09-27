@@ -74,7 +74,7 @@
         /**
          * POST a JSON body to a storefront endpoint and resolve with the JSON
          * reply. Rejects with the server's message (or fallbackMessage) when
-         * the reply carries errors.
+         * the reply carries errors; the error's status is the HTTP status.
          */
         postJson: function (url, body, fallbackMessage) {
             return fetch(url, {
@@ -86,14 +86,46 @@
                 body: JSON.stringify(body),
                 credentials: 'same-origin'
             }).then(function (response) {
-                return response.json();
-            }).then(function (data) {
-                if (data.errors) {
-                    throw new Error(data.message || fallbackMessage || '');
-                }
+                return response.json().then(function (data) {
+                    var error;
 
-                return data;
+                    if (data.errors) {
+                        error = new Error(data.message || fallbackMessage || '');
+                        error.status = response.status;
+                        throw error;
+                    }
+
+                    return data;
+                });
             });
+        },
+
+        /**
+         * After a successful sign-in, go to the verify reply's redirect_url
+         * (the page password sign-in would land on), or reload.
+         */
+        completeSignIn: function (result) {
+            var url = result && typeof result.redirect_url === 'string' ? result.redirect_url : '',
+                here = window.location.href.split('#')[0],
+                target = null;
+
+            if (url) {
+                try {
+                    target = new URL(url, here);
+                } catch (e) {
+                    target = null;
+                }
+            }
+
+            // Same page (or only a new #fragment): assign() would not reload.
+            if (target
+                && (target.protocol === 'https:' || target.protocol === 'http:')
+                && target.href.split('#')[0] !== here
+            ) {
+                window.location.assign(target.href);
+            } else {
+                window.location.reload();
+            }
         },
 
         /**
@@ -120,7 +152,7 @@
          * the email field's autofill dropdown. No-op when unsupported.
          *
          * config: {optionsUrl, verifyUrl, selectors?, onError?, onSuccess?}
-         * onSuccess defaults to reloading the page.
+         * onSuccess receives the verify reply; it defaults to completeSignIn().
          */
         startConditional: function (config) {
             var self = this;
@@ -192,11 +224,11 @@
                         credential: self.serializeAssertionResponse(credential)
                     });
                 });
-            }).then(function () {
+            }).then(function (result) {
                 if (typeof conditional.config.onSuccess === 'function') {
-                    conditional.config.onSuccess();
+                    conditional.config.onSuccess(result);
                 } else {
-                    window.location.reload();
+                    self.completeSignIn(result);
                 }
             }).catch(function (err) {
                 // Aborting is the expected path when the user signs in another

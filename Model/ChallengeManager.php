@@ -49,19 +49,18 @@ class ChallengeManager
         $collection->addFieldToFilter('token', $token);
         $model = $collection->getFirstItem();
 
-        if (!$model->getId()) {
+        // Deleting the row claims it: of concurrent requests with the same token, only one succeeds
+        if (!$model->getId() || !$this->claim((int) $model->getId())) {
             throw new LocalizedException(__('Invalid or expired challenge token.'));
         }
 
         if ($model->getData('type') !== $expectedType) {
-            $this->challengeResource->delete($model);
             throw new LocalizedException(__('Challenge type mismatch.'));
         }
 
         if ($customerId !== null) {
             $storedCustomerId = $model->getData('customer_id') ? (int) $model->getData('customer_id') : null;
             if ($storedCustomerId !== $customerId) {
-                $this->challengeResource->delete($model);
                 throw new LocalizedException(__('Challenge does not belong to this customer.'));
             }
         }
@@ -69,14 +68,10 @@ class ChallengeManager
         $createdAt = strtotime((string) $model->getData('created_at'));
         $now = $this->dateTime->gmtTimestamp();
         if (($now - $createdAt) > self::TTL_SECONDS) {
-            $this->challengeResource->delete($model);
             throw new LocalizedException(__('Challenge has expired.'));
         }
 
-        $challengeData = (string) $model->getData('challenge_data');
-        $this->challengeResource->delete($model);
-
-        return $challengeData;
+        return (string) $model->getData('challenge_data');
     }
 
     public function cleanExpired(): int
@@ -87,5 +82,14 @@ class ChallengeManager
             $this->challengeResource->getMainTable(),
             ['created_at < ?' => $cutoff]
         );
+    }
+
+    private function claim(int $entityId): bool
+    {
+        $affected = $this->challengeResource->getConnection()->delete(
+            $this->challengeResource->getMainTable(),
+            ['entity_id = ?' => $entityId]
+        );
+        return (int) $affected === 1;
     }
 }

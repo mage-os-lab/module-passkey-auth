@@ -90,6 +90,24 @@ class ChallengeManagerTest extends TestCase
         $collection->method('getFirstItem')->willReturn($model);
     }
 
+    /**
+     * Expect consume() to claim the challenge row with one conditional DELETE, or never when $entityId is null.
+     */
+    private function expectClaim(?int $entityId, int $affectedRows = 1): void
+    {
+        $connection = $this->createMock(AdapterInterface::class);
+        if ($entityId === null) {
+            $connection->expects($this->never())->method('delete');
+        } else {
+            $connection->expects($this->once())
+                ->method('delete')
+                ->with('passkey_challenge', ['entity_id = ?' => $entityId])
+                ->willReturn($affectedRows);
+        }
+        $this->challengeResource->method('getConnection')->willReturn($connection);
+        $this->challengeResource->method('getMainTable')->willReturn('passkey_challenge');
+    }
+
     public function testCreateReturnsChallengeToken(): void
     {
         $model = $this->createModelMock();
@@ -175,9 +193,7 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->mockChallengeResource()->expects($this->once())
-            ->method('delete')
-            ->with($model);
+        $this->expectClaim(1);
 
         $result = $this->manager()->consume('abc123', 'registration', 42);
 
@@ -189,11 +205,33 @@ class ChallengeManagerTest extends TestCase
         $model = $this->createConsumeModel([]);
 
         $this->createCollectionWithModel($model);
+        $this->expectClaim(null);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid or expired challenge token.');
 
         $this->manager()->consume('nonexistent', 'registration');
+    }
+
+    public function testConsumeThrowsWhenChallengeAlreadyClaimed(): void
+    {
+        $model = $this->createConsumeModel([
+            'id' => 1,
+            'type' => 'authentication',
+            'challenge_data' => '{"challenge":"ok"}',
+            'created_at' => date('Y-m-d H:i:s', 1000000),
+        ]);
+
+        $this->createCollectionWithModel($model);
+        $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
+
+        // A concurrent request deleted the row between our SELECT and DELETE
+        $this->expectClaim(1, 0);
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Invalid or expired challenge token.');
+
+        $this->manager()->consume('token123', 'authentication');
     }
 
     public function testConsumeThrowsOnTypeMismatch(): void
@@ -208,9 +246,7 @@ class ChallengeManagerTest extends TestCase
 
         $this->createCollectionWithModel($model);
 
-        $this->mockChallengeResource()->expects($this->once())
-            ->method('delete')
-            ->with($model);
+        $this->expectClaim(1);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge type mismatch.');
@@ -233,9 +269,7 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->mockChallengeResource()->expects($this->once())
-            ->method('delete')
-            ->with($model);
+        $this->expectClaim(1);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge does not belong to this customer.');
@@ -258,9 +292,7 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->mockChallengeResource()->expects($this->once())
-            ->method('delete')
-            ->with($model);
+        $this->expectClaim(1);
 
         $result = $this->manager()->consume('token123', 'authentication');
 
@@ -282,9 +314,7 @@ class ChallengeManagerTest extends TestCase
         // 1000000 + 301 = expired (TTL is 300)
         $this->dateTime->method('gmtTimestamp')->willReturn(1000301);
 
-        $this->mockChallengeResource()->expects($this->once())
-            ->method('delete')
-            ->with($model);
+        $this->expectClaim(1);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge has expired.');

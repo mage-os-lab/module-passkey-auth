@@ -9,14 +9,18 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Test\Unit\Model;
 
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
+use MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterfaceFactory;
 use MageOS\PasskeyAuth\Model\Credential as CredentialModel;
 use MageOS\PasskeyAuth\Model\CredentialFactory as CredentialModelFactory;
 use MageOS\PasskeyAuth\Model\CredentialRepository;
+use MageOS\PasskeyAuth\Model\CredentialSearchResults;
 use MageOS\PasskeyAuth\Model\Data\Credential as CredentialDTO;
 use MageOS\PasskeyAuth\Model\Data\CredentialFactory as CredentialDTOFactory;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential as CredentialResource;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\Collection;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
+use Magento\Framework\Api\SearchCriteria\CollectionProcessorInterface;
+use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
@@ -30,6 +34,8 @@ class CredentialRepositoryTest extends TestCase
     private CredentialModelFactory&Stub $credentialModelFactory;
     private CredentialDTOFactory&Stub $credentialDTOFactory;
     private CollectionFactory&Stub $collectionFactory;
+    private CollectionProcessorInterface&Stub $collectionProcessor;
+    private CredentialSearchResultsInterfaceFactory&Stub $searchResultsFactory;
     private ?CredentialRepository $repository = null;
 
     protected function setUp(): void
@@ -38,6 +44,8 @@ class CredentialRepositoryTest extends TestCase
         $this->credentialModelFactory = $this->createStub(CredentialModelFactory::class);
         $this->credentialDTOFactory = $this->createStub(CredentialDTOFactory::class);
         $this->collectionFactory = $this->createStub(CollectionFactory::class);
+        $this->collectionProcessor = $this->createStub(CollectionProcessorInterface::class);
+        $this->searchResultsFactory = $this->createStub(CredentialSearchResultsInterfaceFactory::class);
     }
 
     private function repository(): CredentialRepository
@@ -46,7 +54,9 @@ class CredentialRepositoryTest extends TestCase
             $this->resource,
             $this->credentialModelFactory,
             $this->credentialDTOFactory,
-            $this->collectionFactory
+            $this->collectionFactory,
+            $this->collectionProcessor,
+            $this->searchResultsFactory
         );
     }
 
@@ -104,7 +114,7 @@ class CredentialRepositoryTest extends TestCase
         $resource = $this->mockResource();
         $resource->expects($this->once())
             ->method('load')
-            ->with($model, 'abc123', 'credential_id')
+            ->with($model, hash('sha256', 'abc123'), 'credential_id_hash')
             ->willReturnCallback(function (CredentialModel $m) {
                 $m->setData('entity_id', 10);
                 $m->setData('credential_id', 'abc123');
@@ -124,6 +134,26 @@ class CredentialRepositoryTest extends TestCase
         $this->expectException(NoSuchEntityException::class);
         $this->expectExceptionMessage('Passkey credential not found.');
         $this->repository()->getByCredentialId('nonexistent');
+    }
+
+    /**
+     * Defensive check: the hash lookup is exact, but a row whose stored ID differs from the requested one
+     * (here only by case) is still rejected.
+     */
+    public function testGetByCredentialIdRejectsRowWithDifferentStoredId(): void
+    {
+        $model = $this->createCredentialModel();
+        $this->credentialModelFactory->method('create')->willReturn($model);
+
+        $this->resource->method('load')->willReturnCallback(function (CredentialModel $m) {
+            $m->setData('entity_id', 10);
+            $m->setData('credential_id', 'ABC123');
+            return $this->resource;
+        });
+
+        $this->expectException(NoSuchEntityException::class);
+        $this->expectExceptionMessage('Passkey credential not found.');
+        $this->repository()->getByCredentialId('abc123');
     }
 
     public function testGetByCustomerIdWithResults(): void
@@ -167,6 +197,53 @@ class CredentialRepositoryTest extends TestCase
 
         $results = $this->repository()->getByCustomerId(999);
         $this->assertSame([], $results);
+    }
+
+    public function testGetListAppliesSearchCriteria(): void
+    {
+        $searchCriteria = $this->createStub(SearchCriteriaInterface::class);
+        $model1 = $this->createCredentialModel(['entity_id' => 1, 'customer_id' => 5]);
+        $model2 = $this->createCredentialModel(['entity_id' => 2, 'customer_id' => 6]);
+
+        $collection = $this->createStub(Collection::class);
+        $collection->method('getIterator')->willReturn(new \ArrayIterator([$model1, $model2]));
+        $collection->method('getSize')->willReturn(12);
+        $this->collectionFactory->method('create')->willReturn($collection);
+
+        $collectionProcessor = $this->createMock(CollectionProcessorInterface::class);
+        $this->collectionProcessor = $collectionProcessor;
+        $collectionProcessor->expects($this->once())
+            ->method('process')
+            ->with($searchCriteria, $collection);
+
+        $this->credentialDTOFactory->method('create')
+            ->willReturnOnConsecutiveCalls(new CredentialDTO(), new CredentialDTO());
+        $searchResults = new CredentialSearchResults();
+        $this->searchResultsFactory->method('create')->willReturn($searchResults);
+
+        $result = $this->repository()->getList($searchCriteria);
+
+        $this->assertSame($searchResults, $result);
+        $this->assertSame($searchCriteria, $result->getSearchCriteria());
+        $this->assertSame(12, $result->getTotalCount());
+        $this->assertCount(2, $result->getItems());
+        $this->assertContainsOnlyInstancesOf(CredentialInterface::class, $result->getItems());
+        $this->assertSame(1, $result->getItems()[0]->getEntityId());
+        $this->assertSame(6, $result->getItems()[1]->getCustomerId());
+    }
+
+    public function testGetListWithNoMatches(): void
+    {
+        $collection = $this->createStub(Collection::class);
+        $collection->method('getIterator')->willReturn(new \ArrayIterator([]));
+        $collection->method('getSize')->willReturn(0);
+        $this->collectionFactory->method('create')->willReturn($collection);
+        $this->searchResultsFactory->method('create')->willReturn(new CredentialSearchResults());
+
+        $result = $this->repository()->getList($this->createStub(SearchCriteriaInterface::class));
+
+        $this->assertSame([], $result->getItems());
+        $this->assertSame(0, $result->getTotalCount());
     }
 
     public function testSaveNewCredential(): void

@@ -13,17 +13,23 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\Authentication\Verifier;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
+use Magento\Customer\Api\CustomerRepositoryInterface;
+use Magento\Customer\Api\Data\CustomerInterface;
+use Magento\Customer\Model\Config\Share;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Stdlib\DateTime\DateTime;
+use Magento\Store\Api\Data\StoreInterface;
+use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -51,6 +57,9 @@ class VerifierTest extends TestCase
     private DateTime&Stub $dateTimeMock;
     private RateLimiter&Stub $rateLimiterMock;
     private RemoteAddress&Stub $remoteAddressStub;
+    private Share&Stub $shareConfigStub;
+    private CustomerRepositoryInterface&Stub $customerRepositoryStub;
+    private StoreManagerInterface&Stub $storeManagerStub;
     private bool $ceremonyIsMock = false;
     private bool $tokenServiceIsMock = false;
     private bool $resultFactoryIsMock = false;
@@ -76,6 +85,9 @@ class VerifierTest extends TestCase
         $this->rateLimiterMock = $this->createStub(RateLimiter::class);
         $this->remoteAddressStub = $this->createStub(RemoteAddress::class);
         $this->remoteAddressStub->method('getRemoteAddress')->willReturn('10.0.0.1');
+        $this->shareConfigStub = $this->createStub(Share::class);
+        $this->customerRepositoryStub = $this->createStub(CustomerRepositoryInterface::class);
+        $this->storeManagerStub = $this->createStub(StoreManagerInterface::class);
 
         $this->credential = PublicKeyCredential::create(
             'public-key',
@@ -101,7 +113,10 @@ class VerifierTest extends TestCase
             $this->loggerMock,
             $this->dateTimeMock,
             $this->rateLimiterMock,
-            $this->remoteAddressStub
+            $this->remoteAddressStub,
+            $this->shareConfigStub,
+            $this->customerRepositoryStub,
+            $this->storeManagerStub
         );
     }
 
@@ -154,6 +169,7 @@ class VerifierTest extends TestCase
     {
         $this->configureEnabled(false);
         $this->mockCeremony()->expects($this->never())->method('loadAssertion');
+        $this->expectRejectionLogged('Passkey authentication is not enabled.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
@@ -170,6 +186,7 @@ class VerifierTest extends TestCase
             ->with('bad-token', '{"response":"data"}', ChallengeManager::TYPE_AUTHENTICATION)
             ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
         $this->mockEventManager()->expects($this->never())->method('dispatch');
+        $this->expectRejectionLogged('Invalid or expired challenge token.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid or expired challenge token.');
@@ -184,6 +201,7 @@ class VerifierTest extends TestCase
         $this->ceremonyMock->method('loadAssertion')
             ->willThrowException(new LocalizedException(__('Invalid assertion response.')));
         $this->mockCredentialRepository()->expects($this->never())->method('getByCredentialId');
+        $this->expectRejectionLogged('Invalid assertion response.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid assertion response.');
@@ -207,13 +225,96 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_failure', [
                 'credential_id' => $expectedCredentialId,
+                'customer_id' => null,
                 'reason' => 'credential_not_found',
+                'message' => 'No such entity.',
             ]);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey verification failed. Please try again.');
 
         $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifyRejectsCredentialOfAnotherWebsite(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->configureWebsites(customerWebsiteId: 1, currentWebsiteId: 2);
+
+        $this->mockCeremony()->expects($this->never())->method('verifyAssertion');
+        $this->mockTokenService()->expects($this->never())->method('createTokenForCustomer');
+        $this->mockRateLimiter()->expects($this->once())->method('recordVerifyFailure')->with('10.0.0.1');
+        $this->mockEventManager()->expects($this->once())
+            ->method('dispatch')
+            ->with('passkey_authentication_failure', [
+                'credential_id' => base64_encode(self::RAW_ID),
+                'customer_id' => self::CUSTOMER_ID,
+                'reason' => 'credential_not_found',
+                'message' => 'Passkey credential belongs to another website.',
+            ]);
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey verification failed. Please try again.');
+
+        $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifyAcceptsCredentialOfCurrentWebsite(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->configureWebsites(customerWebsiteId: 2, currentWebsiteId: 2);
+        $this->configureVerifiedAssertion(1);
+        $result = $this->configureTokenAndResult();
+
+        $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
+    }
+
+    public function testVerifyIgnoresWebsiteWhenAccountsAreGlobal(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->shareConfigStub->method('isWebsiteScope')->willReturn(false);
+        $this->customerRepositoryStub = $this->createMock(CustomerRepositoryInterface::class);
+        $this->customerRepositoryStub->expects($this->never())->method('getById');
+        $this->configureVerifiedAssertion(1);
+        $result = $this->configureTokenAndResult();
+
+        $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
+    }
+
+    public function testVerifyTurnsValidatorErrorsIntoGenericFailure(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+
+        $this->ceremonyMock->method('verifyAssertion')->willThrowException(new \TypeError('Unexpected type'));
+        $this->mockRateLimiter()->expects($this->once())->method('recordVerifyFailure')->with('10.0.0.1');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey verification failed. Please try again.');
+
+        $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifyRecordsFailureForErrors(): void
+    {
+        $this->configureEnabled(true);
+        $this->ceremonyMock->method('loadAssertion')->willThrowException(new \TypeError('Unexpected type'));
+        $this->mockRateLimiter()->expects($this->once())
+            ->method('recordVerifyFailure')
+            ->with('10.0.0.1');
+        // Unexpected errors are left to the caller's error handling
+        $this->mockLogger()->expects($this->never())->method('warning');
+
+        $this->expectException(\TypeError::class);
+
+        $this->verifier()->verify('bad-token', '{"response":"assertion"}');
     }
 
     public function testVerifyThrowsWhenValidatorFails(): void
@@ -233,7 +334,9 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_failure', [
                 'credential_id' => base64_encode(self::RAW_ID),
-                'reason' => 'Signature verification failed',
+                'customer_id' => self::CUSTOMER_ID,
+                'reason' => 'verification_failed',
+                'message' => 'Signature verification failed',
             ]);
         $this->mockTokenService()->expects($this->never())->method('createTokenForCustomer');
 
@@ -248,6 +351,7 @@ class VerifierTest extends TestCase
         $this->configureEnabled(true);
         $this->configureLoadAssertion();
         $storedCredential = $this->createMock(CredentialInterface::class);
+        $storedCredential->method('getEntityId')->willReturn(17);
         $this->configureStoredCredential(5, $storedCredential);
         $updatedSource = $this->configureVerifiedAssertion(6);
 
@@ -277,6 +381,8 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_success', [
                 'customer_id' => self::CUSTOMER_ID,
+                'entity_id' => 17,
+                'credential_id' => base64_encode(self::RAW_ID),
                 'credential' => $storedCredential,
             ]);
         $this->mockLogger()->expects($this->never())->method('warning');
@@ -289,13 +395,14 @@ class VerifierTest extends TestCase
         $this->configureEnabled(true);
         $this->mockRateLimiter()->method('checkVerifyFailRate')
             ->with('10.0.0.1')
-            ->willThrowException(new LocalizedException(
+            ->willThrowException(new RateLimitExceededException(
                 __('Too many failed passkey attempts. Please try again later.')
             ));
         $this->mockCeremony()->expects($this->never())->method('loadAssertion');
         $this->mockRateLimiter()->expects($this->never())->method('recordVerifyFailure');
+        $this->expectRejectionLogged('Too many failed passkey attempts. Please try again later.');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
         $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
 
         $this->verifier()->verify('valid-token', '{"response":"assertion"}');
@@ -376,6 +483,13 @@ class VerifierTest extends TestCase
         $this->verifier()->verify('valid-token', '{"response":"assertion"}');
     }
 
+    private function expectRejectionLogged(string $reason): void
+    {
+        $this->mockLogger()->expects($this->once())
+            ->method('warning')
+            ->with('Passkey authentication rejected', ['reason' => $reason]);
+    }
+
     private function configureLoadAssertion(): void
     {
         $this->mockCeremony()->expects($this->once())
@@ -405,6 +519,23 @@ class VerifierTest extends TestCase
             ->willReturn($this->storedSource);
 
         return $storedCredential;
+    }
+
+    private function configureWebsites(int $customerWebsiteId, int $currentWebsiteId): void
+    {
+        $this->shareConfigStub->method('isWebsiteScope')->willReturn(true);
+
+        $customer = $this->createStub(CustomerInterface::class);
+        $customer->method('getWebsiteId')->willReturn($customerWebsiteId);
+        $this->customerRepositoryStub = $this->createMock(CustomerRepositoryInterface::class);
+        $this->customerRepositoryStub->expects($this->once())
+            ->method('getById')
+            ->with(self::CUSTOMER_ID)
+            ->willReturn($customer);
+
+        $store = $this->createStub(StoreInterface::class);
+        $store->method('getWebsiteId')->willReturn($currentWebsiteId);
+        $this->storeManagerStub->method('getStore')->willReturn($store);
     }
 
     private function configureVerifiedAssertion(int $newCounter): PublicKeyCredentialSource

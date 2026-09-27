@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Ui\Component\Listing\Column;
 
+use Magento\Framework\Escaper;
 use Magento\Framework\UrlInterface;
 use Magento\Framework\View\Element\UiComponent\ContextInterface;
 use Magento\Framework\View\Element\UiComponentFactory;
@@ -19,6 +20,7 @@ class CredentialActions extends Column
         ContextInterface $context,
         UiComponentFactory $uiComponentFactory,
         private readonly UrlInterface $urlBuilder,
+        private readonly Escaper $escaper,
         array $components = [],
         array $data = []
     ) {
@@ -48,8 +50,8 @@ class CredentialActions extends Column
                     'title' => __('Revoke passkey'),
                     'message' => __(
                         'Revoke the passkey "%1" for %2? The customer will no longer be able to sign in with it.',
-                        $label,
-                        $item['customer_email'] ?? ''
+                        $this->escaper->escapeHtml($label),
+                        $this->escaper->escapeHtml((string) ($item['customer_email'] ?? ''))
                     ),
                 ],
             ];

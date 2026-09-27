@@ -8,10 +8,12 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Api\Data;
 
+use Magento\Framework\Api\ExtensibleDataInterface;
+
 /**
  * @api
  */
-interface CredentialInterface
+interface CredentialInterface extends ExtensibleDataInterface
 {
     public const ENTITY_ID = 'entity_id';
     public const CUSTOMER_ID = 'customer_id';
@@ -150,4 +152,15 @@ interface CredentialInterface
      * @return string[]
      */
     public function getTransportsArray(): array;
+
+    /**
+     * @return \MageOS\PasskeyAuth\Api\Data\CredentialExtensionInterface|null
+     */
+    public function getExtensionAttributes(): ?CredentialExtensionInterface;
+
+    /**
+     * @param \MageOS\PasskeyAuth\Api\Data\CredentialExtensionInterface $extensionAttributes
+     * @return self
+     */
+    public function setExtensionAttributes(CredentialExtensionInterface $extensionAttributes): self;
 }

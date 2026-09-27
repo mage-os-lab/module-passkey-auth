@@ -5,12 +5,13 @@
 
 define([
     'MageOS_PasskeyAuth/js/passkey-tfa-ceremony',
-    'MageOS_PasskeyAuth/js/passkey-core'
-], function (Ceremony, passkeyCore) {
+    'MageOS_PasskeyAuth/js/passkey-core',
+    'mage/translate'
+], function (Ceremony, passkeyCore, $t) {
     return Ceremony.extend({
         defaults: {
             template: 'MageOS_PasskeyAuth/tfa/passkey/auth',
-            failureMessage: 'Authentication failed.'
+            failureMessage: $t('Authentication failed.')
         },
 
         initialize: function () {

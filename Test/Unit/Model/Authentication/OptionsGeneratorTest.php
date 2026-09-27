@@ -138,6 +138,20 @@ class OptionsGeneratorTest extends TestCase
         $this->optionsGenerator()->generate('user@example.com');
     }
 
+    public function testGenerateNormalizesEmailInRateLimitKey(): void
+    {
+        $this->configureEnabled(true);
+
+        $this->mockRateLimiter()->expects($this->once())
+            ->method('checkOptionsRate')
+            ->with('auth_user@example.com_127.0.0.1')
+            ->willThrowException(new LocalizedException(__('Too many passkey requests. Please try again later.')));
+
+        $this->expectException(LocalizedException::class);
+
+        $this->optionsGenerator()->generate('  User@Example.COM ');
+    }
+
     public function testGenerateRateLimitKeyForAnonymousRequest(): void
     {
         $this->configureEnabled(true);

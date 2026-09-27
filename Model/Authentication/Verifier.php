@@ -12,16 +12,22 @@ use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
+use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
+use MageOS\PasskeyAuth\Model\PasskeyEvents;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
+use Magento\Customer\Api\CustomerRepositoryInterface;
+use Magento\Customer\Model\Config\Share;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Stdlib\DateTime\DateTime;
+use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface;
 
 class Verifier implements AuthenticationVerifierInterface
@@ -36,23 +42,30 @@ class Verifier implements AuthenticationVerifierInterface
         private readonly LoggerInterface $logger,
         private readonly DateTime $dateTime,
         private readonly RateLimiter $rateLimiter,
-        private readonly RemoteAddress $remoteAddress
+        private readonly RemoteAddress $remoteAddress,
+        private readonly Share $shareConfig,
+        private readonly CustomerRepositoryInterface $customerRepository,
+        private readonly StoreManagerInterface $storeManager
     ) {
     }
 
     public function verify(string $challengeToken, string $assertionResponseJson): AuthenticationResultInterface
     {
         if (!$this->config->isEnabled()) {
-            throw new LocalizedException(__('Passkey authentication is not enabled.'));
+            throw $this->rejected(new LocalizedException(__('Passkey authentication is not enabled.')));
         }
 
         // Counted here so every entry point (storefront, REST, GraphQL) shares one limit
         $ip = $this->remoteAddress->getRemoteAddress() ?: 'unknown';
-        $this->rateLimiter->checkVerifyFailRate($ip);
+        try {
+            $this->rateLimiter->checkVerifyFailRate($ip);
+        } catch (RateLimitExceededException $e) {
+            throw $this->rejected($e);
+        }
 
         try {
             return $this->verifyAssertion($challengeToken, $assertionResponseJson);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->rateLimiter->recordVerifyFailure($ip);
             throw $e;
         }
@@ -65,23 +78,33 @@ class Verifier implements AuthenticationVerifierInterface
         string $challengeToken,
         string $assertionResponseJson
     ): AuthenticationResultInterface {
-        [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
-            $challengeToken,
-            $assertionResponseJson,
-            ChallengeManager::TYPE_AUTHENTICATION
-        );
+        try {
+            [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
+                $challengeToken,
+                $assertionResponseJson,
+                ChallengeManager::TYPE_AUTHENTICATION
+            );
+        } catch (LocalizedException $e) {
+            throw $this->rejected($e);
+        }
 
         $credentialIdBase64 = base64_encode($publicKeyCredential->rawId);
 
+        $storedCredential = null;
         try {
             $storedCredential = $this->credentialRepository->getByCredentialId($credentialIdBase64);
+            $this->assertCurrentWebsite($storedCredential);
         } catch (NoSuchEntityException $e) {
             $this->logger->warning('Passkey assertion rejected: unknown credential', [
                 'credential_id' => $credentialIdBase64,
+                'reason' => $e->getMessage(),
             ]);
-            $this->eventManager->dispatch('passkey_authentication_failure', [
+            $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_FAILURE, [
                 'credential_id' => $credentialIdBase64,
-                'reason' => 'credential_not_found',
+                // Set when the credential exists but belongs to another website
+                'customer_id' => $storedCredential?->getCustomerId(),
+                'reason' => PasskeyEvents::REASON_CREDENTIAL_NOT_FOUND,
+                'message' => $e->getMessage(),
             ]);
             throw new LocalizedException(__('Passkey verification failed. Please try again.'), $e);
         }
@@ -95,17 +118,22 @@ class Verifier implements AuthenticationVerifierInterface
                 $requestOptions,
                 $credentialSource
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->warning('Passkey assertion rejected', [
                 'credential_id' => $credentialIdBase64,
                 'customer_id' => $storedCredential->getCustomerId(),
                 'reason' => $e->getMessage(),
             ]);
-            $this->eventManager->dispatch('passkey_authentication_failure', [
+            $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_FAILURE, [
                 'credential_id' => $credentialIdBase64,
-                'reason' => $e->getMessage(),
+                'customer_id' => $storedCredential->getCustomerId(),
+                'reason' => PasskeyEvents::REASON_VERIFICATION_FAILED,
+                'message' => $e->getMessage(),
             ]);
-            throw new LocalizedException(__('Passkey verification failed. Please try again.'), $e);
+            throw new LocalizedException(
+                __('Passkey verification failed. Please try again.'),
+                $e instanceof \Exception ? $e : null
+            );
         }
 
         $customerId = $storedCredential->getCustomerId();
@@ -133,8 +161,10 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Authentication succeeded but token creation failed.'), $e);
         }
 
-        $this->eventManager->dispatch('passkey_authentication_success', [
+        $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_SUCCESS, [
             'customer_id' => $customerId,
+            'entity_id' => $storedCredential->getEntityId(),
+            'credential_id' => $credentialIdBase64,
             'credential' => $storedCredential,
         ]);
 
@@ -145,5 +175,33 @@ class Verifier implements AuthenticationVerifierInterface
         ]]);
 
         return $result;
+    }
+
+    /**
+     * Log a routine rejection. Logged here, not by the callers, so storefront, REST and GraphQL each log it once.
+     */
+    private function rejected(LocalizedException $e): LocalizedException
+    {
+        $this->logger->warning('Passkey authentication rejected', ['reason' => $e->getMessage()]);
+
+        return $e;
+    }
+
+    /**
+     * With per-website customer accounts, a passkey only signs in on its owner's website. The RP ID is the host,
+     * so without this a discoverable passkey would work on every website sharing it.
+     *
+     * @throws NoSuchEntityException When the owner belongs to another website, handled like an unknown credential
+     */
+    private function assertCurrentWebsite(CredentialInterface $credential): void
+    {
+        if (!$this->shareConfig->isWebsiteScope()) {
+            return;
+        }
+
+        $customer = $this->customerRepository->getById($credential->getCustomerId());
+        if ((int) $customer->getWebsiteId() !== (int) $this->storeManager->getStore()->getWebsiteId()) {
+            throw new NoSuchEntityException(__('Passkey credential belongs to another website.'));
+        }
     }
 }

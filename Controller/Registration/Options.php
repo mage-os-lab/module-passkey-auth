@@ -23,7 +23,6 @@ use Psr\Log\LoggerInterface;
 class Options implements HttpPostActionInterface, CsrfAwareActionInterface
 {
     public function __construct(
-        private readonly RequestInterface $request,
         private readonly JsonFactory $resultJsonFactory,
         private readonly CustomerSession $customerSession,
         private readonly RegistrationOptionsInterface $registrationOptions,
@@ -71,7 +70,7 @@ class Options implements HttpPostActionInterface, CsrfAwareActionInterface
                 'errors' => true,
                 'message' => $e->getMessage(),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Passkey registration options error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

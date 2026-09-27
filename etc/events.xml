@@ -6,24 +6,37 @@
  */
 -->
 <!--
-    Events dispatched by MageOS_PasskeyAuth:
+    Events dispatched by MageOS_PasskeyAuth. Names and reason codes are constants on
+    MageOS\PasskeyAuth\Model\PasskeyEvents. Every event uses the same meaning per key:
+        customer_id    (int) the customer, when known
+        entity_id      (int) the passkey_credential row ID
+        credential_id  (string) the WebAuthn credential ID, base64 as stored
+        credential     (CredentialInterface) the stored credential
+        reason         (string) a fixed code: credential_not_found | verification_failed
+        message        (string) human or webauthn-lib text; for logs, not for matching
 
     passkey_credential_register_after
-        - customer_id (int)
-        - credential (CredentialInterface)
+        - customer_id, entity_id, credential_id, credential
+
+    passkey_registration_failure
+        - customer_id
+        - reason: verification_failed
+        - message
 
     passkey_authentication_success
-        - customer_id (int)
-        - credential (CredentialInterface)
+        - customer_id, entity_id, credential_id, credential
+      REST, SOAP and GraphQL sign-ins then also dispatch core customer_login (etc/<area>/events.xml);
+      storefront sign-in dispatches it through the customer session.
 
     passkey_authentication_failure
-        - credential_id (string, base64)
-        - reason (string)
+        - credential_id
+        - customer_id (null when no stored credential matches)
+        - reason: credential_not_found (also covers a credential of another website when customer
+          accounts are shared per website; customer_id is then set) or verification_failed
+        - message
 
     passkey_credential_remove_after
-        - customer_id (int)
-        - credential_id (int)
-        - credential (CredentialInterface)
+        - customer_id, entity_id, credential_id, credential
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">

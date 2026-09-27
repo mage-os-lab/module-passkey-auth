@@ -10,6 +10,8 @@ namespace MageOS\PasskeyAuth\Api;
 
 /**
  * Relying-party settings for one WebAuthn context (storefront or admin).
+ *
+ * @api
  */
 interface WebAuthnConfigInterface
 {

@@ -4,7 +4,7 @@ How to extend or customize the module. For the API used by headless frontends, s
 
 ## Service contracts
 
-All customer passkey logic goes through interfaces in `Api/`. Replace any of them with a DI preference.
+All customer passkey logic goes through interfaces in `Api/`. They are all marked `@api`. Replace any of them with a DI preference.
 
 | Interface | Default implementation | Purpose |
 |---|---|---|
@@ -12,11 +12,18 @@ All customer passkey logic goes through interfaces in `Api/`. Replace any of the
 | `RegistrationVerifierInterface` | `Model\Registration\Verifier` | Check the browser response and save the passkey |
 | `AuthenticationOptionsInterface` | `Model\Authentication\OptionsGenerator` | Build sign-in options, optionally for one email |
 | `AuthenticationVerifierInterface` | `Model\Authentication\Verifier` | Check the browser response and issue a customer token |
-| `CredentialRepositoryInterface` | `Model\CredentialRepository` | Load, save, and delete passkeys |
+| `CredentialRepositoryInterface` | `Model\CredentialRepository` | Load, save, and delete passkeys. `getList()` takes search criteria. It is not exposed over REST. |
 | `CredentialManagementInterface` | `Model\CredentialManagement` | List, rename, and delete with an ownership check. `revokeCredential()` skips the check, for admin use. |
+| `CustomerPasskeyManagementInterface` | `Model\CustomerPasskeyManagement` | List, rename, and register passkeys for the web API. Returns `CustomerPasskeyInterface`, without key material. |
 | `WebAuthnConfigInterface` | `Model\Config` | Relying party and WebAuthn settings |
-| `Data\CredentialInterface` | `Model\Data\Credential` | Passkey data object |
+| `Data\CredentialInterface` | `Model\Data\Credential` | Full stored passkey, including the public key record |
+| `Data\CustomerPasskeyInterface` | `Model\Data\CustomerPasskey` | Passkey as REST and GraphQL return it: `id`, `name`, `transports`, `created_at`, `last_used_at` |
+| `Data\CredentialSearchResultsInterface` | `Model\CredentialSearchResults` | Result of `CredentialRepositoryInterface::getList()` |
 | `Data\AuthenticationResultInterface` | `Model\Data\AuthenticationResult` | Customer ID and token |
+
+`Data\CredentialInterface` and `Data\CustomerPasskeyInterface` support extension attributes. Declare yours in your module's `etc/extension_attributes.xml`. Extension attributes on `CustomerPasskeyInterface` appear in REST responses.
+
+PHP code that needs the full record should use `CredentialManagementInterface` or `CredentialRepositoryInterface`. The web API uses `CustomerPasskeyManagementInterface`, so it never returns key material.
 
 `Model\WebAuthn\Ceremony` wraps webauthn-lib for option building, challenge handling, and response validation. Customer and admin flows share it with different `WebAuthnConfigInterface` instances.
 
@@ -29,13 +36,30 @@ All customer passkey logic goes through interfaces in `Api/`. Replace any of the
 
 | Event | Data | When |
 |---|---|---|
-| `passkey_credential_register_after` | `customer_id` (int), `credential` (`CredentialInterface`) | A passkey was saved |
-| `passkey_registration_failure` | `customer_id` (int), `reason` (string) | The browser response for a new passkey failed validation |
-| `passkey_authentication_success` | `customer_id` (int), `credential` (`CredentialInterface`) | A customer signed in with a passkey |
-| `passkey_authentication_failure` | `credential_id` (string, base64), `reason` (string) | A sign-in response failed validation, or named an unknown passkey |
-| `passkey_credential_remove_after` | `customer_id` (int), `credential_id` (int, the entity ID), `credential` (`CredentialInterface`) | A passkey was deleted by the customer, through the API, or revoked by an admin |
+| `passkey_credential_register_after` | `customer_id`, `entity_id`, `credential_id`, `credential` | A passkey was saved |
+| `passkey_registration_failure` | `customer_id`, `reason` (`verification_failed`), `message` | The browser response for a new passkey failed validation |
+| `passkey_authentication_success` | `customer_id`, `entity_id`, `credential_id`, `credential` | A customer signed in with a passkey |
+| `passkey_authentication_failure` | `credential_id`, `customer_id` (null when no stored passkey matches), `reason` (`credential_not_found` or `verification_failed`), `message` | A sign-in response named an unknown passkey, or failed validation |
+| `passkey_credential_remove_after` | `customer_id`, `entity_id`, `credential_id`, `credential` | A passkey was deleted by the customer, through the API, or revoked by an admin |
+
+Each key means the same thing in every event:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `customer_id` | int | The customer |
+| `entity_id` | int | The `passkey_credential` row ID. This is the `id` in REST and GraphQL. |
+| `credential_id` | string | The WebAuthn credential ID, base64 as stored |
+| `credential` | `CredentialInterface` | The stored passkey |
+| `reason` | string | A fixed code. Match on this. |
+| `message` | string | Text from the module or webauthn-lib, for logs. Don't match on it. |
+
+`credential_not_found` also covers a passkey whose customer belongs to another website, when **Share Customer Accounts** is **Per Website**. `customer_id` is set in that case.
+
+Event names and reason codes are constants on `MageOS\PasskeyAuth\Model\PasskeyEvents` (`@api`).
 
 These fire from the service layer, so they cover the storefront, REST, GraphQL, and the admin grid.
+
+After a passkey sign-in, Magento's own `customer_login` event also fires, as for a password sign-in. The storefront fires it through the customer session. For REST, SOAP, and GraphQL, the module's `mageos_passkey_dispatch_customer_login` observer on `passkey_authentication_success` fires it, as core does for password token requests. This updates the customer's last login time.
 
 `passkey_credential_remove_after` does not fire when a customer account is deleted. The database removes those passkeys through a foreign key.
 
@@ -105,7 +129,9 @@ Rate limits (`Model\RateLimiter`) and the 5-minute challenge lifetime (`Model\Ch
 | `passkey.checkout.conditional` | `checkout_index_index` | `before.body.end` | Autofill on checkout email fields |
 | `passkey.hyva.scripts` | `hyva_default` | `before.body.end` | Loads the Hyvä scripts |
 
-All blocks use `ifconfig="customer/passkey/enabled"`. Remove or move them with `referenceBlock` as usual.
+All blocks except `customer.account.passkeys` use `ifconfig="customer/passkey/enabled"`. That page's controller returns 404 instead when passkeys are off. Remove or move blocks with `referenceBlock` as usual.
+
+`Block\Login\PasskeyButton::getVerifyUrl()` adds the login page's `referer` parameter to the verify URL, as core's login form does. The verify reply's `redirect_url` then follows it. `Block\Login\ConditionalLogin` leaves it out on purpose. The autofill it adds reloads the current page after sign-in and ignores `redirect_url`, so a customer at checkout stays at checkout.
 
 ### Templates
 
@@ -123,6 +149,9 @@ Luma styles are in `view/frontend/web/css/source/_module.less` and use Luma's st
 ### JavaScript
 
 `MageOS_PasskeyAuth/js/passkey-core` (alias `passkeyCore`) holds the shared code: encoding, option conversion, autofill, the enrollment snooze, and name suggestions. It has no dependencies and loads as a RequireJS module or as a plain script (`window.passkeyCore`).
+
+- `passkeyCore.completeSignIn(result)` takes the verify reply and goes to its `redirect_url`: the page a password sign-in would land on. It reloads the page instead when the URL is missing, not http(s), or the current page.
+- `passkeyCore.startConditional(config)` starts autofill. `config.onSuccess(result)` gets the verify reply. Without `onSuccess`, it calls `completeSignIn(result)`.
 
 Luma jQuery UI widgets, which you can extend with RequireJS mixins:
 
@@ -159,7 +188,9 @@ require(['MageOS_PasskeyAuth/js/passkey-conditional'], function (conditional) {
 });
 ```
 
-The block renders nothing for signed-in customers. Only one WebAuthn request can be active in a page, so call `passkeyCore.abortConditional()` before starting your own ceremony.
+The block renders nothing for signed-in customers. After sign-in, `passkey-conditional` refreshes customer data and reloads the page. It ignores the verify reply's `redirect_url`. To go somewhere else, call `passkeyCore.startConditional()` with your own `onSuccess(result)`.
+
+Only one WebAuthn request can be active in a page, so call `passkeyCore.abortConditional()` before starting your own ceremony.
 
 ### Storefront endpoints
 
@@ -168,7 +199,7 @@ The storefront uses these session-based JSON endpoints. They are not a public AP
 | Path | Signed in | Body |
 |---|---|---|
 | `POST /passkey/authentication/options` | No | `{"email": "…"}` (optional) |
-| `POST /passkey/authentication/verify` | No | `{"challengeToken": "…", "credential": {…}}`. Signs the customer in to the session. |
+| `POST /passkey/authentication/verify` | No | `{"challengeToken": "…", "credential": {…}}`. Signs the customer in to the session. Success returns `{"errors": false, "message": "…", "redirect_url": "…"}`. |
 | `POST /passkey/registration/options` | Yes | `{}` |
 | `POST /passkey/registration/verify` | Yes | `{"challengeToken": "…", "credential": {…}, "friendlyName": "…"}` |
 | `POST /passkey/account/rename` | Yes | `{"entity_id": 1, "friendly_name": "…"}` |
@@ -198,7 +229,7 @@ All strings are in `i18n/en_US.csv`. Hyvä JavaScript messages are plain English
 | `passkey_credential` | One row per passkey: customer ID, credential ID, a SHA-256 hash of the credential ID (unique), the serialized public key record, user handle, signature counter, transports, name, AAGUID, and timestamps. Deleted with the customer. |
 | `passkey_challenge` | Pending challenges: token, serialized options, type, and customer ID. Rows are deleted when used, and the `passkey_challenge_cleanup` cron job removes expired ones every 5 minutes. |
 
-A customer's passkeys share one random user handle, created with their first passkey.
+A customer's passkeys share one random user handle, created with their first passkey. New passkeys reuse the handle of the customer's oldest passkey that has a valid one. Passkeys registered before 1.0 may keep a different handle of their own. They still work.
 
 Admin two-factor passkeys are stored in Magento_TwoFactorAuth's `tfa_user_config` table, not in `passkey_credential`.
 
@@ -219,4 +250,9 @@ GitHub Actions runs them on pushes to `main` and `feature/*`, and on pull reques
 ../../../vendor/bin/phpunit ../../../vendor/mage-os/module-passkey-auth/Test/Integration
 ```
 
-**GraphQL API tests** (`Test/Api/GraphQl`) run from `dev/tests/api-functional` against a configured GraphQL endpoint.
+**GraphQL API tests** (`Test/Api/GraphQl`) use Magento's api-functional framework. Set up `dev/tests/api-functional` for your instance first (copy `phpunit_graphql.xml.dist` to `phpunit_graphql.xml` and set `TESTS_BASE_URL` and the other values). The default suite doesn't include module tests, so run them by path:
+
+```bash
+cd dev/tests/api-functional
+../../../vendor/bin/phpunit -c phpunit_graphql.xml ../../../vendor/mage-os/module-passkey-auth/Test/Api/GraphQl
+```

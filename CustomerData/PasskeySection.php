@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\CustomerData;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\Enrollment\NewAccountFlag;
+use MageOS\PasskeyAuth\Model\Registration\AdminImpersonationGuard;
 use Magento\Customer\CustomerData\SectionSourceInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 
@@ -20,13 +21,19 @@ class PasskeySection implements SectionSourceInterface
         private readonly Config $config,
         private readonly CustomerSession $customerSession,
         private readonly CredentialRepositoryInterface $credentialRepository,
-        private readonly NewAccountFlag $newAccountFlag
+        private readonly NewAccountFlag $newAccountFlag,
+        private readonly AdminImpersonationGuard $impersonationGuard
     ) {
     }
 
     public function getSectionData(): array
     {
         if (!$this->customerSession->isLoggedIn() || !$this->config->isEnabled()) {
+            return ['show_enrollment_prompt' => false];
+        }
+
+        // Registration is refused during Login as Customer, so don't offer it
+        if ($this->impersonationGuard->isImpersonated()) {
             return ['show_enrollment_prompt' => false];
         }
 

@@ -203,7 +203,7 @@ class Engine implements EngineInterface
         $this->logger->warning('Admin passkey ceremony failed', [
             'admin_user_id' => $userId,
             'provider' => self::CODE,
-            'exception' => $e->getMessage(),
+            'reason' => $e->getMessage(),
         ]);
         return new LocalizedException($genericMessage, $e instanceof \Exception ? $e : null);
     }

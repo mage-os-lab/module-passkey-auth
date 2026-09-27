@@ -8,8 +8,9 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Model;
 
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use Magento\Framework\App\CacheInterface;
-use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Phrase;
 
 /**
  * Note: The check-then-increment pattern is inherently non-atomic in cache-based storage.
@@ -28,30 +29,36 @@ class RateLimiter
     ) {
     }
 
+    /**
+     * @throws RateLimitExceededException
+     */
     public function checkOptionsRate(string $identifier): void
     {
-        $key = 'passkey_options_' . md5($identifier);
+        $key = 'passkey_options_' . hash('sha256', $identifier);
         $this->checkOnly($key, self::OPTIONS_LIMIT, __('Too many passkey requests. Please try again later.'));
         $this->increment($key, self::OPTIONS_WINDOW);
     }
 
+    /**
+     * @throws RateLimitExceededException
+     */
     public function checkVerifyFailRate(string $ip): void
     {
-        $key = 'passkey_verify_fail_' . md5($ip);
+        $key = 'passkey_verify_fail_' . hash('sha256', $ip);
         $this->checkOnly($key, self::VERIFY_FAIL_LIMIT, __('Too many failed passkey attempts. Please try again later.'));
     }
 
     public function recordVerifyFailure(string $ip): void
     {
-        $key = 'passkey_verify_fail_' . md5($ip);
+        $key = 'passkey_verify_fail_' . hash('sha256', $ip);
         $this->increment($key, self::VERIFY_FAIL_WINDOW);
     }
 
-    private function checkOnly(string $key, int $limit, \Magento\Framework\Phrase $message): void
+    private function checkOnly(string $key, int $limit, Phrase $message): void
     {
         $count = (int) $this->cache->load($key);
         if ($count >= $limit) {
-            throw new LocalizedException($message);
+            throw new RateLimitExceededException($message);
         }
     }
 

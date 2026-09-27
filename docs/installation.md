@@ -5,11 +5,11 @@
 | Component | Version |
 |---|---|
 | PHP | 8.2 or later |
-| Magento Open Source or Mage-OS | 2.4.x |
+| Magento Open Source or Mage-OS | 2.4.6 or later |
 | Magento_TwoFactorAuth | Installed and enabled (the module depends on it) |
 | HTTPS | Required. Browsers only allow passkeys on secure pages. `localhost` also counts as secure for local development. |
 
-The module installs [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5 through Composer.
+The module installs [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) 5.2 or later through Composer.
 
 GraphQL support needs `Magento_GraphQl`. It is optional.
 
@@ -67,6 +67,12 @@ bin/magento cache:flush
 ```
 
 Registered passkeys are kept across upgrades.
+
+### Upgrading from a 1.0.0 beta
+
+Before 1.0, customer passkeys were on by default. They are now off by default. If your store already has customer passkeys and never saved **Enable Passkey Authentication** in Default Config, `setup:upgrade` saves it as **Yes** in Default Config so passkey sign-in keeps working. If you saved it in Default Config yourself, your value is kept. Values saved for a website or store view are always kept.
+
+1.0 also changes the REST responses, the event data, and some PHP classes. Read the breaking changes in [CHANGELOG.md](../CHANGELOG.md) before you upgrade a store with custom code or a headless frontend.
 
 ## Remove
 

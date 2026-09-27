@@ -9,19 +9,18 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Model\Resolver;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Exception\GraphQlAuthenticationException;
 use Magento\Framework\GraphQl\Exception\GraphQlInputException;
 use Magento\Framework\GraphQl\Query\ResolverInterface;
 use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
-use Psr\Log\LoggerInterface;
 
 class VerifyAuthentication implements ResolverInterface
 {
     public function __construct(
-        private readonly AuthenticationVerifierInterface $authenticationVerifier,
-        private readonly LoggerInterface $logger
+        private readonly AuthenticationVerifierInterface $authenticationVerifier
     ) {
     }
 
@@ -37,9 +36,11 @@ class VerifyAuthentication implements ResolverInterface
 
         try {
             $result = $this->authenticationVerifier->verify($challengeToken, $assertionResponse);
+        } catch (RateLimitExceededException $e) {
+            // Says nothing about the account, so the customer is told to wait
+            throw new GraphQlAuthenticationException(__($e->getMessage()), $e);
         } catch (LocalizedException $e) {
-            $this->logger->error('GraphQL passkey authentication failed', ['exception' => $e->getMessage()]);
-            // Deliberately generic: do not leak whether the credential exists.
+            // Already logged by the verifier. Deliberately generic: do not leak whether the credential exists.
             throw new GraphQlAuthenticationException(
                 __('Passkey verification failed. Please try again.'),
                 $e

@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\Model\WebAuthn;
 use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json;
 use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 use Webauthn\AuthenticatorAssertionResponse;
@@ -125,16 +126,16 @@ class Ceremony
         string $challengeType,
         ?int $customerId = null
     ) {
-        $serializer = $this->serializerFactory->get();
-        $creationOptions = $serializer->deserialize(
+        $error = __('Invalid attestation response.');
+        $creationOptions = $this->deserialize(
             $this->challengeManager->consume($challengeToken, $challengeType, $customerId),
             PublicKeyCredentialCreationOptions::class,
-            'json'
+            $error
         );
 
-        $response = $this->deserializeCredential($responseJson)->response;
+        $response = $this->deserialize($responseJson, PublicKeyCredential::class, $error)->response;
         if (!$response instanceof AuthenticatorAttestationResponse) {
-            throw new LocalizedException(__('Invalid attestation response.'));
+            throw new LocalizedException($error);
         }
 
         return AuthenticatorAttestationResponseValidator::create(
@@ -153,15 +154,16 @@ class Ceremony
      */
     public function loadAssertion(string $challengeToken, string $responseJson, string $challengeType): array
     {
-        $requestOptions = $this->serializerFactory->get()->deserialize(
+        $error = __('Invalid assertion response.');
+        $requestOptions = $this->deserialize(
             $this->challengeManager->consume($challengeToken, $challengeType),
             PublicKeyCredentialRequestOptions::class,
-            'json'
+            $error
         );
 
-        $credential = $this->deserializeCredential($responseJson);
+        $credential = $this->deserialize($responseJson, PublicKeyCredential::class, $error);
         if (!$credential->response instanceof AuthenticatorAssertionResponse) {
-            throw new LocalizedException(__('Invalid assertion response.'));
+            throw new LocalizedException($error);
         }
 
         return [$credential, $requestOptions];
@@ -218,9 +220,32 @@ class Ceremony
         return $this->serializerFactory->get()->deserialize($json, $type, 'json');
     }
 
-    private function deserializeCredential(string $json): PublicKeyCredential
+    /**
+     * Parse untrusted JSON into a webauthn-lib object.
+     *
+     * webauthn-lib and Symfony throw TypeError, RangeException and serializer errors on malformed input, and
+     * return a plain array for JSON such as {} or [], so every failure becomes the caller's LocalizedException.
+     *
+     * @template T of object
+     * @param string $json
+     * @param class-string<T> $type
+     * @param Phrase $error
+     * @return T
+     * @throws LocalizedException
+     */
+    private function deserialize(string $json, string $type, Phrase $error): object
     {
-        return $this->serializerFactory->get()->deserialize($json, PublicKeyCredential::class, 'json');
+        try {
+            $result = $this->serializerFactory->get()->deserialize($json, $type, 'json');
+        } catch (\Throwable $e) {
+            throw new LocalizedException($error, $e instanceof \Exception ? $e : null);
+        }
+
+        if (!$result instanceof $type) {
+            throw new LocalizedException($error);
+        }
+
+        return $result;
     }
 
     private function issueChallenge(PublicKeyCredentialOptions $options, string $challengeType, ?int $customerId): array

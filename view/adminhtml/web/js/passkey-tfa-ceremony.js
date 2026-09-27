@@ -17,7 +17,7 @@ define([
         defaults: {
             postUrl: '',
             successUrl: '',
-            failureMessage: 'Passkey verification failed.',
+            failureMessage: $t('Passkey verification failed.'),
             currentStep: 'idle',
             errorMessage: ''
         },
@@ -88,11 +88,11 @@ define([
                     case 'SecurityError':
                         return $t('Passkeys are not allowed on this domain. Check that the admin URL uses HTTPS and matches the store domain.');
                     default:
-                        return $t(this.failureMessage);
+                        return this.failureMessage;
                 }
             }
 
-            return err && err.message ? err.message : $t(this.failureMessage);
+            return err && err.message ? err.message : this.failureMessage;
         },
 
         /**
@@ -110,7 +110,7 @@ define([
                 throw new Error($t('Server error. Please try again.'));
             }).then(function (response) {
                 if (response.success === false) {
-                    throw new Error(response.message || $t(self.failureMessage));
+                    throw new Error(response.message || self.failureMessage);
                 }
                 return response;
             });

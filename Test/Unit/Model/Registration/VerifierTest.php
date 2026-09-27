@@ -11,12 +11,14 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model\Registration;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
+use MageOS\PasskeyAuth\Model\Registration\AdminImpersonationGuard;
 use MageOS\PasskeyAuth\Model\Registration\Verifier;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\Event\ManagerInterface as EventManager;
+use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\LocalizedException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -37,6 +39,7 @@ class VerifierTest extends TestCase
     private Ceremony&Stub $ceremonyMock;
     private CredentialInterfaceFactory&Stub $credentialFactoryMock;
     private EventManager&Stub $eventManagerMock;
+    private AdminImpersonationGuard&Stub $adminImpersonationGuardStub;
     private bool $ceremonyIsMock = false;
     private bool $credentialFactoryIsMock = false;
     private bool $eventManagerIsMock = false;
@@ -51,6 +54,7 @@ class VerifierTest extends TestCase
         $this->ceremonyMock = $this->createStub(Ceremony::class);
         $this->credentialFactoryMock = $this->createStub(CredentialInterfaceFactory::class);
         $this->eventManagerMock = $this->createStub(EventManager::class);
+        $this->adminImpersonationGuardStub = $this->createStub(AdminImpersonationGuard::class);
     }
 
     /**
@@ -64,7 +68,8 @@ class VerifierTest extends TestCase
             $this->credentialRepositoryMock,
             $this->credentialFactoryMock,
             $this->eventManagerMock,
-            $this->loggerMock
+            $this->loggerMock,
+            $this->adminImpersonationGuardStub
         );
     }
 
@@ -203,15 +208,17 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_registration_failure', [
                 'customer_id' => 42,
-                'reason' => 'Invalid origin',
+                'reason' => 'verification_failed',
+                'message' => 'Invalid origin',
             ]);
 
         $this->mockLogger()->expects($this->once())
-            ->method('error')
+            ->method('warning')
             ->with('Passkey registration verification failed', [
-                'exception' => 'Invalid origin',
+                'reason' => 'Invalid origin',
                 'customer_id' => 42,
             ]);
+        $this->mockLogger()->expects($this->never())->method('error');
 
         $this->mockCredentialRepository()->expects($this->never())->method('save');
 
@@ -219,6 +226,57 @@ class VerifierTest extends TestCase
         $this->expectExceptionMessage('Passkey registration verification failed. Please try again.');
 
         $this->verifier()->verify(42, 'token', '{"response":"invalid"}', 'My Key');
+    }
+
+    public function testVerifyConvertsNonExceptionErrorsToGenericFailure(): void
+    {
+        $this->configureEnabled(true);
+
+        $this->ceremonyMock->method('verifyRegistration')
+            ->willThrowException(new \TypeError('Unexpected type'));
+        $this->mockEventManager()->expects($this->once())
+            ->method('dispatch')
+            ->with('passkey_registration_failure', [
+                'customer_id' => 42,
+                'reason' => 'verification_failed',
+                'message' => 'Unexpected type',
+            ]);
+        $this->mockCredentialRepository()->expects($this->never())->method('save');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey registration verification failed. Please try again.');
+
+        $this->verifier()->verify(42, 'token', '{"response":"invalid"}', 'My Key');
+    }
+
+    public function testVerifyRefusesWhileAdminIsSignedInAsCustomer(): void
+    {
+        $this->configureEnabled(true);
+        $this->adminImpersonationGuardStub->method('assertNotImpersonated')->willThrowException(
+            new LocalizedException(__('Passkeys can\'t be added while an admin is signed in as this customer.'))
+        );
+        $this->mockCeremony()->expects($this->never())->method('verifyRegistration');
+        $this->mockCredentialRepository()->expects($this->never())->method('save');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkeys can\'t be added while an admin is signed in as this customer.');
+
+        $this->verifier()->verify(42, 'token', '{}', 'My Key');
+    }
+
+    public function testVerifyHidesSaveErrorDetail(): void
+    {
+        $this->configureSuccessfulCeremony();
+        $this->credentialFactoryMock->method('create')->willReturn($this->createStub(CredentialInterface::class));
+        $this->mockCredentialRepository()->method('save')->willThrowException(new CouldNotSaveException(
+            __('Could not save passkey credential: %1', 'SQLSTATE[23000]: Duplicate entry')
+        ));
+        $this->mockEventManager()->expects($this->never())->method('dispatch');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey registration failed. Please try again.');
+
+        $this->verifier()->verify(42, 'token', '{}', 'My Key');
     }
 
     public function testVerifyThrowsOnMaxCredentialsRaceCondition(): void
@@ -258,6 +316,8 @@ class VerifierTest extends TestCase
         $this->credentialFactoryMock->method('create')->willReturn($credential);
 
         $saved = $this->createStub(CredentialInterface::class);
+        $saved->method('getEntityId')->willReturn(17);
+        $saved->method('getCredentialId')->willReturn(base64_encode('credential-id'));
         $this->mockCredentialRepository()->expects($this->once())
             ->method('save')
             ->with($credential)
@@ -267,6 +327,8 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_credential_register_after', [
                 'customer_id' => 42,
+                'entity_id' => 17,
+                'credential_id' => base64_encode('credential-id'),
                 'credential' => $saved,
             ]);
 

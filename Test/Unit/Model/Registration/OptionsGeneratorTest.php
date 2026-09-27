@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model\Registration;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\RateLimiter;
+use MageOS\PasskeyAuth\Model\Registration\AdminImpersonationGuard;
 use MageOS\PasskeyAuth\Model\Registration\OptionsGenerator;
 use MageOS\PasskeyAuth\Model\UserHandleGenerator;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
@@ -34,6 +35,7 @@ class OptionsGeneratorTest extends TestCase
     private UserHandleGenerator&Stub $userHandleGeneratorMock;
     private Ceremony&MockObject $ceremonyMock;
     private RateLimiter&Stub $rateLimiterMock;
+    private AdminImpersonationGuard&Stub $adminImpersonationGuardStub;
     private bool $customerRepositoryIsMock = false;
     private bool $userHandleGeneratorIsMock = false;
     private ?OptionsGenerator $optionsGenerator = null;
@@ -47,6 +49,7 @@ class OptionsGeneratorTest extends TestCase
         $this->userHandleGeneratorMock = $this->createStub(UserHandleGenerator::class);
         $this->ceremonyMock = $this->createMock(Ceremony::class);
         $this->rateLimiterMock = $this->createStub(RateLimiter::class);
+        $this->adminImpersonationGuardStub = $this->createStub(AdminImpersonationGuard::class);
     }
 
     /**
@@ -61,7 +64,8 @@ class OptionsGeneratorTest extends TestCase
             $this->userHandleGeneratorMock,
             $this->ceremonyMock,
             new Json(),
-            $this->rateLimiterMock
+            $this->rateLimiterMock,
+            $this->adminImpersonationGuardStub
         );
     }
 
@@ -113,6 +117,20 @@ class OptionsGeneratorTest extends TestCase
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
+
+        $this->optionsGenerator()->generate(42);
+    }
+
+    public function testGenerateRefusesWhileAdminIsSignedInAsCustomer(): void
+    {
+        $this->configureEnabled(true);
+        $this->adminImpersonationGuardStub->method('assertNotImpersonated')->willThrowException(
+            new LocalizedException(__('Passkeys can\'t be added while an admin is signed in as this customer.'))
+        );
+        $this->ceremonyMock->expects($this->never())->method('createRegistrationOptions');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkeys can\'t be added while an admin is signed in as this customer.');
 
         $this->optionsGenerator()->generate(42);
     }

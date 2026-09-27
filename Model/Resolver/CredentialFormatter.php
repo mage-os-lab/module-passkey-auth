@@ -9,20 +9,29 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Model\Resolver;
 
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
+use MageOS\PasskeyAuth\Api\Data\CustomerPasskeyInterface;
+use MageOS\PasskeyAuth\Model\CustomerPasskeyMapper;
 
 class CredentialFormatter
 {
+    public function __construct(
+        private readonly CustomerPasskeyMapper $mapper
+    ) {
+    }
+
     /**
-     * Shape a credential for the CustomerPasskey GraphQL type.
+     * Shape a credential for the CustomerPasskey GraphQL type, with the same fields as the REST response.
      */
     public function format(CredentialInterface $credential): array
     {
+        $passkey = $this->mapper->map($credential);
+
         return [
-            'id' => (int) $credential->getEntityId(),
-            'name' => $credential->getFriendlyName(),
-            'transports' => $credential->getTransportsArray(),
-            'created_at' => $credential->getCreatedAt(),
-            'last_used_at' => $credential->getLastUsedAt(),
+            CustomerPasskeyInterface::ID => $passkey->getId(),
+            CustomerPasskeyInterface::NAME => $passkey->getName(),
+            CustomerPasskeyInterface::TRANSPORTS => $passkey->getTransports(),
+            CustomerPasskeyInterface::CREATED_AT => $passkey->getCreatedAt(),
+            CustomerPasskeyInterface::LAST_USED_AT => $passkey->getLastUsedAt(),
         ];
     }
 }

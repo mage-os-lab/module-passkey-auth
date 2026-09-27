@@ -59,4 +59,4 @@ If an admin has lost their passkey and no other admin can sign in, run `security
 
 ## Logging
 
-Successful registrations, failed registrations, and failed sign-ins are reported through Magento_TwoFactorAuth's alert mechanism. Details of failed checks are written to `var/log/system.log`.
+Successful registrations, failed registrations, and failed sign-ins are reported through Magento_TwoFactorAuth's alert mechanism. When the passkey check itself fails, the reason is also logged as a warning in `var/log/system.log`.

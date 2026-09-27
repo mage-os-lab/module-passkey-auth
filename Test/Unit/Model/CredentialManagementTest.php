@@ -61,6 +61,7 @@ class CredentialManagementTest extends TestCase
         $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn($customerId);
         $credential->method('getEntityId')->willReturn($entityId);
+        $credential->method('getCredentialId')->willReturn('Y3JlZGVudGlhbC1pZA==');
 
         $credentialRepository = $this->mockCredentialRepository();
         $credentialRepository->method('getById')
@@ -78,7 +79,8 @@ class CredentialManagementTest extends TestCase
             ->method('dispatch')
             ->with('passkey_credential_remove_after', [
                 'customer_id' => $customerId,
-                'credential_id' => $entityId,
+                'entity_id' => $entityId,
+                'credential_id' => 'Y3JlZGVudGlhbC1pZA==',
                 'credential' => $credential,
             ]);
 

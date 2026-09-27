@@ -8,9 +8,9 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Test\Unit\Model;
 
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use Magento\Framework\App\CacheInterface;
-use Magento\Framework\Exception\LocalizedException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -38,6 +38,32 @@ class RateLimiterTest extends TestCase
         $this->rateLimiter->checkOptionsRate('test@example.com');
     }
 
+    public function testCacheKeysUseSha256(): void
+    {
+        $this->cache->expects($this->exactly(2))
+            ->method('load')
+            ->with('passkey_options_' . hash('sha256', 'test@example.com'))
+            ->willReturn(false);
+        $this->cache->expects($this->once())
+            ->method('save')
+            ->with('1', 'passkey_options_' . hash('sha256', 'test@example.com'), [], 60);
+
+        $this->rateLimiter->checkOptionsRate('test@example.com');
+    }
+
+    public function testVerifyFailureKeyUsesSha256(): void
+    {
+        $this->cache->expects($this->once())
+            ->method('load')
+            ->with('passkey_verify_fail_' . hash('sha256', '127.0.0.1'))
+            ->willReturn(false);
+        $this->cache->expects($this->once())
+            ->method('save')
+            ->with('1', 'passkey_verify_fail_' . hash('sha256', '127.0.0.1'), [], 900);
+
+        $this->rateLimiter->recordVerifyFailure('127.0.0.1');
+    }
+
     public function testCheckOptionsRateUnderLimit(): void
     {
         $this->cache->expects($this->exactly(2))
@@ -57,7 +83,8 @@ class RateLimiterTest extends TestCase
             ->method('load')
             ->willReturn('10');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
+        $this->expectExceptionMessage('Too many passkey requests. Please try again later.');
         $this->rateLimiter->checkOptionsRate('test@example.com');
     }
 
@@ -85,7 +112,8 @@ class RateLimiterTest extends TestCase
             ->method('load')
             ->willReturn('5');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
+        $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
         $this->rateLimiter->checkVerifyFailRate('127.0.0.1');
     }
 

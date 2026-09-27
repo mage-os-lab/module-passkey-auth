@@ -23,7 +23,7 @@ The banner only shows when all of these are true:
 - The browser supports passkeys.
 - The customer has not clicked **Not now** in the last 30 days, and has clicked it fewer than 3 times. This is stored in the browser, so it is per device.
 
-The banner does not show on the **My Account > Passkeys** page itself.
+The banner does not show on the **My Account > Passkeys** page itself, or while an admin is signed in as the customer with Login as Customer.
 
 ### Scope
 
@@ -38,6 +38,7 @@ Every passkey is bound to the domain it was created on. The module takes that do
 - A passkey created on `www.example.com` does not work on `example.com` or `shop.example.com`.
 - If you change the store's domain, every customer passkey stops working. Customers need to sign in with their password and add a new passkey. Tell customers before you move domains.
 - Store views on the same domain share passkeys. Websites on different domains do not. A customer with one account across two domains needs a passkey on each.
+- If **Share Customer Accounts** is set to **Per Website** (under **Customer Configuration > Account Sharing Options**), a passkey only signs in on its own customer's website. This holds even when websites share a domain.
 - The store must be served over HTTPS at the base URL. A mismatch between the URL in the browser and the configured base URL (including port) makes passkey requests fail.
 
 Admin passkeys for two-factor authentication are bound to the admin URL's domain instead. See [Admin two-factor authentication](admin-2fa.md).

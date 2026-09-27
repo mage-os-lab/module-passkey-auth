@@ -53,7 +53,7 @@ Available variables: `customer_name`, `passkey_name`, and `store_name`.
 
 Emails use the customer's store view for language and design. For accounts created in the admin with no store view, the website's default store view is used.
 
-A failed email never blocks the passkey change. Failures are logged to `var/log/system.log`.
+A failed email never blocks the passkey change. Failures are logged to `var/log/exception.log`.
 
 ## Common support cases
 

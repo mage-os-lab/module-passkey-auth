@@ -17,6 +17,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksChallengeManagerTrait;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json;
 use ParagonIE\ConstantTime\Base64UrlSafe;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Uid\Uuid;
@@ -260,6 +261,93 @@ class CeremonyTest extends TestCase
 
         $this->assertSame('raw-credential-id', $credential->rawId);
         $this->assertSame(self::RP_ID, $requestOptions->rpId);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function malformedCredentialProvider(): array
+    {
+        $b64 = fn (string $v) => Base64UrlSafe::encodeUnpadded($v);
+        $clientData = $b64('{}');
+
+        return [
+            'empty object' => ['{}'],
+            'empty array' => ['[]'],
+            'json null' => ['null'],
+            'json string' => ['"credential"'],
+            'not json' => ['not json'],
+            'rawId as array' => [json_encode([
+                'id' => $b64('abc'),
+                'rawId' => ['abc'],
+                'type' => 'public-key',
+                'response' => [],
+            ])],
+            'response as string' => [json_encode([
+                'id' => $b64('abc'),
+                'rawId' => $b64('abc'),
+                'type' => 'public-key',
+                'response' => 'response',
+            ])],
+            'bad base64' => [json_encode([
+                'id' => 'a',
+                'rawId' => '!!!',
+                'type' => 'public-key',
+                'response' => ['clientDataJSON' => $clientData, 'authenticatorData' => 'AA', 'signature' => 'AA'],
+            ])],
+            'empty response' => [json_encode([
+                'id' => $b64('abc'),
+                'rawId' => $b64('abc'),
+                'type' => 'public-key',
+                'response' => [],
+            ])],
+        ];
+    }
+
+    #[DataProvider('malformedCredentialProvider')]
+    public function testLoadAssertionRejectsMalformedCredential(string $json): void
+    {
+        $this->captureStoredOptions();
+        $this->ceremony()->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $this->challengeManagerMock->method('consume')->willReturnCallback(fn () => $this->storedOptionsJson);
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Invalid assertion response.');
+
+        $this->ceremony()->loadAssertion('auth-token', $json, ChallengeManager::TYPE_AUTHENTICATION);
+    }
+
+    #[DataProvider('malformedCredentialProvider')]
+    public function testVerifyRegistrationRejectsMalformedCredential(string $json): void
+    {
+        $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
+        $this->captureStoredOptions();
+        $this->ceremony()->createRegistrationOptions(
+            PublicKeyCredentialUserEntity::create('jane@example.com', 'uh', 'Jane Doe'),
+            [],
+            ChallengeManager::TYPE_REGISTRATION,
+            42
+        );
+        $this->challengeManagerMock->method('consume')->willReturnCallback(fn () => $this->storedOptionsJson);
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Invalid attestation response.');
+
+        $this->ceremony()->verifyRegistration('reg-token', $json, ChallengeManager::TYPE_REGISTRATION, 42);
+    }
+
+    public function testLoadAssertionRejectsUnreadableStoredOptions(): void
+    {
+        $this->challengeManagerMock->method('consume')->willReturn('not json');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Invalid assertion response.');
+
+        $this->ceremony()->loadAssertion(
+            'auth-token',
+            $this->buildAssertionCredentialJson(),
+            ChallengeManager::TYPE_AUTHENTICATION
+        );
     }
 
     public function testDeserializeSourceRoundTripsStoredCredential(): void

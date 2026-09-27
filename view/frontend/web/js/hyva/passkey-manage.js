@@ -3,13 +3,19 @@
  * See LICENSE.txt for license details.
  */
 
+// Hyvä starts Alpine deferred, after this script runs, so register
+// when Alpine initialises, before it walks the page.
 window.addEventListener('alpine:init', () => {
 
     Alpine.data('passkeyManage', () => ({
         message: '',
         messageType: '',
+        busy: false,
+        rowCount: 0,
 
         get hasMessage() { return this.message !== ''; },
+        get hasRows() { return this.rowCount > 0; },
+        get isEmpty() { return this.rowCount === 0; },
         get messageClasses() {
             if (this.messageType === 'error') return 'bg-red-100 text-red-700';
             if (this.messageType === 'success') return 'bg-green-100 text-green-700';
@@ -19,6 +25,7 @@ window.addEventListener('alpine:init', () => {
         init() {
             this.registrationOptionsUrl = this.$el.dataset.registrationOptionsUrl;
             this.registrationVerifyUrl = this.$el.dataset.registrationVerifyUrl;
+            this.rowCount = this.$el.querySelectorAll('[data-entity-id]').length;
         },
 
         handleMessage(event) {
@@ -26,7 +33,14 @@ window.addEventListener('alpine:init', () => {
             this.messageType = event.detail.type;
         },
 
+        rowDeleted() {
+            this.rowCount = Math.max(0, this.rowCount - 1);
+        },
+
         async register() {
+            if (this.busy) {
+                return;
+            }
             if (!passkeyCore.isAvailable()) {
                 this.message = window.isSecureContext
                     ? 'Your browser does not support passkeys.'
@@ -52,29 +66,26 @@ window.addEventListener('alpine:init', () => {
             }
             this.message = '';
             this.messageType = '';
+            this.busy = true;
 
             try {
-                const options = await this.postJson(this.registrationOptionsUrl, {});
+                const options = await passkeyCore.postJson(this.registrationOptionsUrl, {}, 'Registration failed.');
                 const challengeToken = options.challengeToken;
                 const creationOptions = passkeyCore.prepareCreationOptions(options);
                 const credential = await navigator.credentials.create(creationOptions);
                 const serialized = passkeyCore.serializeAttestationResponse(credential);
 
-                const result = await this.postJson(this.registrationVerifyUrl, {
+                await passkeyCore.postJson(this.registrationVerifyUrl, {
                     challengeToken: challengeToken,
                     credential: serialized,
                     friendlyName: friendlyName
-                });
+                }, 'Registration failed.');
 
-                if (result.errors) {
-                    this.message = result.message;
-                    this.messageType = 'error';
-                } else {
-                    this.message = 'Passkey registered successfully.';
-                    this.messageType = 'success';
-                    setTimeout(function () { window.location.reload(); }, 1000);
-                }
+                this.message = 'Passkey registered successfully.';
+                this.messageType = 'success';
+                setTimeout(function () { window.location.reload(); }, 1000);
             } catch (err) {
+                this.busy = false;
                 if (err.name === 'NotAllowedError') {
                     this.message = 'Passkey registration was cancelled.';
                 } else if (err.name === 'InvalidStateError') {
@@ -84,16 +95,6 @@ window.addEventListener('alpine:init', () => {
                 }
                 this.messageType = 'error';
             }
-        },
-
-        async postJson(url, body) {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-                body: JSON.stringify(body),
-                credentials: 'same-origin'
-            });
-            return response.json();
         }
     }));
 
@@ -183,9 +184,15 @@ window.addEventListener('alpine:init', () => {
                 if (result.errors) {
                     this.$dispatch('passkey-message', {text: result.message, type: 'error'});
                 } else {
-                    this.$el.style.transition = 'opacity 0.3s';
-                    this.$el.style.opacity = '0';
-                    setTimeout(() => this.$el.remove(), 300);
+                    // $el is the clicked button here; $root is the row.
+                    const row = this.$root;
+
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        this.$dispatch('passkey-deleted');
+                        row.remove();
+                    }, 300);
                     this.$dispatch('passkey-message', {text: 'Passkey deleted.', type: 'success'});
                 }
             } catch (e) {

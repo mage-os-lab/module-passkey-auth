@@ -10,11 +10,15 @@ namespace MageOS\PasskeyAuth\Model;
 
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
+use MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterface;
+use MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterfaceFactory;
 use MageOS\PasskeyAuth\Model\Data\Credential as CredentialDTO;
 use MageOS\PasskeyAuth\Model\Data\CredentialFactory as CredentialDTOFactory;
 use MageOS\PasskeyAuth\Model\CredentialFactory as CredentialModelFactory;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential as CredentialResource;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
+use Magento\Framework\Api\SearchCriteria\CollectionProcessorInterface;
+use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
@@ -25,7 +29,9 @@ class CredentialRepository implements CredentialRepositoryInterface
         private readonly CredentialResource $resource,
         private readonly CredentialModelFactory $credentialFactory,
         private readonly CredentialDTOFactory $credentialDTOFactory,
-        private readonly CollectionFactory $collectionFactory
+        private readonly CollectionFactory $collectionFactory,
+        private readonly CollectionProcessorInterface $collectionProcessor,
+        private readonly CredentialSearchResultsInterfaceFactory $searchResultsFactory
     ) {
     }
 
@@ -42,8 +48,9 @@ class CredentialRepository implements CredentialRepositoryInterface
     public function getByCredentialId(string $credentialId): CredentialInterface
     {
         $model = $this->credentialFactory->create();
-        $this->resource->load($model, $credentialId, 'credential_id');
-        if (!$model->getId()) {
+        $this->resource->load($model, $this->hashCredentialId($credentialId), 'credential_id_hash');
+        // The SHA-256 lookup is already exact; comparing the stored ID as well is a defensive check
+        if (!$model->getId() || (string) $model->getData('credential_id') !== $credentialId) {
             throw new NoSuchEntityException(__('Passkey credential not found.'));
         }
         return $this->toDTO($model);
@@ -62,6 +69,25 @@ class CredentialRepository implements CredentialRepositoryInterface
         return $results;
     }
 
+    public function getList(SearchCriteriaInterface $searchCriteria): CredentialSearchResultsInterface
+    {
+        $collection = $this->collectionFactory->create();
+        $this->collectionProcessor->process($searchCriteria, $collection);
+
+        $items = [];
+        foreach ($collection as $model) {
+            $items[] = $this->toDTO($model);
+        }
+
+        /** @var CredentialSearchResultsInterface $searchResults */
+        $searchResults = $this->searchResultsFactory->create();
+        $searchResults->setSearchCriteria($searchCriteria);
+        $searchResults->setItems($items);
+        $searchResults->setTotalCount($collection->getSize());
+
+        return $searchResults;
+    }
+
     public function save(CredentialInterface $credential): CredentialInterface
     {
         $this->validateCredential($credential);
@@ -76,7 +102,7 @@ class CredentialRepository implements CredentialRepositoryInterface
 
         $model->setData('customer_id', $credential->getCustomerId());
         $model->setData('credential_id', $credential->getCredentialId());
-        $model->setData('credential_id_hash', hash('sha256', $credential->getCredentialId()));
+        $model->setData('credential_id_hash', $this->hashCredentialId($credential->getCredentialId()));
         $model->setData('public_key', $credential->getPublicKey());
         $model->setData('user_handle', $credential->getUserHandle());
         $model->setData('sign_count', $credential->getSignCount());
@@ -144,6 +170,11 @@ class CredentialRepository implements CredentialRepositoryInterface
         if ($credential->getSignCount() < 0) {
             throw new CouldNotSaveException(__('Sign count cannot be negative.'));
         }
+    }
+
+    private function hashCredentialId(string $credentialId): string
+    {
+        return hash('sha256', $credentialId);
     }
 
     private function toDTO(Credential $model): CredentialInterface

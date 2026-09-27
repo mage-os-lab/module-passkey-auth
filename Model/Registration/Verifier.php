@@ -14,8 +14,10 @@ use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
 use MageOS\PasskeyAuth\Api\RegistrationVerifierInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\PasskeyEvents;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Framework\Event\ManagerInterface as EventManager;
+use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\LocalizedException;
 use Psr\Log\LoggerInterface;
 
@@ -27,7 +29,8 @@ class Verifier implements RegistrationVerifierInterface
         private readonly CredentialRepositoryInterface $credentialRepository,
         private readonly CredentialInterfaceFactory $credentialFactory,
         private readonly EventManager $eventManager,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly AdminImpersonationGuard $adminImpersonationGuard
     ) {
     }
 
@@ -40,6 +43,8 @@ class Verifier implements RegistrationVerifierInterface
         if (!$this->config->isEnabled()) {
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
+
+        $this->adminImpersonationGuard->assertNotImpersonated();
 
         if ($friendlyName !== null) {
             $friendlyName = trim($friendlyName);
@@ -60,16 +65,20 @@ class Verifier implements RegistrationVerifierInterface
         } catch (LocalizedException $e) {
             // Challenge and response-shape errors carry their own message; not a verification failure
             throw $e;
-        } catch (\Exception $e) {
-            $this->logger->error('Passkey registration verification failed', [
-                'exception' => $e->getMessage(),
-                'customer_id' => $customerId,
-            ]);
-            $this->eventManager->dispatch('passkey_registration_failure', [
-                'customer_id' => $customerId,
+        } catch (\Throwable $e) {
+            $this->logger->warning('Passkey registration verification failed', [
                 'reason' => $e->getMessage(),
+                'customer_id' => $customerId,
             ]);
-            throw new LocalizedException(__('Passkey registration verification failed. Please try again.'), $e);
+            $this->eventManager->dispatch(PasskeyEvents::REGISTRATION_FAILURE, [
+                'customer_id' => $customerId,
+                'reason' => PasskeyEvents::REASON_VERIFICATION_FAILED,
+                'message' => $e->getMessage(),
+            ]);
+            throw new LocalizedException(
+                __('Passkey registration verification failed. Please try again.'),
+                $e instanceof \Exception ? $e : null
+            );
         }
 
         // Re-check max credentials to prevent race condition from concurrent registrations
@@ -91,10 +100,21 @@ class Verifier implements RegistrationVerifierInterface
         $credential->setFriendlyName($friendlyName);
         $credential->setAaguid($credentialSource->aaguid->toString());
 
-        $savedCredential = $this->credentialRepository->save($credential);
+        try {
+            $savedCredential = $this->credentialRepository->save($credential);
+        } catch (CouldNotSaveException $e) {
+            // Its message can carry database detail, e.g. for a credential ID that is already registered
+            $this->logger->warning('Passkey registration could not be saved', [
+                'reason' => $e->getMessage(),
+                'customer_id' => $customerId,
+            ]);
+            throw new LocalizedException(__('Passkey registration failed. Please try again.'), $e);
+        }
 
-        $this->eventManager->dispatch('passkey_credential_register_after', [
+        $this->eventManager->dispatch(PasskeyEvents::CREDENTIAL_REGISTER_AFTER, [
             'customer_id' => $customerId,
+            'entity_id' => $savedCredential->getEntityId(),
+            'credential_id' => $savedCredential->getCredentialId(),
             'credential' => $savedCredential,
         ]);
 

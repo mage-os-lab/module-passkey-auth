@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Check `var/log/system.log` first. Most failures log a reason there, even when the customer only sees a generic message.
+Check `var/log/system.log` first. Most failures log a warning with a `reason` there, even when the customer only sees a generic message. Unexpected errors go to `var/log/exception.log`. See [Logging](security.md#logging).
 
 ## The passkey button, menu link, or banner doesn't appear
 
@@ -16,12 +16,12 @@ Passkeys are turned off for the store the request went to. For REST and GraphQL,
 
 ## Sign-in or registration fails with a generic error
 
-Look in `var/log/system.log` for a line starting with "Passkey". Common reasons:
+Look in `var/log/system.log` for a warning that mentions "passkey", and read its `reason`. Common reasons:
 
 | Log mentions | Cause | Fix |
 |---|---|---|
 | origin, RP ID, or host | The browser URL doesn't match the store's base URL (different host, `www`, port, or `http`) | Serve the store at exactly its configured secure base URL |
-| unknown credential | The passkey was deleted, revoked, or created on another domain or install | The customer signs in with their password and adds a new passkey |
+| unknown credential | The passkey was deleted, revoked, or created on another domain or install. With **Share Customer Accounts** set to **Per Website**, it can also be a passkey of a customer on another website that shares this domain ("Passkey credential belongs to another website.") | The customer signs in with their password and adds a new passkey on this website |
 | Invalid or expired challenge token / Challenge has expired | The prompt took more than 5 minutes, or the same request was sent twice | Try again |
 | counter | The authenticator's counter didn't increase, which can mean it was copied | See [Cloned authenticators](security.md#cloned-authenticators) |
 
@@ -40,19 +40,27 @@ The store's domain changed. Passkeys only work on the domain where they were cre
 
 The browser found an existing passkey for this account on the device and won't make a second one. The customer can sign in with the existing one. To replace it, delete it first under **My Account > Passkeys**.
 
+## "Passkeys can't be added while an admin is signed in as this customer."
+
+An admin used Login as Customer and tried to add a passkey. This is blocked on purpose, so an admin can't add a passkey of their own to a customer's account. See [Login as Customer](security.md#login-as-customer).
+
 ## "Too many passkey requests" or "Too many failed passkey attempts"
 
 A rate limit was hit. Wait up to 15 minutes. On a shared IP address, such as an office network, several customers share the failed-sign-in limit. Flushing the cache resets all counters. See [Rate limits](security.md#rate-limits).
 
+The customer sees the message on the storefront, and REST and GraphQL return it. The log shows it as the `reason` too.
+
 ## Behind a load balancer or CDN, everyone hits the rate limit together
 
-The limits count by IP address. If Magento sees the proxy's IP instead of the visitor's, all visitors share one counter. Configure your web server or Magento to pass the real client IP (for example with `X-Forwarded-For` handling), so each visitor is counted separately.
+The limits count by IP address. If Magento sees the proxy's IP instead of the visitor's, all visitors share one counter. Pass the real client IP to Magento, so each visitor is counted separately. See [The client IP address](security.md#the-client-ip-address).
+
+A headless frontend that calls REST or GraphQL from its own server has the same problem: every sign-in comes from the server's IP.
 
 ## Notification emails aren't sent
 
 - **Email Customer When Passkeys Change** must be on for the customer's website.
 - Check that store emails work in general (**Stores > Configuration > Advanced > System > Mail Sending Settings**).
-- Look for "Failed to send passkey notification email" in `var/log/system.log`.
+- Look for "Failed to send passkey notification email" in `var/log/exception.log`.
 - Deleting a customer account doesn't send the "removed" email.
 
 ## Expired challenges pile up in `passkey_challenge`

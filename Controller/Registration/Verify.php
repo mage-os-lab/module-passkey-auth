@@ -95,7 +95,7 @@ class Verify implements HttpPostActionInterface, CsrfAwareActionInterface
                 'errors' => true,
                 'message' => $e->getMessage(),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Passkey registration verify error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,
