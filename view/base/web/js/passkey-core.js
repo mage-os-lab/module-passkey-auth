@@ -1,3 +1,8 @@
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         define([], factory);

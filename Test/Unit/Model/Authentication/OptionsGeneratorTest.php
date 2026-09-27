@@ -1,4 +1,8 @@
 <?php
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
 
 declare(strict_types=1);
 

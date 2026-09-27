@@ -1,4 +1,9 @@
 /**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+/**
  * Shared two-phase flow for the admin passkey 2FA screens:
  * POST for options -> browser WebAuthn call -> POST the serialized credential.
  */

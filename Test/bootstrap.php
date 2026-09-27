@@ -1,5 +1,10 @@
 <?php
 /**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+/**
  * Bootstrap for standalone unit tests (CI).
  *
  * Registers an autoloader that generates stub Factory classes on the fly,
