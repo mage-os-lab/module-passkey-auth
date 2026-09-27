@@ -4,36 +4,32 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Test\Unit\Model\WebAuthn;
 
+use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
 use MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use PHPUnit\Framework\TestCase;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\CeremonyStep\CeremonyStepManager;
 
 class CeremonyStepManagerProviderTest extends TestCase
 {
-    use MocksConfigTrait;
-
     private CeremonyStepManagerProvider $provider;
+    private WebAuthnConfigInterface $config;
 
     protected function setUp(): void
     {
-        $configMock = $this->createConfigMock();
-        $configMock->method('getAllowedOrigins')->willReturn(['https://example.com']);
+        $this->config = $this->createMock(WebAuthnConfigInterface::class);
+        $this->config->method('getAllowedOrigins')->willReturn(['https://example.com']);
 
-        $this->provider = new CeremonyStepManagerProvider(
-            $configMock,
-            new AttestationStatementSupportManager()
-        );
+        $this->provider = new CeremonyStepManagerProvider(new AttestationStatementSupportManager());
     }
 
     public function testGetCreationCeremonyReturnsCeremonyStepManager(): void
     {
-        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getCreationCeremony());
+        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getCreationCeremony($this->config));
     }
 
     public function testGetRequestCeremonyReturnsCeremonyStepManager(): void
     {
-        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getRequestCeremony());
+        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getRequestCeremony($this->config));
     }
 }

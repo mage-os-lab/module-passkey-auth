@@ -2,6 +2,10 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
+    <!-- WebAuthn config: storefront by default; admin TFA overrides per ceremony below -->
+    <preference for="MageOS\PasskeyAuth\Api\WebAuthnConfigInterface"
+                type="MageOS\PasskeyAuth\Model\Config" />
+
     <!-- Data interfaces -->
     <preference for="MageOS\PasskeyAuth\Api\Data\CredentialInterface"
                 type="MageOS\PasskeyAuth\Model\Data\Credential"/>
@@ -27,4 +31,73 @@
     <!-- Credential management -->
     <preference for="MageOS\PasskeyAuth\Api\CredentialManagementInterface"
                 type="MageOS\PasskeyAuth\Model\CredentialManagement"/>
+
+    <!-- WebAuthn: accept every attestation format webauthn-lib can parse -->
+    <type name="MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory">
+        <arguments>
+            <argument name="attestationStatementSupportManager" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\AttestationStatementSupportManager</argument>
+        </arguments>
+    </type>
+    <type name="MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider">
+        <arguments>
+            <argument name="attestationStatementSupportManager" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\AttestationStatementSupportManager</argument>
+        </arguments>
+    </type>
+
+    <!-- WebAuthn ceremony: keep construction cheap, it is built with the TFA provider on each admin request -->
+    <type name="MageOS\PasskeyAuth\Model\WebAuthn\Ceremony">
+        <arguments>
+            <argument name="challengeManager" xsi:type="object">MageOS\PasskeyAuth\Model\ChallengeManager\Proxy</argument>
+            <argument name="serializerFactory" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory\Proxy</argument>
+            <argument name="ceremonyStepManagerProvider" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider\Proxy</argument>
+        </arguments>
+    </type>
+
+    <!-- Admin TFA: passkey provider -->
+    <virtualType name="MageOS\PasskeyAuth\Model\WebAuthn\Ceremony\Admin"
+                 type="MageOS\PasskeyAuth\Model\WebAuthn\Ceremony">
+        <arguments>
+            <argument name="config" xsi:type="object">MageOS\PasskeyAuth\Model\AdminTfa\AdminTfaConfig</argument>
+        </arguments>
+    </virtualType>
+
+    <type name="MageOS\PasskeyAuth\Model\AdminTfa\Engine">
+        <arguments>
+            <argument name="ceremony" xsi:type="object">MageOS\PasskeyAuth\Model\WebAuthn\Ceremony\Admin</argument>
+        </arguments>
+    </type>
+
+    <virtualType name="MageOS\PasskeyAuth\Model\Provider\Passkey"
+                 type="Magento\TwoFactorAuth\Model\Provider">
+        <arguments>
+            <argument name="engine" xsi:type="object">MageOS\PasskeyAuth\Model\AdminTfa\Engine</argument>
+            <argument name="code" xsi:type="const">MageOS\PasskeyAuth\Model\AdminTfa\Engine::CODE</argument>
+            <argument name="name" xsi:type="string">Passkey</argument>
+            <argument name="icon" xsi:type="string">MageOS_PasskeyAuth::images/providers/passkey.png</argument>
+            <argument name="configureAction" xsi:type="string">tfa/passkey/configure</argument>
+            <argument name="authAction" xsi:type="string">tfa/passkey/auth</argument>
+            <argument name="extraActions" xsi:type="array">
+                <item name="configurepost" xsi:type="string">tfa/passkey/configurepost</item>
+                <item name="authpost" xsi:type="string">tfa/passkey/authpost</item>
+            </argument>
+            <argument name="canReset" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+
+    <type name="Magento\TwoFactorAuth\Api\ProviderPoolInterface">
+        <arguments>
+            <argument name="providers" xsi:type="array">
+                <item name="passkey" xsi:type="object">MageOS\PasskeyAuth\Model\Provider\Passkey</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- CLI Commands -->
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="passkey_tfa_reset_all" xsi:type="object">MageOS\PasskeyAuth\Console\Command\ResetPasskeyTfaCommand</item>
+            </argument>
+        </arguments>
+    </type>
 </config>

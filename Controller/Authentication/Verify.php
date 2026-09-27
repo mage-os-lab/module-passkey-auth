@@ -40,13 +40,21 @@ class Verify implements HttpPostActionInterface
 
         try {
             $body = $this->json->unserialize($this->request->getContent());
+            if (!is_array($body)) {
+                $body = [];
+            }
             $ip = $this->request->getClientIp() ?? 'unknown';
 
             $this->rateLimiter->checkVerifyFailRate($ip);
 
+            $challengeToken = isset($body['challengeToken']) && is_string($body['challengeToken'])
+                ? $body['challengeToken']
+                : '';
+            $credential = $body['credential'] ?? [];
+
             $result = $this->authenticationVerifier->verify(
-                $body['challengeToken'] ?? '',
-                $this->json->serialize($body['credential'] ?? [])
+                $challengeToken,
+                $this->json->serialize($credential)
             );
 
             $customer = $this->customerRepository->getById($result->getCustomerId());

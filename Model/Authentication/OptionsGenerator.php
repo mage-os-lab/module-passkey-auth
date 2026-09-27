@@ -9,16 +9,14 @@ use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\RateLimiter;
-use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
+use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Model\StoreManagerInterface;
-use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 use Webauthn\PublicKeyCredentialDescriptor;
-use Webauthn\PublicKeyCredentialRequestOptions;
 
 class OptionsGenerator implements AuthenticationOptionsInterface
 {
@@ -26,8 +24,7 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         private readonly Config $config,
         private readonly CustomerRepositoryInterface $customerRepository,
         private readonly CredentialRepositoryInterface $credentialRepository,
-        private readonly ChallengeManager $challengeManager,
-        private readonly SerializerFactory $serializerFactory,
+        private readonly Ceremony $ceremony,
         private readonly StoreManagerInterface $storeManager,
         private readonly Json $json,
         private readonly RateLimiter $rateLimiter,
@@ -66,27 +63,11 @@ class OptionsGenerator implements AuthenticationOptionsInterface
             }
         }
 
-        $options = PublicKeyCredentialRequestOptions::create(
-            challenge: random_bytes(32),
-            rpId: $this->config->getRpId(),
-            allowCredentials: $allowCredentials,
-            userVerification: $this->config->getUserVerification(),
-            timeout: $this->config->getCeremonyTimeout(),
-        );
-
-        $serializer = $this->serializerFactory->get();
-        $serializedOptions = $serializer->serialize($options, 'json', [
-            AbstractObjectNormalizer::SKIP_NULL_VALUES => true,
-        ]);
-
-        $challengeToken = $this->challengeManager->create(
+        $optionsArray = $this->ceremony->createAuthenticationOptions(
+            $allowCredentials,
             ChallengeManager::TYPE_AUTHENTICATION,
-            $serializedOptions,
             $customerId
         );
-
-        $optionsArray = $this->json->unserialize($serializedOptions);
-        $optionsArray['challengeToken'] = $challengeToken;
 
         return $this->json->serialize($optionsArray);
     }

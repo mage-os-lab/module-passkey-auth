@@ -56,8 +56,12 @@ class Options implements HttpPostActionInterface, CsrfAwareActionInterface
         try {
             $customerId = (int) $this->customerSession->getCustomerId();
             $optionsJson = $this->registrationOptions->generate($customerId);
+            $optionsData = json_decode($optionsJson, true);
+            if (!is_array($optionsData)) {
+                throw new LocalizedException(__('Unable to generate registration options.'));
+            }
 
-            return $resultJson->setData(json_decode($optionsJson, true));
+            return $resultJson->setData($optionsData);
         } catch (LocalizedException $e) {
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,
