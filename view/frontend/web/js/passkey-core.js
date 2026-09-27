@@ -1,6 +1,10 @@
-define([], function () {
-    'use strict';
-
+(function (root, factory) {
+    if (typeof define === 'function' && define.amd) {
+        define([], factory);
+    } else {
+        root.passkeyCore = factory();
+    }
+}(typeof self !== 'undefined' ? self : this, function () {
     return {
         /**
          * Check if WebAuthn API is present (requires secure context).
@@ -131,4 +135,4 @@ define([], function () {
             };
         }
     };
-});
+}));
