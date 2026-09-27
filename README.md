@@ -31,6 +31,30 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 - **Enrollment prompts**: Optional banners on account pages after password login or account creation, with built-in dismissal cooldown to avoid nagging
 - **Rate limiting**: Built-in cache-based limits on options requests and verification failures
 
+## Screenshots
+
+The storefront screenshots show the Luma theme.
+
+| Sign in with a passkey | Enrollment prompt after password sign-in |
+|---|---|
+| ![Customer login page with a "Sign in with Passkey" button below the password form](docs/images/login.png) | ![Account dashboard with a "Sign in faster with a passkey" banner offering Set up and Not now](docs/images/enrollment-banner.png) |
+
+**My Account › Passkeys**: add, rename and delete passkeys.
+
+![Passkeys table listing two passkeys with Rename and Delete actions and an Add a Passkey button](docs/images/account-passkeys.png)
+
+![A passkey being renamed inline, with Save and Cancel buttons](docs/images/rename.png)
+
+| On a phone | Security notification email |
+|---|---|
+| ![Passkeys page at phone width with the table stacked into labelled rows](docs/images/mobile-passkeys.png) | ![Email telling the customer that a passkey named "Work laptop" was added to their account](docs/images/email-added.png) |
+
+**Admin**: the Customers › Customer Passkeys grid (single and mass revoke), and registering an admin passkey for two-factor authentication.
+
+![Customer Passkeys admin grid listing passkeys by customer email with Revoke actions](docs/images/admin-customer-passkeys.png)
+
+![Admin two-factor setup screen with a Register Passkey button](docs/images/admin-2fa-register.png)
+
 ## Requirements
 
 | Component | Version |
@@ -46,13 +70,21 @@ composer require mage-os/module-passkey-auth
 bin/magento setup:upgrade
 ```
 
+Customer passkeys are disabled by default. Turn them on under **Enable Passkey Authentication** (see below), or run:
+
+```bash
+bin/magento config:set customer/passkey/enabled 1
+```
+
+The admin passkey 2FA provider doesn't depend on this setting; it's managed with the other 2FA providers.
+
 ## Configuration
 
 Navigate to **Stores > Configuration > Customers > Customer Configuration > Passkey Authentication**.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| **Enable Passkey Authentication** | Master on/off switch | Yes |
+| **Enable Passkey Authentication** | Master on/off switch for the storefront, REST and GraphQL features | No |
 | **Prompt After Password Login** | Show enrollment banner on account pages after password sign-in | Yes |
 | **Prompt After Account Creation** | Show enrollment banner on account pages after registration | No |
 | **Email Customer When Passkeys Change** | Send a security notification when a passkey is added/removed | Yes |
