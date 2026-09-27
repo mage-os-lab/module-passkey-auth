@@ -73,7 +73,7 @@ window.addEventListener('alpine:init', () => {
         async postJson(url, body) {
             const response = await fetch(url, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                 body: JSON.stringify(body),
                 credentials: 'same-origin'
             });
@@ -125,7 +125,7 @@ window.addEventListener('alpine:init', () => {
             try {
                 const response = await fetch(this.renameUrl, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                     body: JSON.stringify({
                         entity_id: this.entityId,
                         friendly_name: newName

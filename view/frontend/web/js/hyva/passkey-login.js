@@ -61,6 +61,22 @@ window.addEventListener('alpine:init', () => {
             }
         },
 
+        async fetchOptions(email) {
+            const response = await fetch(this.optionsUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({email: email}),
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.errors) {
+                throw new Error(data.message || 'Unable to sign in with passkey. Please use your password.');
+            }
+
+            return data;
+        },
+
         async performAssertion(serverOptions) {
             const challengeToken = serverOptions.challengeToken;
             const requestOptions = passkeyCore.prepareRequestOptions(serverOptions);
@@ -77,6 +93,25 @@ window.addEventListener('alpine:init', () => {
                 }
                 throw new Error('Unable to sign in with passkey. Please use your password.');
             }
+        },
+
+        async verifyAssertion(challengeToken, credential) {
+            const response = await fetch(this.verifyUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({
+                    challengeToken: challengeToken,
+                    credential: credential
+                }),
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.errors) {
+                throw new Error(data.message || 'Passkey verification failed. Please try again.');
+            }
+
+            return data;
         }
     }));
 }, {once: true});
