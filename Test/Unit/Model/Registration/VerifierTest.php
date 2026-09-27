@@ -8,40 +8,28 @@ use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Registration\Verifier;
-use MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksChallengeManagerTrait;
+use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksSerializerFactoryTrait;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use ParagonIE\ConstantTime\Base64UrlSafe;
-use Webauthn\AttestationStatement\AttestationObject;
-use Webauthn\AttestationStatement\AttestationStatement;
-use Webauthn\AttestationStatement\AttestationStatementSupportManager;
-use Webauthn\AuthenticatorAttestationResponse;
-use Webauthn\AuthenticatorData;
-use Webauthn\AuthenticatorResponse;
-use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
-use Webauthn\CollectedClientData;
-use Webauthn\PublicKeyCredential;
-use Webauthn\PublicKeyCredentialCreationOptions;
-use Webauthn\PublicKeyCredentialRpEntity;
-use Webauthn\PublicKeyCredentialUserEntity;
+use Symfony\Component\Uid\Uuid;
+use Webauthn\Exception\AuthenticatorResponseVerificationException;
+use Webauthn\PublicKeyCredentialSource;
 use Webauthn\TrustPath\EmptyTrustPath;
 
 class VerifierTest extends TestCase
 {
     use MocksConfigTrait;
-    use MocksChallengeManagerTrait;
-    use MocksSerializerFactoryTrait;
     use MocksCredentialRepositoryTrait;
     use MocksLoggerTrait;
 
-    private CeremonyStepManagerProvider&MockObject $ceremonyProviderMock;
+    private const AAGUID = '6028b017-b1d4-4c02-b4b3-afcdafc96bb2';
+
+    private Ceremony&MockObject $ceremonyMock;
     private CredentialInterfaceFactory&MockObject $credentialFactoryMock;
     private EventManager&MockObject $eventManagerMock;
     private Verifier $verifier;
@@ -49,20 +37,16 @@ class VerifierTest extends TestCase
     protected function setUp(): void
     {
         $this->createConfigMock();
-        $this->createChallengeManagerMock();
-        $this->createSerializerFactoryMock();
         $this->createCredentialRepositoryMock();
         $this->createLoggerMock();
 
-        $this->ceremonyProviderMock = $this->createMock(CeremonyStepManagerProvider::class);
+        $this->ceremonyMock = $this->createMock(Ceremony::class);
         $this->credentialFactoryMock = $this->createMock(CredentialInterfaceFactory::class);
         $this->eventManagerMock = $this->createMock(EventManager::class);
 
         $this->verifier = new Verifier(
             $this->configMock,
-            $this->challengeManagerMock,
-            $this->serializerFactoryMock,
-            $this->ceremonyProviderMock,
+            $this->ceremonyMock,
             $this->credentialRepositoryMock,
             $this->credentialFactoryMock,
             $this->eventManagerMock,
@@ -73,6 +57,7 @@ class VerifierTest extends TestCase
     public function testVerifyThrowsWhenDisabled(): void
     {
         $this->configureEnabled(false);
+        $this->ceremonyMock->expects($this->never())->method('verifyRegistration');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
@@ -80,52 +65,21 @@ class VerifierTest extends TestCase
         $this->verifier->verify(42, 'token', '{}');
     }
 
-    public function testVerifyAcceptsNullFriendlyName(): void
-    {
-        $this->configureEnabled(true);
-
-        // null friendlyName should skip all validation and proceed to challenge consume.
-        // We let consume throw to stop execution after the friendlyName check passes.
-        $this->challengeManagerMock->method('consume')
-            ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
-
-        $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage('Invalid or expired challenge token.');
-
-        $this->verifier->verify(42, 'token', '{}', null);
-    }
-
-    public function testVerifyConvertsEmptyFriendlyNameToNull(): void
-    {
-        $this->configureEnabled(true);
-
-        // '  ' (spaces only) should be trimmed to '', then set to null — no validation exception.
-        // Let consume throw to stop after friendlyName processing.
-        $this->challengeManagerMock->method('consume')
-            ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
-
-        $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage('Invalid or expired challenge token.');
-
-        // If friendlyName='  ' caused a validation error, we'd see 'Invalid passkey name.' instead.
-        $this->verifier->verify(42, 'token', '{}', '  ');
-    }
-
     public function testVerifyThrowsOnFriendlyNameTooLong(): void
     {
         $this->configureEnabled(true);
-
-        $longName = str_repeat('A', 256);
+        $this->ceremonyMock->expects($this->never())->method('verifyRegistration');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid passkey name.');
 
-        $this->verifier->verify(42, 'token', '{}', $longName);
+        $this->verifier->verify(42, 'token', '{}', str_repeat('A', 256));
     }
 
     public function testVerifyThrowsOnFriendlyNameWithXss(): void
     {
         $this->configureEnabled(true);
+        $this->ceremonyMock->expects($this->never())->method('verifyRegistration');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid passkey name.');
@@ -133,48 +87,63 @@ class VerifierTest extends TestCase
         $this->verifier->verify(42, 'token', '{}', '<script>alert(1)</script>');
     }
 
-    public function testVerifyThrowsOnInvalidChallengeToken(): void
+    public function testVerifyAcceptsNullFriendlyName(): void
+    {
+        $this->configureSuccessfulCeremony();
+        $credential = $this->expectCredentialCreated();
+        $credential->expects($this->once())->method('setFriendlyName')->with(null);
+
+        $this->verifier->verify(42, 'token', '{}', null);
+    }
+
+    public function testVerifyConvertsBlankFriendlyNameToNull(): void
+    {
+        $this->configureSuccessfulCeremony();
+        $credential = $this->expectCredentialCreated();
+        $credential->expects($this->once())->method('setFriendlyName')->with(null);
+
+        $this->verifier->verify(42, 'token', '{}', '   ');
+    }
+
+    public function testVerifyAcceptsFriendlyNameOfExactly255Chars(): void
+    {
+        $name255 = str_repeat('B', 255);
+        $this->configureSuccessfulCeremony();
+        $credential = $this->expectCredentialCreated();
+        $credential->expects($this->once())->method('setFriendlyName')->with($name255);
+
+        $this->verifier->verify(42, 'token', '{}', $name255);
+    }
+
+    /**
+     * Challenge errors and wrong-response-type errors from the ceremony pass through unchanged,
+     * without the verification-failure log or event.
+     */
+    public function testVerifyPassesThroughCeremonyLocalizedExceptions(): void
     {
         $this->configureEnabled(true);
 
-        $this->challengeManagerMock->method('consume')
-            ->with('bad-token', ChallengeManager::TYPE_REGISTRATION, 42)
+        $this->ceremonyMock->expects($this->once())
+            ->method('verifyRegistration')
+            ->with('bad-token', '{"response":"x"}', ChallengeManager::TYPE_REGISTRATION, 42)
             ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
+
+        $this->eventManagerMock->expects($this->never())->method('dispatch');
+        $this->loggerMock->expects($this->never())->method('error');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid or expired challenge token.');
 
-        $this->verifier->verify(42, 'bad-token', '{}', 'My Passkey');
+        $this->verifier->verify(42, 'bad-token', '{"response":"x"}', 'My Passkey');
     }
 
-    private function createRealCreationOptions(): PublicKeyCredentialCreationOptions
-    {
-        $rp = PublicKeyCredentialRpEntity::create('Test', 'example.com');
-        $user = PublicKeyCredentialUserEntity::create('test@example.com', 'user-handle', 'Test User');
-        return PublicKeyCredentialCreationOptions::create($rp, $user, random_bytes(32));
-    }
-
-    public function testVerifyThrowsOnInvalidResponseType(): void
+    public function testVerifyPassesThroughInvalidResponseType(): void
     {
         $this->configureEnabled(true);
 
-        $storedOptionsJson = '{"rp":{"name":"Test"},"challenge":"abc"}';
-        $this->challengeManagerMock->method('consume')
-            ->willReturn($storedOptionsJson);
-
-        $creationOptions = $this->createRealCreationOptions();
-        $this->serializerMock->method('deserialize')
-            ->willReturnCallback(function (string $data, string $type) use ($creationOptions) {
-                if ($type === PublicKeyCredentialCreationOptions::class) {
-                    return $creationOptions;
-                }
-                if ($type === PublicKeyCredential::class) {
-                    // Return a PublicKeyCredential whose response is NOT AuthenticatorAttestationResponse
-                    $nonAttestationResponse = $this->createMock(AuthenticatorResponse::class);
-                    return new PublicKeyCredential('public-key', 'rawId', $nonAttestationResponse);
-                }
-                return null;
-            });
+        $this->ceremonyMock->method('verifyRegistration')
+            ->willThrowException(new LocalizedException(__('Invalid attestation response.')));
+        $this->eventManagerMock->expects($this->never())->method('dispatch');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid attestation response.');
@@ -182,118 +151,28 @@ class VerifierTest extends TestCase
         $this->verifier->verify(42, 'token', '{"response":"bad"}', 'My Key');
     }
 
-    /**
-     * Tests that the race condition check after successful validation prevents
-     * exceeding max credentials.
-     *
-     * NOTE: This test cannot be fully executed in a unit test because
-     * AuthenticatorAttestationResponseValidator::create() is a static factory
-     * that returns a real validator which requires valid cryptographic data.
-     * The race condition check occurs AFTER the validator succeeds, making it
-     * unreachable without real WebAuthn ceremony data.
-     *
-     * Integration test coverage is needed for this path.
-     */
-    public function testVerifyThrowsOnMaxCredentialsRaceCondition(): void
-    {
-        $this->markTestSkipped(
-            'Race condition check occurs after AuthenticatorAttestationResponseValidator::create() '
-            . 'static call which cannot be mocked. Requires integration test with real WebAuthn data.'
-        );
-    }
-
-    /**
-     * Creates a real AuthenticatorAttestationResponse with valid structure but
-     * invalid attestation data, causing the real validator to throw an Exception.
-     */
-    private function createRealInvalidAttestationResponse(): AuthenticatorAttestationResponse
-    {
-        $challenge = rtrim(Base64UrlSafe::encode(random_bytes(32)), '=');
-        $clientDataJson = json_encode([
-            'type' => 'webauthn.create',
-            'challenge' => $challenge,
-            'origin' => 'https://example.com',
-        ]);
-        $clientData = new CollectedClientData($clientDataJson, json_decode($clientDataJson, true));
-
-        $rpIdHash = hash('sha256', 'example.com', true);
-        $flags = chr(0x41); // UP + AT flags
-        $signCount = pack('N', 0);
-        $authDataBin = $rpIdHash . $flags . $signCount;
-        $authData = new AuthenticatorData($authDataBin, $rpIdHash, $flags, 0, null, null);
-
-        $attStmt = new AttestationStatement(
-            'none',
-            [],
-            AttestationStatement::TYPE_NONE,
-            EmptyTrustPath::create()
-        );
-        $attObj = new AttestationObject($authDataBin, $attStmt, $authData);
-
-        return new AuthenticatorAttestationResponse($clientData, $attObj);
-    }
-
-    public function testVerifyDispatchesEventOnValidationFailure(): void
+    public function testVerifyLogsAndDispatchesEventOnValidationFailure(): void
     {
         $this->configureEnabled(true);
 
-        $storedOptionsJson = '{"rp":{"name":"Test"},"challenge":"abc"}';
-        $this->challengeManagerMock->method('consume')
-            ->willReturn($storedOptionsJson);
+        $this->ceremonyMock->method('verifyRegistration')
+            ->willThrowException(AuthenticatorResponseVerificationException::create('Invalid origin'));
 
-        $creationOptions = $this->createRealCreationOptions();
-
-        // Create a real AuthenticatorAttestationResponse with valid structure
-        // but no attested credential data, so the validator throws a proper Exception
-        $attestationResponse = $this->createRealInvalidAttestationResponse();
-        $publicKeyCredential = new PublicKeyCredential('public-key', 'rawId', $attestationResponse);
-
-        $this->serializerMock->method('deserialize')
-            ->willReturnCallback(
-                function (string $data, string $type) use ($creationOptions, $publicKeyCredential) {
-                    if ($type === PublicKeyCredentialCreationOptions::class) {
-                        return $creationOptions;
-                    }
-                    if ($type === PublicKeyCredential::class) {
-                        return $publicKeyCredential;
-                    }
-                    return null;
-                }
-            );
-
-        $this->configMock->method('getRpId')->willReturn('example.com');
-        $this->configMock->method('getAllowedOrigins')->willReturn(['https://example.com']);
-
-        // Provide a real CeremonyStepManager since the class is final and cannot be mocked
-        $asm = AttestationStatementSupportManager::create();
-        $factory = new CeremonyStepManagerFactory();
-        $factory->setAllowedOrigins(['https://example.com']);
-        $factory->setAttestationStatementSupportManager($asm);
-        $this->ceremonyProviderMock->method('getCreationCeremony')
-            ->willReturn($factory->creationCeremony());
-
-        // The real validator will throw because the response has no attested credential data.
-        // Verify the event is dispatched on failure.
         $this->eventManagerMock->expects($this->once())
             ->method('dispatch')
-            ->with(
-                'passkey_registration_failure',
-                $this->callback(function (array $data) {
-                    return $data['customer_id'] === 42
-                        && isset($data['reason'])
-                        && is_string($data['reason']);
-                })
-            );
+            ->with('passkey_registration_failure', [
+                'customer_id' => 42,
+                'reason' => 'Invalid origin',
+            ]);
 
         $this->loggerMock->expects($this->once())
             ->method('error')
-            ->with(
-                'Passkey registration verification failed',
-                $this->callback(function (array $context) {
-                    return $context['customer_id'] === 42
-                        && isset($context['exception']);
-                })
-            );
+            ->with('Passkey registration verification failed', [
+                'exception' => 'Invalid origin',
+                'customer_id' => 42,
+            ]);
+
+        $this->credentialRepositoryMock->expects($this->never())->method('save');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey registration verification failed. Please try again.');
@@ -301,21 +180,103 @@ class VerifierTest extends TestCase
         $this->verifier->verify(42, 'token', '{"response":"invalid"}', 'My Key');
     }
 
-    public function testVerifyFriendlyNameExactly255Chars(): void
+    public function testVerifyThrowsOnMaxCredentialsRaceCondition(): void
     {
         $this->configureEnabled(true);
+        $this->configureMaxCredentials(5);
+        $this->configureCountByCustomerId(42, 5);
+        $this->ceremonyMock->method('verifyRegistration')->willReturn($this->createSource());
 
-        $name255 = str_repeat('B', 255);
-
-        // 255 chars should pass validation and proceed to challenge consume.
-        // Let consume throw to stop execution after the friendlyName check passes.
-        $this->challengeManagerMock->method('consume')
-            ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
+        $this->credentialFactoryMock->expects($this->never())->method('create');
+        $this->credentialRepositoryMock->expects($this->never())->method('save');
 
         $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage('Invalid or expired challenge token.');
+        $this->expectExceptionMessage('Maximum number of passkeys (5) reached.');
 
-        // If 255 chars caused a validation error, we'd see 'Invalid passkey name.' instead.
-        $this->verifier->verify(42, 'token', '{}', $name255);
+        $this->verifier->verify(42, 'token', '{}', 'My Key');
+    }
+
+    public function testVerifySavesCredentialAndDispatchesEvent(): void
+    {
+        $source = $this->configureSuccessfulCeremony();
+
+        $this->ceremonyMock->expects($this->once())
+            ->method('serializeSource')
+            ->with($source)
+            ->willReturn('{"serialized":"source"}');
+
+        $credential = $this->createMock(CredentialInterface::class);
+        $credential->expects($this->once())->method('setCustomerId')->with(42);
+        $credential->expects($this->once())->method('setCredentialId')->with(base64_encode('credential-id'));
+        $credential->expects($this->once())->method('setPublicKey')->with('{"serialized":"source"}');
+        $credential->expects($this->once())->method('setUserHandle')->with(base64_encode('user-handle'));
+        $credential->expects($this->once())->method('setSignCount')->with(3);
+        $credential->expects($this->once())->method('setTransports')->with('usb,internal');
+        $credential->expects($this->once())->method('setFriendlyName')->with('My Key');
+        $credential->expects($this->once())->method('setAaguid')->with(self::AAGUID);
+        $this->credentialFactoryMock->method('create')->willReturn($credential);
+
+        $saved = $this->createMock(CredentialInterface::class);
+        $this->credentialRepositoryMock->expects($this->once())
+            ->method('save')
+            ->with($credential)
+            ->willReturn($saved);
+
+        $this->eventManagerMock->expects($this->once())
+            ->method('dispatch')
+            ->with('passkey_credential_register_after', [
+                'customer_id' => 42,
+                'credential' => $saved,
+            ]);
+
+        $this->assertSame($saved, $this->verifier->verify(42, 'token', '{}', '  My Key  '));
+    }
+
+    public function testVerifyStoresNullTransportsWhenNoneReported(): void
+    {
+        $this->configureSuccessfulCeremony([]);
+        $credential = $this->expectCredentialCreated();
+        $credential->expects($this->once())->method('setTransports')->with(null);
+
+        $this->verifier->verify(42, 'token', '{}');
+    }
+
+    private function configureSuccessfulCeremony(array $transports = ['usb', 'internal']): PublicKeyCredentialSource
+    {
+        $this->configureEnabled(true);
+        $this->configureMaxCredentials(10);
+        $this->configureCountByCustomerId(42, 0);
+
+        $source = $this->createSource($transports);
+        $this->ceremonyMock->expects($this->once())
+            ->method('verifyRegistration')
+            ->with('token', $this->callback('is_string'), ChallengeManager::TYPE_REGISTRATION, 42)
+            ->willReturn($source);
+
+        return $source;
+    }
+
+    private function expectCredentialCreated(): CredentialInterface&MockObject
+    {
+        $credential = $this->createMock(CredentialInterface::class);
+        $this->credentialFactoryMock->expects($this->once())->method('create')->willReturn($credential);
+        $this->credentialRepositoryMock->method('save')->willReturnArgument(0);
+
+        return $credential;
+    }
+
+    private function createSource(array $transports = ['usb', 'internal']): PublicKeyCredentialSource
+    {
+        return new PublicKeyCredentialSource(
+            'credential-id',
+            'public-key',
+            $transports,
+            'none',
+            EmptyTrustPath::create(),
+            Uuid::fromString(self::AAGUID),
+            'credential-public-key',
+            'user-handle',
+            3
+        );
     }
 }

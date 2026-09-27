@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Controller\Adminhtml\Passkey;
 
+use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\Auth\Session;
 use Magento\Framework\App\Action\HttpGetActionInterface;
@@ -18,21 +19,17 @@ class Auth extends AbstractAction implements HttpGetActionInterface
     public function __construct(
         Context $context,
         private readonly Session $session,
-        private readonly TfaInterface $tfa,
-        private readonly UserConfigManagerInterface $userConfigManager
+        private readonly UserConfigManagerInterface $userConfigManager,
+        private readonly TfaInterface $tfa
     ) {
         parent::__construct($context);
     }
 
     public function execute(): Page
     {
-        $providerCode = $this->getRequest()->getParam('provider', 'passkey');
-        $user = $this->session->getUser();
-        if ($user) {
-            $this->userConfigManager->setDefaultProvider(
-                (int) $user->getId(),
-                $providerCode
-            );
+        $userId = (int) $this->session->getUser()->getId();
+        if ($this->userConfigManager->getDefaultProvider($userId) !== Engine::CODE) {
+            $this->userConfigManager->setDefaultProvider($userId, Engine::CODE);
         }
 
         /** @var Page $page */
@@ -44,17 +41,9 @@ class Auth extends AbstractAction implements HttpGetActionInterface
     protected function _isAllowed(): bool
     {
         $user = $this->session->getUser();
-        if (!$user) {
-            return false;
-        }
-        $userId = (int) $user->getId();
-        $providerCode = $this->getRequest()->getParam('provider', 'passkey');
 
-        try {
-            $provider = $this->tfa->getProvider($providerCode);
-            return $provider !== null && $provider->isEnabled() && $provider->isActive($userId);
-        } catch (\Exception $e) {
-            return false;
-        }
+        return $user !== null
+            && $this->tfa->getProviderIsAllowed((int) $user->getId(), Engine::CODE)
+            && $this->tfa->getProvider(Engine::CODE)->isActive((int) $user->getId());
     }
 }

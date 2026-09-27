@@ -11,26 +11,18 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
-use MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider;
-use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
+use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Psr\Log\LoggerInterface;
-use Webauthn\AuthenticatorAssertionResponse;
-use Webauthn\AuthenticatorAssertionResponseValidator;
-use Webauthn\PublicKeyCredential;
-use Webauthn\PublicKeyCredentialRequestOptions;
-use Webauthn\PublicKeyCredentialSource;
 
 class Verifier implements AuthenticationVerifierInterface
 {
     public function __construct(
         private readonly Config $config,
-        private readonly ChallengeManager $challengeManager,
-        private readonly SerializerFactory $serializerFactory,
-        private readonly CeremonyStepManagerProvider $ceremonyProvider,
+        private readonly Ceremony $ceremony,
         private readonly CredentialRepositoryInterface $credentialRepository,
         private readonly PasskeyTokenService $tokenService,
         private readonly AuthenticationResultInterfaceFactory $resultFactory,
@@ -46,28 +38,11 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
 
-        $serializer = $this->serializerFactory->get();
-
-        $storedOptionsJson = $this->challengeManager->consume(
+        [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
             $challengeToken,
+            $assertionResponseJson,
             ChallengeManager::TYPE_AUTHENTICATION
         );
-
-        $requestOptions = $serializer->deserialize(
-            $storedOptionsJson,
-            PublicKeyCredentialRequestOptions::class,
-            'json'
-        );
-
-        $publicKeyCredential = $serializer->deserialize(
-            $assertionResponseJson,
-            PublicKeyCredential::class,
-            'json'
-        );
-
-        if (!$publicKeyCredential->response instanceof AuthenticatorAssertionResponse) {
-            throw new LocalizedException(__('Invalid assertion response.'));
-        }
 
         $credentialIdBase64 = base64_encode($publicKeyCredential->rawId);
 
@@ -81,22 +56,13 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Passkey verification failed. Please try again.'), $e);
         }
 
-        $credentialSource = $serializer->deserialize(
-            $storedCredential->getPublicKey(),
-            PublicKeyCredentialSource::class,
-            'json'
-        );
-
-        $requestCSM = $this->ceremonyProvider->getRequestCeremony();
-        $validator = AuthenticatorAssertionResponseValidator::create($requestCSM);
+        $credentialSource = $this->ceremony->deserializeSource($storedCredential->getPublicKey());
 
         try {
-            $updatedSource = $validator->check(
-                $credentialSource,
-                $publicKeyCredential->response,
+            $updatedSource = $this->ceremony->verifyAssertion(
+                $publicKeyCredential,
                 $requestOptions,
-                $this->config->getRpId(),
-                $credentialSource->userHandle
+                $credentialSource
             );
         } catch (\Exception $e) {
             $this->eventManager->dispatch('passkey_authentication_failure', [
@@ -124,7 +90,7 @@ class Verifier implements AuthenticationVerifierInterface
         // Update sign count and last used — don't block auth on failure
         try {
             $storedCredential->setSignCount($updatedSource->counter);
-            $storedCredential->setPublicKey($serializer->serialize($updatedSource, 'json'));
+            $storedCredential->setPublicKey($this->ceremony->serializeSource($updatedSource));
             $storedCredential->setLastUsedAt($this->dateTime->gmtDate());
             $this->credentialRepository->save($storedCredential);
         } catch (\Exception $e) {

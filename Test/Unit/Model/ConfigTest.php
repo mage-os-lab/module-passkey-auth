@@ -6,8 +6,8 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model;
 
 use MageOS\PasskeyAuth\Model\Config;
 use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\ScopeInterface;
+use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -23,9 +23,7 @@ class ConfigTest extends TestCase
     {
         $this->scopeConfig = $this->createMock(ScopeConfigInterface::class);
         $this->storeManager = $this->createMock(StoreManagerInterface::class);
-        $this->store = $this->getMockBuilder(StoreInterface::class)
-            ->addMethods(['getBaseUrl'])
-            ->getMockForAbstractClass();
+        $this->store = $this->createMock(Store::class);
         $this->storeManager->method('getStore')->willReturn($this->store);
 
         $this->config = new Config($this->scopeConfig, $this->storeManager);

@@ -13,25 +13,23 @@ use Webauthn\CeremonyStep\CeremonyStepManager;
 class CeremonyStepManagerProviderTest extends TestCase
 {
     private CeremonyStepManagerProvider $provider;
+    private WebAuthnConfigInterface $config;
 
     protected function setUp(): void
     {
-        $configMock = $this->createMock(WebAuthnConfigInterface::class);
-        $configMock->method('getAllowedOrigins')->willReturn(['https://example.com']);
+        $this->config = $this->createMock(WebAuthnConfigInterface::class);
+        $this->config->method('getAllowedOrigins')->willReturn(['https://example.com']);
 
-        $this->provider = new CeremonyStepManagerProvider(
-            $configMock,
-            new AttestationStatementSupportManager()
-        );
+        $this->provider = new CeremonyStepManagerProvider(new AttestationStatementSupportManager());
     }
 
     public function testGetCreationCeremonyReturnsCeremonyStepManager(): void
     {
-        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getCreationCeremony());
+        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getCreationCeremony($this->config));
     }
 
     public function testGetRequestCeremonyReturnsCeremonyStepManager(): void
     {
-        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getRequestCeremony());
+        $this->assertInstanceOf(CeremonyStepManager::class, $this->provider->getRequestCeremony($this->config));
     }
 }

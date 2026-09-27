@@ -27,7 +27,7 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 
 ### Store Admin Controls
 - **Customer Passkeys grid**: View and revoke any customer's passkeys under **Customers > Customer Passkeys** (revocation notifies the customer)
-- **Admin passkey TFA**: Passkey provider (all authenticators or hardware-key-only) for the Magento admin two-factor framework, including a `security:tfa:passkey:reset-all` CLI command
+- **Admin passkey TFA**: Passkey provider for the Magento admin two-factor framework, including a `security:tfa:passkey:reset-all` CLI command
 - **Enrollment prompts**: Optional banners on account pages after password login or account creation, with built-in dismissal cooldown to avoid nagging
 - **Rate limiting**: Built-in cache-based limits on options requests and verification failures
 

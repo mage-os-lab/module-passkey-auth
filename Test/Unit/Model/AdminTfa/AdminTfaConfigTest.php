@@ -76,28 +76,26 @@ class AdminTfaConfigTest extends TestCase
         $this->assertSame('My Store Admin', $this->config->getRpName());
     }
 
-    public function testGetUserVerificationReturnsRequired(): void
+    public function testGetRpIdThrowsWhenBaseUrlHasNoHost(): void
+    {
+        $store = $this->createMock(Store::class);
+        $store->method('getBaseUrl')->willReturn('/admin/');
+        $this->storeManager->method('getStore')->willReturn($store);
+
+        $this->expectException(\RuntimeException::class);
+        $this->config->getRpId();
+    }
+
+    public function testAdminPolicyRequiresUserVerificationAndDiscouragesResidentKeys(): void
     {
         $this->assertSame('required', $this->config->getUserVerification());
+        $this->assertSame('discouraged', $this->config->getResidentKeyRequirement());
+        $this->assertSame(60000, $this->config->getCeremonyTimeout());
     }
 
-    public function testGetAuthenticatorAttachmentReturnsNullForAllPolicy(): void
+    public function testAllowsAnyAuthenticatorWithoutRequestingAttestation(): void
     {
-        $this->assertNull($this->config->getAuthenticatorAttachment('all'));
-    }
-
-    public function testGetAuthenticatorAttachmentReturnsCrossPlatformForHardwarePolicy(): void
-    {
-        $this->assertSame('cross-platform', $this->config->getAuthenticatorAttachment('hardware'));
-    }
-
-    public function testGetAttestationReturnsNoneForAllPolicy(): void
-    {
-        $this->assertSame('none', $this->config->getAttestation('all'));
-    }
-
-    public function testGetAttestationReturnsDirectForHardwarePolicy(): void
-    {
-        $this->assertSame('direct', $this->config->getAttestation('hardware'));
+        $this->assertNull($this->config->getAuthenticatorAttachment());
+        $this->assertSame('none', $this->config->getAttestationConveyance());
     }
 }
