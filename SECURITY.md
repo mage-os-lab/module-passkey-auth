@@ -39,10 +39,11 @@ accounts and admin two-factor authentication. Key properties relied on:
   account with one passkey. An unknown credential and a failed verification
   return the same error. The storefront and GraphQL use one generic message
   for every sign-in failure except the failed sign-in limit; REST also
-  reports challenge errors (such as an expired challenge). Neither says
-  anything about the account. Descriptor
-  details (ID length, transports) of real credentials vary by authenticator
-  and are not disguised.
+  reports challenge errors (such as an expired challenge). None of these
+  says anything about the account. Only someone holding a valid passkey
+  learns that its account is locked or unconfirmed (see Account checks).
+  Descriptor details (ID length, transports) of real credentials vary by
+  authenticator and are not disguised.
 - **Wrong-account sign-in**: Because the decoy is never empty, a passkey
   sign-in started for an email without passkeys cannot be answered by an
   unrelated passkey saved on the device.
@@ -68,6 +69,11 @@ accounts and admin two-factor authentication. Key properties relied on:
   above zero, an assertion whose counter does not increase (possible cloned
   authenticator) is rejected. Authenticators that always report zero are
   not checked.
+- **Account checks**: Locked, unconfirmed, and excluded accounts are refused
+  as for password sign-in, and failed passkey attempts never lock an account.
+  See [Locked and unconfirmed accounts](https://github.com/mage-os-lab/module-passkey-auth/blob/main/docs/security.md#locked-and-unconfirmed-accounts).
+- **Sign-out on removal**: Removing a passkey signs the customer out. See
+  [Sessions and tokens after a passkey is removed](https://github.com/mage-os-lab/module-passkey-auth/blob/main/docs/security.md#sessions-and-tokens-after-a-passkey-is-removed).
 - **Change visibility**: Adding or removing a passkey triggers a customer
   notification email (configurable).
 

@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model\Authentication;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
+use MageOS\PasskeyAuth\Model\Authentication\AccountGuard;
 use MageOS\PasskeyAuth\Model\Authentication\Verifier;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
@@ -24,12 +25,16 @@ use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Customer\Model\Config\Share;
 use Magento\Framework\Event\ManagerInterface as EventManager;
+use Magento\Framework\Exception\AuthenticationException;
+use Magento\Framework\Exception\EmailNotConfirmedException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\Exception\State\UserLockedException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\StoreManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -60,11 +65,14 @@ class VerifierTest extends TestCase
     private Share&Stub $shareConfigStub;
     private CustomerRepositoryInterface&Stub $customerRepositoryStub;
     private StoreManagerInterface&Stub $storeManagerStub;
+    private AccountGuard&Stub $accountGuardMock;
+    private CustomerInterface&Stub $customer;
     private bool $ceremonyIsMock = false;
     private bool $tokenServiceIsMock = false;
     private bool $resultFactoryIsMock = false;
     private bool $eventManagerIsMock = false;
     private bool $rateLimiterIsMock = false;
+    private bool $accountGuardIsMock = false;
     private ?Verifier $verifier = null;
 
     private PublicKeyCredential $credential;
@@ -86,8 +94,11 @@ class VerifierTest extends TestCase
         $this->remoteAddressStub = $this->createStub(RemoteAddress::class);
         $this->remoteAddressStub->method('getRemoteAddress')->willReturn('10.0.0.1');
         $this->shareConfigStub = $this->createStub(Share::class);
+        $this->customer = $this->createStub(CustomerInterface::class);
         $this->customerRepositoryStub = $this->createStub(CustomerRepositoryInterface::class);
+        $this->customerRepositoryStub->method('getById')->willReturn($this->customer);
         $this->storeManagerStub = $this->createStub(StoreManagerInterface::class);
+        $this->accountGuardMock = $this->createStub(AccountGuard::class);
 
         $this->credential = PublicKeyCredential::create(
             'public-key',
@@ -116,7 +127,8 @@ class VerifierTest extends TestCase
             $this->remoteAddressStub,
             $this->shareConfigStub,
             $this->customerRepositoryStub,
-            $this->storeManagerStub
+            $this->storeManagerStub,
+            $this->accountGuardMock
         );
     }
 
@@ -163,6 +175,15 @@ class VerifierTest extends TestCase
             $this->rateLimiterIsMock = true;
         }
         return $this->rateLimiterMock;
+    }
+
+    private function mockAccountGuard(): AccountGuard&MockObject
+    {
+        if (!$this->accountGuardIsMock) {
+            $this->accountGuardMock = $this->createMock(AccountGuard::class);
+            $this->accountGuardIsMock = true;
+        }
+        return $this->accountGuardMock;
     }
 
     public function testVerifyThrowsWhenDisabled(): void
@@ -279,10 +300,133 @@ class VerifierTest extends TestCase
         $this->configureLoadAssertion();
         $this->configureStoredCredential(0);
         $this->shareConfigStub->method('isWebsiteScope')->willReturn(false);
+        $store = $this->createStub(StoreInterface::class);
+        $store->method('getWebsiteId')->willReturn(2);
+        $this->storeManagerStub->method('getStore')->willReturn($store);
+
+        // Loaded once, for the account checks only
+        $customer = $this->createStub(CustomerInterface::class);
+        $customer->method('getWebsiteId')->willReturn(1);
         $this->customerRepositoryStub = $this->createMock(CustomerRepositoryInterface::class);
-        $this->customerRepositoryStub->expects($this->never())->method('getById');
+        $this->customerRepositoryStub->expects($this->once())
+            ->method('getById')
+            ->with(self::CUSTOMER_ID)
+            ->willReturn($customer);
+        $this->mockAccountGuard()->expects($this->once())->method('assertCanSignIn')->with($customer);
         $this->configureVerifiedAssertion(1);
         $result = $this->configureTokenAndResult();
+
+        $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
+    }
+
+    /**
+     * @return array<string, array{AuthenticationException}>
+     */
+    public static function refusedAccountProvider(): array
+    {
+        $notAllowed = __(
+            'The account sign-in was incorrect or your account is disabled temporarily. '
+            . 'Please wait and try again later.'
+        );
+
+        return [
+            'locked' => [new UserLockedException($notAllowed)],
+            'not confirmed' => [
+                new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.')),
+            ],
+            'group excluded' => [new AuthenticationException($notAllowed)],
+        ];
+    }
+
+    #[DataProvider('refusedAccountProvider')]
+    public function testVerifyRefusesAccountAfterVerification(AuthenticationException $refusal): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->configureVerifiedAssertion(1);
+
+        $this->mockAccountGuard()->expects($this->once())
+            ->method('assertCanSignIn')
+            ->with($this->customer)
+            ->willThrowException($refusal);
+        $this->mockAccountGuard()->expects($this->never())->method('recordSignIn');
+
+        // The key holder proved possession: not a failed attempt
+        $this->mockRateLimiter()->expects($this->never())->method('recordVerifyFailure');
+        $this->mockTokenService()->expects($this->never())->method('createTokenForCustomer');
+        $this->mockCredentialRepository()->expects($this->never())->method('save');
+        $this->mockEventManager()->expects($this->never())->method('dispatch');
+        // Logged once, by the account guard
+        $this->mockLogger()->expects($this->never())->method('warning');
+
+        try {
+            $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+            $this->fail('Expected the sign-in to be refused');
+        } catch (AuthenticationException $e) {
+            $this->assertSame($refusal, $e);
+        }
+    }
+
+    public function testVerifyChecksAccountOnlyAfterAssertionIsVerified(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->ceremonyMock->method('verifyAssertion')
+            ->willThrowException(AuthenticatorResponseVerificationException::create('Invalid signature'));
+
+        $this->mockAccountGuard()->expects($this->never())->method('assertCanSignIn');
+        $this->mockRateLimiter()->expects($this->once())->method('recordVerifyFailure')->with('10.0.0.1');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Passkey verification failed. Please try again.');
+
+        $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifyDoesNotCheckAccountOfUnknownCredential(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->credentialRepositoryMock->method('getByCredentialId')
+            ->willThrowException(new NoSuchEntityException(__('No such entity.')));
+
+        $this->mockAccountGuard()->expects($this->never())->method('assertCanSignIn');
+
+        $this->expectException(LocalizedException::class);
+
+        $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifyResetsFailedSignInCountOnSuccess(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->configureVerifiedAssertion(1);
+        $result = $this->configureTokenAndResult();
+
+        $this->mockAccountGuard()->expects($this->once())->method('recordSignIn')->with(self::CUSTOMER_ID);
+
+        $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
+    }
+
+    public function testVerifySucceedsWhenFailedSignInCountResetFails(): void
+    {
+        $this->configureEnabled(true);
+        $this->configureLoadAssertion();
+        $this->configureStoredCredential(0);
+        $this->configureVerifiedAssertion(1);
+        $result = $this->configureTokenAndResult();
+
+        $this->accountGuardMock->method('recordSignIn')->willThrowException(new \RuntimeException('Lock wait timeout'));
+        $this->mockLogger()->expects($this->once())
+            ->method('error')
+            ->with('Failed to reset failed sign-in count after passkey sign-in', [
+                'exception' => 'Lock wait timeout',
+                'customer_id' => self::CUSTOMER_ID,
+            ]);
 
         $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
     }
@@ -476,6 +620,7 @@ class VerifierTest extends TestCase
                 'customer_id' => self::CUSTOMER_ID,
             ]);
         $this->mockEventManager()->expects($this->never())->method('dispatch');
+        $this->mockAccountGuard()->expects($this->never())->method('recordSignIn');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Authentication succeeded but token creation failed.');
@@ -527,9 +672,9 @@ class VerifierTest extends TestCase
 
         $customer = $this->createStub(CustomerInterface::class);
         $customer->method('getWebsiteId')->willReturn($customerWebsiteId);
+        // Loaded again for the account checks; CustomerRepository caches it per request
         $this->customerRepositoryStub = $this->createMock(CustomerRepositoryInterface::class);
-        $this->customerRepositoryStub->expects($this->once())
-            ->method('getById')
+        $this->customerRepositoryStub->method('getById')
             ->with(self::CUSTOMER_ID)
             ->willReturn($customer);
 

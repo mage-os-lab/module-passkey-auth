@@ -13,7 +13,7 @@ All customer passkey logic goes through interfaces in `Api/`. They are all marke
 | `AuthenticationOptionsInterface` | `Model\Authentication\OptionsGenerator` | Build sign-in options, optionally for one email |
 | `AuthenticationVerifierInterface` | `Model\Authentication\Verifier` | Check the browser response and issue a customer token |
 | `CredentialRepositoryInterface` | `Model\CredentialRepository` | Load, save, and delete passkeys. `getList()` takes search criteria. It is not exposed over REST. |
-| `CredentialManagementInterface` | `Model\CredentialManagement` | List, rename, and delete with an ownership check. `revokeCredential()` skips the check, for admin use. |
+| `CredentialManagementInterface` | `Model\CredentialManagement` | List, rename, and delete with an ownership check. `deleteCredential()` also ends the customer's other storefront sessions. `revokeCredential()` skips the check, for admin use, and signs the customer out everywhere. See [Signing out after a passkey is removed](#signing-out-after-a-passkey-is-removed). |
 | `CustomerPasskeyManagementInterface` | `Model\CustomerPasskeyManagement` | List, rename, and register passkeys for the web API. Returns `CustomerPasskeyInterface`, without key material. |
 | `WebAuthnConfigInterface` | `Model\Config` | Relying party and WebAuthn settings |
 | `Data\CredentialInterface` | `Model\Data\Credential` | Full stored passkey, including the public key record |
@@ -61,6 +61,8 @@ These fire from the service layer, so they cover the storefront, REST, GraphQL, 
 
 After a passkey sign-in, Magento's own `customer_login` event also fires, as for a password sign-in. The storefront fires it through the customer session. For REST, SOAP, and GraphQL, the module's `mageos_passkey_dispatch_customer_login` observer on `passkey_authentication_success` fires it, as core does for password token requests. This updates the customer's last login time.
 
+Passkey sign-in does not fire core `customer_customer_authenticated`. Its observers expect a password: core's `UpgradeCustomerPasswordObserver` would rehash the event's password, and a passkey sign-in has none. `Model\Authentication\AccountGuard` makes the checks that matter itself: account lock, email confirmation, and customer groups excluded from the website. After a successful sign-in it resets the wrong-password count, as core's `CustomerLoginSuccessObserver` does. The captcha and persistent cart observers on that event are not run.
+
 `passkey_credential_remove_after` does not fire when a customer account is deleted. The database removes those passkeys through a foreign key.
 
 The notification emails are observers on the register and remove events (`mageos_passkey_notify_added`, `mageos_passkey_notify_removed`). To stop them in code rather than in config, disable those observers in your module's `events.xml`.
@@ -73,6 +75,15 @@ Example observer:
     <observer name="vendor_module_passkey_login" instance="Vendor\Module\Observer\PasskeyLogin"/>
 </event>
 ```
+
+## Signing out after a passkey is removed
+
+`Model\CustomerSignOut` works per customer, because sessions and tokens aren't tied to a passkey:
+
+- `signOutEverywhere($customerId)` ends all storefront sessions and revokes all REST and GraphQL tokens. `revokeCredential()` calls it and returns its result.
+- `endOtherSessions($customerId)` ends every storefront session except the current one, as Magento does after a password change. `deleteCredential()` calls it.
+
+Both log a failure and return `false`. They never throw. The passkey is already deleted by then, so `revokeCredential()` returning `false` means only the sign-out failed.
 
 ## Changing WebAuthn settings
 
@@ -128,6 +139,7 @@ Rate limits (`Model\RateLimiter`) and the 5-minute challenge lifetime (`Model\Ch
 | `customer-account-navigation-passkeys-link` | `customer_account` | `customer_account_navigation` | Account menu link |
 | `passkey.checkout.conditional` | `checkout_index_index` | `before.body.end` | Autofill on checkout email fields |
 | `passkey.hyva.scripts` | `hyva_default` | `before.body.end` | Loads the Hyvä scripts |
+| `passkey.i18n` | `default` | `before.body.end` | Translations for `passkeyCore.t()`, on Luma and Hyvä |
 
 All blocks except `customer.account.passkeys` use `ifconfig="customer/passkey/enabled"`. That page's controller returns 404 instead when passkeys are off. Remove or move blocks with `referenceBlock` as usual.
 
@@ -143,6 +155,7 @@ Override through your theme, for example `app/design/frontend/Vendor/theme/MageO
 | `enrollment-prompt.phtml` | `hyva/enrollment-prompt.phtml` |
 | `account/passkeys.phtml` | `hyva/account/passkeys.phtml` |
 | `login/passkey-conditional.phtml` | (none) |
+| `i18n.phtml` | `i18n.phtml` (shared) |
 
 Luma styles are in `view/frontend/web/css/source/_module.less` and use Luma's standard classes (`.message`, `.data.table`, `.action.primary`).
 
@@ -152,6 +165,8 @@ Luma styles are in `view/frontend/web/css/source/_module.less` and use Luma's st
 
 - `passkeyCore.completeSignIn(result)` takes the verify reply and goes to its `redirect_url`: the page a password sign-in would land on. It reloads the page instead when the URL is missing, not http(s), or the current page.
 - `passkeyCore.startConditional(config)` starts autofill. `config.onSuccess(result)` gets the verify reply. Without `onSuccess`, it calls `completeSignIn(result)`.
+- `passkeyCore.hasCustomerMessage(error)` tells whether a failed request's message came from the server, which only sends text a customer may see. Show a generic message for other failures, such as a cancelled prompt or a network error.
+- `passkeyCore.t(text, ...args)` translates a message without `mage/translate`. See [Translations](#translations).
 
 Luma jQuery UI widgets, which you can extend with RequireJS mixins:
 
@@ -206,7 +221,7 @@ The storefront uses these session-based JSON endpoints. They are not a public AP
 | `POST /passkey/account/delete` | Yes | Form field `entity_id` |
 | `GET /passkey/account` | Yes | The My Account page |
 
-Send `X-Requested-With: XMLHttpRequest` with every POST. Magento's CSRF check requires it. Errors come back as `{"errors": true, "message": "…"}` with HTTP 400 (401 when not signed in).
+Send `X-Requested-With: XMLHttpRequest` with every POST. Magento's CSRF check requires it. Errors come back as `{"errors": true, "message": "…"}` with HTTP 400 (401 when not signed in). The verify endpoint also replies 429 when the failed sign-in limit is hit, and 403 when the passkey is valid but the account can't sign in (locked, not confirmed, or group excluded from the website).
 
 ### Customer data
 
@@ -220,7 +235,11 @@ Variables: `customer_name`, `passkey_name` ("Unnamed passkey" when empty), `stor
 
 ## Translations
 
-All strings are in `i18n/en_US.csv`. Hyvä JavaScript messages are plain English strings in `js/hyva/*.js` and are not run through Magento's translation system.
+All strings are in `i18n/en_US.csv`. Translate them with a language pack or your theme's `i18n` CSV, as for any module.
+
+Luma scripts use `mage/translate`. Hyvä doesn't load it, and `passkey-core.js` is shared by both themes, so `i18n.phtml` renders translations with `__()` into a JSON block, `<script type="application/json" id="mageos-passkey-i18n">`, on every storefront page. The scripts read it through `passkeyCore.t()`. Only phrases whose translation differs from the English text are included, and the block is left out when there are none. Without the block, or for a phrase not in it, `passkeyCore.t()` returns the English text. A browser never runs a JSON block, so it needs no CSP nonce.
+
+To add a message to your own script, add it to the `$phrases` list in a copy of `i18n.phtml` and call `passkeyCore.t('Your message')`. `%1`, `%2` and so on are replaced by the extra arguments.
 
 ## Database
 

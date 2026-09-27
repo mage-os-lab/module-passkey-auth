@@ -19,7 +19,9 @@ use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\Result\Json;
+use Magento\Framework\Exception\AuthenticationException;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadataFactory;
 use Magento\Framework\Stdlib\CookieManagerInterface;
@@ -50,10 +52,10 @@ class Verify implements HttpPostActionInterface
             $result = $this->verify();
         } catch (RateLimitExceededException $e) {
             // Says nothing about the account, so the customer is told to wait
-            return $resultJson->setHttpResponseCode(429)->setData([
-                'errors' => true,
-                'message' => $e->getMessage(),
-            ]);
+            return $this->error($resultJson, 429, $e->getMessage());
+        } catch (AuthenticationException $e) {
+            // Refused after the passkey was verified, so only the passkey holder sees why
+            return $this->error($resultJson, 403, $e->getMessage());
         } catch (LocalizedException $e) {
             // Already logged by the verifier. Generic, so it does not tell whether the passkey exists
             return $this->failure($resultJson);
@@ -115,9 +117,14 @@ class Verify implements HttpPostActionInterface
 
     private function failure(Json $resultJson): Json
     {
-        return $resultJson->setHttpResponseCode(400)->setData([
+        return $this->error($resultJson, 400, __('Passkey verification failed. Please try again.'));
+    }
+
+    private function error(Json $resultJson, int $status, Phrase|string $message): Json
+    {
+        return $resultJson->setHttpResponseCode($status)->setData([
             'errors' => true,
-            'message' => __('Passkey verification failed. Please try again.'),
+            'message' => $message,
         ]);
     }
 }

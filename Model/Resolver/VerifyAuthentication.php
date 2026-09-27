@@ -10,6 +10,7 @@ namespace MageOS\PasskeyAuth\Model\Resolver;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
+use Magento\Framework\Exception\AuthenticationException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Exception\GraphQlAuthenticationException;
@@ -36,9 +37,9 @@ class VerifyAuthentication implements ResolverInterface
 
         try {
             $result = $this->authenticationVerifier->verify($challengeToken, $assertionResponse);
-        } catch (RateLimitExceededException $e) {
-            // Says nothing about the account, so the customer is told to wait
-            throw new GraphQlAuthenticationException(__($e->getMessage()), $e);
+        } catch (RateLimitExceededException | AuthenticationException $e) {
+            // Too many failures: says nothing about the account. A refused account: only the passkey holder gets here
+            throw new GraphQlAuthenticationException(__($e->getRawMessage(), $e->getParameters()), $e);
         } catch (LocalizedException $e) {
             // Already logged by the verifier. Deliberately generic: do not leak whether the credential exists.
             throw new GraphQlAuthenticationException(

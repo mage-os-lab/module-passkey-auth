@@ -96,7 +96,7 @@ mutation {
 
 Use `customer_token` like a token from `generateCustomerToken`. Its lifetime follows **Stores > Configuration > Services > OAuth > Access Token Expiration**.
 
-Any failure returns the same message, "Passkey verification failed. Please try again.", so callers can't tell which accounts exist.
+A failed sign-in returns "Passkey verification failed. Please try again.", so callers can't tell which accounts exist. The exceptions are the failed sign-in limit and a verified passkey whose account can't sign in: locked, not confirmed, or in a customer group excluded from the website. See [Errors and limits](#errors-and-limits).
 
 ### Register
 
@@ -146,6 +146,8 @@ mutation {
 ```
 
 Dates are UTC. `customerPasskeys` is never cached.
+
+Deleting a passkey ends the customer's storefront sessions, but keeps their API tokens, including the one that made the call. Magento does the same when a customer changes their password. See [Sessions and tokens after a passkey is removed](security.md#sessions-and-tokens-after-a-passkey-is-removed).
 
 ### Browser example
 
@@ -221,6 +223,8 @@ curl -s -X POST https://shop.example.com/rest/V1/passkey/authentication/options 
 
 `assertionResponseJson` and `attestationResponseJson` are the browser responses as JSON strings, the same as in GraphQL.
 
+`DELETE` ends the customer's storefront sessions and keeps their API tokens, like the GraphQL delete.
+
 A passkey object has the same fields as the GraphQL `CustomerPasskey` type:
 
 ```json
@@ -240,6 +244,7 @@ A passkey object has the same fields as the GraphQL `CustomerPasskey` type:
 - Requests with passkeys turned off fail with "Passkey authentication is not enabled."
 - Options requests and failed sign-ins are rate-limited. See [Rate limits](security.md#rate-limits). The failed sign-in limit counts per IP address. If your frontend server calls the API for all customers, they share its IP and one counter.
 - A failed GraphQL sign-in returns "Passkey verification failed. Please try again." When the failed sign-in limit is hit, REST and GraphQL both return "Too many failed passkey attempts. Please try again later." instead. Other REST sign-in errors show the check that failed, so they can differ, for example "Invalid or expired challenge token." or "Challenge has expired." An unknown passkey and a failed check give the same message, so neither API reveals whether an account exists.
+- A locked, unconfirmed, or excluded account is refused with the message of a password sign-in (HTTP 401 on REST). See [Locked and unconfirmed accounts](security.md#locked-and-unconfirmed-accounts).
 - Known limitation: the storefront refuses passkey registration while an admin is signed in as the customer with Login as Customer, but the API can't tell a token from `generateCustomerTokenAsAdmin` apart from the customer's own. REST and GraphQL registration with such a token is not blocked. See [Login as Customer](security.md#login-as-customer).
 - A customer can have at most 10 passkeys. The options call fails with "Maximum number of passkeys (10) reached." after that.
 - A browser that already holds a passkey for the account refuses to create another one. The browser raises `InvalidStateError`.

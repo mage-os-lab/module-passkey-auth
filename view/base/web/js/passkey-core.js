@@ -17,7 +17,22 @@
         // Re-issue the autofill challenge before the server's 5-minute TTL runs out
         CONDITIONAL_REFRESH_MS = 4 * 60000,
         conditional = null,
-        webauthnFieldSelectors = null;
+        webauthnFieldSelectors = null,
+        translations = null;
+
+    /**
+     * Translations rendered by templates/i18n.phtml on Luma and Hyvä. Only
+     * phrases that differ from English are sent, so the block may be absent.
+     */
+    function readTranslations() {
+        var el = document.getElementById('mageos-passkey-i18n');
+
+        try {
+            return el ? JSON.parse(el.textContent) || {} : {};
+        } catch (e) {
+            return {};
+        }
+    }
 
     /**
      * Add the "webauthn" autofill token. It must follow an autofill field
@@ -41,6 +56,26 @@
     }
 
     return {
+        /**
+         * Translate a message without mage/translate, which Hyvä doesn't load.
+         * Falls back to the English text. %1, %2... are replaced by the
+         * extra arguments. Read on first use, as the block can follow this
+         * script.
+         */
+        t: function (text) {
+            var args = arguments,
+                phrase;
+
+            if (translations === null) {
+                translations = readTranslations();
+            }
+            phrase = typeof translations[text] === 'string' ? translations[text] : text;
+
+            return phrase.replace(/%(\d+)/g, function (match, index) {
+                return args[index] !== undefined ? String(args[index]) : match;
+            });
+        },
+
         /**
          * Default selectors for the sign-in email field.
          */
@@ -98,6 +133,15 @@
                     return data;
                 });
             });
+        },
+
+        /**
+         * Whether a failed request's message came from our server, which
+         * only sends customer-safe text. postJson() sets status only on server
+         * replies, so browser errors (cancelled, network) get a generic message.
+         */
+        hasCustomerMessage: function (error) {
+            return !!error && error.status !== undefined;
         },
 
         /**
@@ -314,7 +358,7 @@
          */
         suggestName: function () {
             var ua = navigator.userAgent,
-                browser = 'Browser',
+                browser = this.t('Browser'),
                 platform = '';
 
             if (/edg\//i.test(ua)) {
@@ -343,7 +387,7 @@
                 platform = 'Linux';
             }
 
-            return platform ? browser + ' on ' + platform : browser;
+            return platform ? this.t('%1 on %2', browser, platform) : browser;
         },
 
         /**

@@ -23,6 +23,7 @@ use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Model\Config\Share;
 use Magento\Framework\Event\ManagerInterface as EventManager;
+use Magento\Framework\Exception\AuthenticationException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
@@ -45,7 +46,8 @@ class Verifier implements AuthenticationVerifierInterface
         private readonly RemoteAddress $remoteAddress,
         private readonly Share $shareConfig,
         private readonly CustomerRepositoryInterface $customerRepository,
-        private readonly StoreManagerInterface $storeManager
+        private readonly StoreManagerInterface $storeManager,
+        private readonly AccountGuard $accountGuard
     ) {
     }
 
@@ -65,6 +67,9 @@ class Verifier implements AuthenticationVerifierInterface
 
         try {
             return $this->verifyAssertion($challengeToken, $assertionResponseJson);
+        } catch (AuthenticationException $e) {
+            // Account refused after the passkey was verified: the key holder proved possession, this isn't guessing
+            throw $e;
         } catch (\Throwable $e) {
             $this->rateLimiter->recordVerifyFailure($ip);
             throw $e;
@@ -138,6 +143,9 @@ class Verifier implements AuthenticationVerifierInterface
 
         $customerId = $storedCredential->getCustomerId();
 
+        // Only after the assertion is verified, so only the passkey holder learns the account's state
+        $this->accountGuard->assertCanSignIn($this->customerRepository->getById($customerId));
+
         // Update sign count and last used — don't block auth on failure
         try {
             $storedCredential->setSignCount($updatedSource->counter);
@@ -161,6 +169,17 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Authentication succeeded but token creation failed.'), $e);
         }
 
+        try {
+            $this->accountGuard->recordSignIn($customerId);
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to reset failed sign-in count after passkey sign-in', [
+                'exception' => $e->getMessage(),
+                'customer_id' => $customerId,
+            ]);
+        }
+
+        // customer_customer_authenticated is deliberately not dispatched: core's UpgradeCustomerPasswordObserver
+        // would rehash the event's password, and a passkey sign-in has none.
         $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_SUCCESS, [
             'customer_id' => $customerId,
             'entity_id' => $storedCredential->getEntityId(),

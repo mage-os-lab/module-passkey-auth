@@ -60,11 +60,13 @@ Go to **My Account > Passkeys** and click **Delete** next to the passkey. We'll 
 
 Deleting it here stops it from working on our site. It may still be listed in your device's password manager. You can delete it there too.
 
+Deleting a passkey also signs you out of our site in your other browsers. You stay signed in where you are.
+
 ## If you lose a device
 
 Sign in with your password or another passkey, go to **My Account > Passkeys**, and delete the passkey for the lost device. The **Last Used** column helps you tell them apart.
 
-If you can't sign in, reset your password with **Forgot Your Password?**, or contact us.
+If you can't sign in, reset your password with **Forgot Your Password?**, or contact us. If the device may still be signed in to an app that uses your account, contact us too. When we revoke the passkey, you are signed out everywhere, including apps.
 
 ## Emails about passkeys
 
@@ -85,3 +87,5 @@ If you didn't make the change, sign in, remove any passkey you don't recognize, 
 | Too many passkey requests. Please try again later. | Wait a minute and try again, or sign in with your password. |
 | Too many failed passkey attempts. Please try again later. | Wait 15 minutes and try again, or sign in with your password. |
 | Maximum number of passkeys (10) reached. | Delete a passkey you no longer use, then add the new one. |
+| The account sign-in was incorrect or your account is disabled temporarily. Please wait and try again later. | Your account is locked, for example after too many wrong passwords. Wait and try again, or contact us. |
+| This account isn't confirmed. Verify and try again. | Click the link in the confirmation email we sent you, then sign in again. |

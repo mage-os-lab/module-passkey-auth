@@ -28,7 +28,7 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) 5.2
 - **REST and GraphQL**: Full registration, authentication, and management surface for headless storefronts
 
 ### Store Admin Controls
-- **Customer Passkeys grid**: View and revoke any customer's passkeys under **Customers > Customer Passkeys** (revocation notifies the customer)
+- **Customer Passkeys grid**: View and revoke any customer's passkeys under **Customers > Customer Passkeys** (revocation signs the customer out everywhere and notifies them)
 - **Admin passkey TFA**: Passkey provider for the Magento admin two-factor framework, including a `security:tfa:passkey:reset-all` CLI command
 - **Enrollment prompts**: Optional banners on account pages after password login or account creation, with built-in dismissal cooldown to avoid nagging
 - **Rate limiting**: Built-in cache-based limits on options requests and verification failures
@@ -226,6 +226,8 @@ Templates are in `view/frontend/templates/` and can be overridden via theme fall
 - **Anti-enumeration**: Authentication options for an email with no passkeys (or no account) carry a stable, secret-derived decoy credential descriptor instead of an empty list.
 - **Ownership enforcement**: All credential operations validate that the credential belongs to the requesting customer.
 - **Per-website accounts**: With customer accounts shared per website, a passkey only signs in on its own customer's website.
+- **Account checks**: Like password sign-in, passkey sign-in refuses locked accounts, accounts awaiting email confirmation, and customer groups excluded from the website. Failed passkey attempts never lock an account.
+- **Sign-out on removal**: An admin revoke ends the customer's storefront sessions and revokes their API tokens. A customer deleting a passkey ends their other storefront sessions, as a password change does.
 - **Login as Customer**: Passkey registration is refused while an admin is signed in as the customer on the storefront. Known limitation: REST and GraphQL registration with a token from `generateCustomerTokenAsAdmin` is not blocked.
 
 ## Contributing

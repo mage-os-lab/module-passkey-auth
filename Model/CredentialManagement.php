@@ -19,7 +19,8 @@ class CredentialManagement implements CredentialManagementInterface
 {
     public function __construct(
         private readonly CredentialRepositoryInterface $credentialRepository,
-        private readonly EventManager $eventManager
+        private readonly EventManager $eventManager,
+        private readonly CustomerSignOut $customerSignOut
     ) {
     }
 
@@ -32,21 +33,19 @@ class CredentialManagement implements CredentialManagementInterface
     {
         $credential = $this->credentialRepository->getById($entityId);
         $this->assertOwnership($credential, $customerId);
-        $this->revokeCredential($credential);
+        $this->remove($credential);
+        // Like a password change: sessions it may have started elsewhere end, this one stays
+        $this->customerSignOut->endOtherSessions($customerId);
 
         return true;
     }
 
-    public function revokeCredential(CredentialInterface $credential): void
+    public function revokeCredential(CredentialInterface $credential): bool
     {
-        $this->credentialRepository->delete($credential);
+        $this->remove($credential);
 
-        $this->eventManager->dispatch(PasskeyEvents::CREDENTIAL_REMOVE_AFTER, [
-            'customer_id' => $credential->getCustomerId(),
-            'entity_id' => $credential->getEntityId(),
-            'credential_id' => $credential->getCredentialId(),
-            'credential' => $credential,
-        ]);
+        // A lost or stolen device may still hold a session or token from this passkey
+        return $this->customerSignOut->signOutEverywhere($credential->getCustomerId());
     }
 
     public function renameCredential(int $customerId, int $entityId, string $friendlyName): CredentialInterface
@@ -73,6 +72,18 @@ class CredentialManagement implements CredentialManagementInterface
         if (preg_match('/[<>&]/', $friendlyName)) {
             throw new LocalizedException(__('Passkey names can\'t contain <, > or &.'));
         }
+    }
+
+    private function remove(CredentialInterface $credential): void
+    {
+        $this->credentialRepository->delete($credential);
+
+        $this->eventManager->dispatch(PasskeyEvents::CREDENTIAL_REMOVE_AFTER, [
+            'customer_id' => $credential->getCustomerId(),
+            'entity_id' => $credential->getEntityId(),
+            'credential_id' => $credential->getCredentialId(),
+            'credential' => $credential,
+        ]);
     }
 
     private function assertOwnership(CredentialInterface $credential, int $customerId): void

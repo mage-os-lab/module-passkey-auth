@@ -49,12 +49,16 @@ class MassDelete extends Action implements HttpPostActionInterface
         }
 
         $revoked = 0;
+        $notSignedOut = 0;
         foreach ($collection as $row) {
             try {
-                $this->credentialManagement->revokeCredential(
+                $signedOut = $this->credentialManagement->revokeCredential(
                     $this->credentialFactory->create(['data' => $row->getData()])
                 );
                 $revoked++;
+                if (!$signedOut) {
+                    $notSignedOut++;
+                }
             } catch (\Exception $e) {
                 $this->logger->error('Admin passkey mass revoke failed for credential', [
                     'exception' => $e->getMessage(),
@@ -69,6 +73,14 @@ class MassDelete extends Action implements HttpPostActionInterface
             );
         } else {
             $this->messageManager->addErrorMessage(__('No passkeys were revoked.'));
+        }
+
+        if ($notSignedOut > 0) {
+            $this->messageManager->addWarningMessage(__(
+                'For %1 revoked passkey(s), the customer could not be signed out of their sessions and apps. '
+                . 'See the error log.',
+                $notSignedOut
+            ));
         }
 
         return $resultRedirect;

@@ -30,6 +30,8 @@ The grid only shows metadata. It never shows keys or anything that could be used
 
 A revoked passkey stops working at once. The customer gets the "passkey removed" email, if emails are on. The customer can still sign in with their password and can add a new passkey.
 
+Revoking also signs the customer out everywhere. It ends all their storefront sessions and revokes their REST and GraphQL tokens, because a lost or stolen device may still be signed in. If signing out fails, the passkeys are still revoked, and a warning asks you to check the error log.
+
 Revoking does not remove the passkey from the customer's device. It still appears in their password manager but no longer works on your store.
 
 ## Admin permissions

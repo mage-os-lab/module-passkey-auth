@@ -44,8 +44,15 @@ class Delete extends Action implements HttpPostActionInterface
         }
 
         try {
-            $this->credentialManagement->revokeCredential($this->credentialRepository->getById($entityId));
+            $signedOut = $this->credentialManagement->revokeCredential(
+                $this->credentialRepository->getById($entityId)
+            );
             $this->messageManager->addSuccessMessage(__('The passkey has been revoked.'));
+            if (!$signedOut) {
+                $this->messageManager->addWarningMessage(
+                    __('The customer could not be signed out of their sessions and apps. See the error log.')
+                );
+            }
         } catch (NoSuchEntityException) {
             $this->messageManager->addErrorMessage(__('This passkey no longer exists.'));
         } catch (\Exception $e) {
