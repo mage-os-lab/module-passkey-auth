@@ -90,35 +90,20 @@ class Config implements WebAuthnConfigInterface
 
     public function getNotificationIdentity(?int $storeId = null): string
     {
-        $identity = $this->scopeConfig->getValue(
+        return (string) $this->scopeConfig->getValue(
             self::XML_PATH_NOTIFICATION_EMAIL_IDENTITY,
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
-
-        return (string) ($identity ?: 'general');
     }
 
-    public function getAddedEmailTemplate(?int $storeId = null): string
+    /**
+     * @param string $templatePath XML_PATH_ADDED_EMAIL_TEMPLATE or XML_PATH_REMOVED_EMAIL_TEMPLATE
+     * @param int|null $storeId
+     */
+    public function getEmailTemplate(string $templatePath, ?int $storeId = null): string
     {
-        $template = $this->scopeConfig->getValue(
-            self::XML_PATH_ADDED_EMAIL_TEMPLATE,
-            ScopeInterface::SCOPE_STORE,
-            $storeId
-        );
-
-        return (string) ($template ?: 'customer_passkey_added_email_template');
-    }
-
-    public function getRemovedEmailTemplate(?int $storeId = null): string
-    {
-        $template = $this->scopeConfig->getValue(
-            self::XML_PATH_REMOVED_EMAIL_TEMPLATE,
-            ScopeInterface::SCOPE_STORE,
-            $storeId
-        );
-
-        return (string) ($template ?: 'customer_passkey_removed_email_template');
+        return (string) $this->scopeConfig->getValue($templatePath, ScopeInterface::SCOPE_STORE, $storeId);
     }
 
     public function getRpId(): string

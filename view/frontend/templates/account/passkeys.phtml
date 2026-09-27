@@ -36,14 +36,10 @@ $credentials = $block->getCredentials();
                                    maxlength="255"/>
                         </td>
                         <td data-th="<?= $escaper->escapeHtmlAttr(__('Created')) ?>">
-                            <?= $escaper->escapeHtml($credential->getCreatedAt()
-                                ? $block->formatDate($credential->getCreatedAt(), \IntlDateFormatter::MEDIUM)
-                                : '') ?>
+                            <?= $escaper->escapeHtml($block->getCreatedLabel($credential)) ?>
                         </td>
                         <td data-th="<?= $escaper->escapeHtmlAttr(__('Last Used')) ?>">
-                            <?= $escaper->escapeHtml($credential->getLastUsedAt()
-                                ? $block->formatDate($credential->getLastUsedAt(), \IntlDateFormatter::MEDIUM, true)
-                                : __('Never')) ?>
+                            <?= $escaper->escapeHtml($block->getLastUsedLabel($credential)) ?>
                         </td>
                         <td class="passkey-actions" data-th="<?= $escaper->escapeHtmlAttr(__('Actions')) ?>">
                             <button type="button" class="action rename" title="<?= $escaper->escapeHtmlAttr(__('Rename')) ?>">

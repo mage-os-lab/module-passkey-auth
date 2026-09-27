@@ -5,7 +5,27 @@
         root.passkeyCore = factory();
     }
 }(typeof self !== 'undefined' ? self : this, function () {
+    var ENROLLMENT_DISMISSED_AT_KEY = 'passkey_enrollment_dismissed_at',
+        ENROLLMENT_DISMISS_COUNT_KEY = 'passkey_enrollment_dismiss_count',
+        ENROLLMENT_COOLDOWN_MS = 30 * 86400000,
+        ENROLLMENT_MAX_DISMISSALS = 3,
+        conditional = null,
+        webauthnFieldSelectors = null;
+
+    function markWebauthnField(el) {
+        var current = el.getAttribute('autocomplete') || 'username';
+
+        if (current.indexOf('webauthn') === -1) {
+            el.setAttribute('autocomplete', current + ' webauthn');
+        }
+    }
+
     return {
+        /**
+         * Default selectors for the sign-in email field.
+         */
+        EMAIL_SELECTORS: 'input#email, input[name="login[username]"]',
+
         /**
          * Check if WebAuthn API is present (requires secure context).
          */
@@ -29,6 +49,170 @@
                 .catch(function () {
                     return false;
                 });
+        },
+
+        /**
+         * POST a JSON body to a storefront endpoint and resolve with the JSON
+         * reply. Rejects with the server's message (or fallbackMessage) when
+         * the reply carries errors.
+         */
+        postJson: function (url, body, fallbackMessage) {
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(body),
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json();
+            }).then(function (data) {
+                if (data.errors) {
+                    throw new Error(data.message || fallbackMessage || '');
+                }
+
+                return data;
+            });
+        },
+
+        /**
+         * Advertise passkey support to the browser's autofill on the email
+         * fields. Fields rendered later (e.g. the checkout authentication
+         * popup) are marked on first focus.
+         */
+        markWebauthnFields: function (selectors) {
+            Array.prototype.forEach.call(document.querySelectorAll(selectors), markWebauthnField);
+
+            if (webauthnFieldSelectors === null) {
+                document.addEventListener('focusin', function (event) {
+                    if (event.target.matches && event.target.matches(webauthnFieldSelectors)) {
+                        markWebauthnField(event.target);
+                    }
+                });
+            }
+            webauthnFieldSelectors = selectors;
+        },
+
+        /**
+         * Arm passkey autofill (WebAuthn conditional mediation): a pending
+         * navigator.credentials.get() lets the browser offer saved passkeys in
+         * the email field's autofill dropdown. No-op when unsupported.
+         *
+         * config: {optionsUrl, verifyUrl, selectors?, onError?}
+         */
+        startConditional: function (config) {
+            var self = this;
+
+            if (!config.optionsUrl || !config.verifyUrl) {
+                return Promise.resolve();
+            }
+
+            return this.isConditionalMediationAvailable().then(function (available) {
+                if (!available) {
+                    return;
+                }
+                conditional = {config: config, restartsLeft: 3, controller: null};
+                self.markWebauthnFields(config.selectors || self.EMAIL_SELECTORS);
+                self.restartConditional();
+            });
+        },
+
+        /**
+         * Cancel the pending autofill request. Required before a modal
+         * ceremony: browsers allow only one active WebAuthn request.
+         */
+        abortConditional: function () {
+            if (conditional && conditional.controller) {
+                conditional.controller.abort();
+                conditional.controller = null;
+            }
+        },
+
+        /**
+         * Re-arm autofill, e.g. after a modal ceremony failed. No-op unless
+         * startConditional() armed it.
+         */
+        restartConditional: function () {
+            var self = this,
+                controller;
+
+            if (!conditional) {
+                return;
+            }
+
+            this.abortConditional();
+            controller = conditional.controller = new AbortController();
+
+            this.postJson(conditional.config.optionsUrl, {}).then(function (options) {
+                var request = self.prepareRequestOptions(options);
+
+                request.mediation = 'conditional';
+                request.signal = controller.signal;
+
+                return navigator.credentials.get(request).then(function (credential) {
+                    if (!credential) {
+                        throw new Error('cancelled');
+                    }
+
+                    return self.postJson(conditional.config.verifyUrl, {
+                        challengeToken: options.challengeToken,
+                        credential: self.serializeAssertionResponse(credential)
+                    });
+                });
+            }).then(function () {
+                window.location.reload();
+            }).catch(function (err) {
+                // Aborting is the expected path when the user signs in another
+                // way or we hand off to a modal ceremony.
+                if (err && err.name === 'AbortError') {
+                    return;
+                }
+
+                // The user picked a passkey but verification failed (most often
+                // an expired challenge on a long-idle tab): surface it and
+                // re-arm so the autofill entry keeps working, with a cap.
+                if (conditional.restartsLeft > 0) {
+                    conditional.restartsLeft--;
+                    if (typeof conditional.config.onError === 'function') {
+                        conditional.config.onError(err);
+                    }
+                    self.restartConditional();
+                }
+            });
+        },
+
+        /**
+         * Whether the enrollment prompt is snoozed: dismissed within the last
+         * 30 days, or dismissed too often to show again.
+         */
+        isEnrollmentSnoozed: function () {
+            var dismissedAt, count;
+
+            try {
+                dismissedAt = parseInt(localStorage.getItem(ENROLLMENT_DISMISSED_AT_KEY), 10);
+                count = parseInt(localStorage.getItem(ENROLLMENT_DISMISS_COUNT_KEY), 10) || 0;
+            } catch (e) {
+                return false;
+            }
+
+            if (count >= ENROLLMENT_MAX_DISMISSALS) {
+                return true;
+            }
+
+            return !!dismissedAt && (Date.now() - dismissedAt) < ENROLLMENT_COOLDOWN_MS;
+        },
+
+        recordEnrollmentDismissal: function () {
+            try {
+                localStorage.setItem(ENROLLMENT_DISMISSED_AT_KEY, String(Date.now()));
+                localStorage.setItem(
+                    ENROLLMENT_DISMISS_COUNT_KEY,
+                    String((parseInt(localStorage.getItem(ENROLLMENT_DISMISS_COUNT_KEY), 10) || 0) + 1)
+                );
+            } catch (e) {
+                // Storage unavailable (private mode) — dismiss for this page only.
+            }
         },
 
         /**

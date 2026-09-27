@@ -29,6 +29,14 @@ interface CredentialManagementInterface
     public function deleteCredential(int $customerId, int $entityId): bool;
 
     /**
+     * Delete a credential without an ownership check (admin revocation).
+     *
+     * @param CredentialInterface $credential
+     * @return void
+     */
+    public function revokeCredential(CredentialInterface $credential): void;
+
+    /**
      * @param int $customerId
      * @param int $entityId
      * @param string $friendlyName

@@ -40,10 +40,7 @@ class Delete extends Action implements HttpPostActionInterface
         }
 
         try {
-            $credential = $this->credentialRepository->getById($entityId);
-            // Route through the management service so the customer is notified
-            // and passkey_credential_remove_after observers fire.
-            $this->credentialManagement->deleteCredential($credential->getCustomerId(), $entityId);
+            $this->credentialManagement->revokeCredential($this->credentialRepository->getById($entityId));
             $this->messageManager->addSuccessMessage(__('The passkey has been revoked.'));
         } catch (NoSuchEntityException) {
             $this->messageManager->addErrorMessage(__('This passkey no longer exists.'));

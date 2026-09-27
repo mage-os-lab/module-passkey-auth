@@ -54,7 +54,6 @@ class CredentialManagementTest extends TestCase
         $credential = $this->createMock(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn($customerId);
         $credential->method('getEntityId')->willReturn($entityId);
-        $credential->method('getFriendlyName')->willReturn('Chrome on Windows');
 
         $this->credentialRepositoryMock->method('getById')
             ->with($entityId)
@@ -70,7 +69,7 @@ class CredentialManagementTest extends TestCase
             ->with('passkey_credential_remove_after', [
                 'customer_id' => $customerId,
                 'credential_id' => $entityId,
-                'friendly_name' => 'Chrome on Windows',
+                'credential' => $credential,
             ]);
 
         $result = $this->credentialManagement->deleteCredential($customerId, $entityId);

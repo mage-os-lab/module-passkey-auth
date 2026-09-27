@@ -28,5 +28,6 @@ class CollectionTest extends TestCase
         $this->assertSame('customer@example.com', $item->getData('customer_email'));
         $this->assertSame('Integration Test Passkey', $item->getData('friendly_name'));
         $this->assertNotEmpty($item->getData('customer_firstname'));
+        $this->assertNull($item->getData('public_key'), 'The grid must not load the key blob.');
     }
 }

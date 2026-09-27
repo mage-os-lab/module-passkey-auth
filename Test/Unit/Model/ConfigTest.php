@@ -69,27 +69,22 @@ class ConfigTest extends TestCase
         $this->assertTrue($this->config->isCredentialNotificationEnabled());
     }
 
-    public function testGetNotificationIdentityFallsBackToGeneral(): void
+    public function testGetNotificationIdentityReadsStoreScope(): void
     {
         $this->scopeConfig->method('getValue')
-            ->with(Config::XML_PATH_NOTIFICATION_EMAIL_IDENTITY, ScopeInterface::SCOPE_STORE, null)
-            ->willReturn(null);
-        $this->assertSame('general', $this->config->getNotificationIdentity());
+            ->with(Config::XML_PATH_NOTIFICATION_EMAIL_IDENTITY, ScopeInterface::SCOPE_STORE, 3)
+            ->willReturn('support');
+        $this->assertSame('support', $this->config->getNotificationIdentity(3));
     }
 
-    public function testGetAddedEmailTemplateFallsBackToModuleDefault(): void
+    public function testGetEmailTemplateReadsGivenPath(): void
     {
         $this->scopeConfig->method('getValue')
-            ->with(Config::XML_PATH_ADDED_EMAIL_TEMPLATE, ScopeInterface::SCOPE_STORE, null)
-            ->willReturn(null);
-        $this->assertSame('customer_passkey_added_email_template', $this->config->getAddedEmailTemplate());
-    }
-
-    public function testGetRemovedEmailTemplateReadsConfiguredValue(): void
-    {
-        $this->scopeConfig->method('getValue')
-            ->with(Config::XML_PATH_REMOVED_EMAIL_TEMPLATE, ScopeInterface::SCOPE_STORE, null)
+            ->with(Config::XML_PATH_REMOVED_EMAIL_TEMPLATE, ScopeInterface::SCOPE_STORE, 3)
             ->willReturn('custom_template_42');
-        $this->assertSame('custom_template_42', $this->config->getRemovedEmailTemplate());
+        $this->assertSame(
+            'custom_template_42',
+            $this->config->getEmailTemplate(Config::XML_PATH_REMOVED_EMAIL_TEMPLATE, 3)
+        );
     }
 }

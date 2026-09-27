@@ -17,7 +17,7 @@
     passkey_credential_remove_after
         - customer_id (int)
         - credential_id (int)
-        - friendly_name (string|null)
+        - credential (CredentialInterface)
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">

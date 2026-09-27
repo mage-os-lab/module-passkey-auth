@@ -27,11 +27,11 @@ class CredentialActions extends Column
             return $dataSource;
         }
 
+        $name = $this->getData('name');
         foreach ($dataSource['data']['items'] as &$item) {
             if (!isset($item['entity_id'])) {
                 continue;
             }
-            $name = $this->getData('name');
             $label = $item['friendly_name'] ?: (string) __('Unnamed passkey');
             $item[$name]['revoke'] = [
                 'href' => $this->urlBuilder->getUrl(

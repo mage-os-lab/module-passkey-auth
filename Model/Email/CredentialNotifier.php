@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Model\Email;
 
 use MageOS\PasskeyAuth\Model\Config;
+use Magento\Customer\Api\CustomerNameGenerationInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\App\Area;
 use Magento\Framework\Mail\Template\TransportBuilder;
@@ -21,23 +22,19 @@ class CredentialNotifier
     public function __construct(
         private readonly Config $config,
         private readonly CustomerRepositoryInterface $customerRepository,
+        private readonly CustomerNameGenerationInterface $customerNameGeneration,
         private readonly TransportBuilder $transportBuilder,
         private readonly StoreManagerInterface $storeManager,
         private readonly LoggerInterface $logger
     ) {
     }
 
-    public function notifyAdded(int $customerId, ?string $friendlyName): void
-    {
-        $this->send($customerId, 'added', $friendlyName);
-    }
-
-    public function notifyRemoved(int $customerId, ?string $friendlyName): void
-    {
-        $this->send($customerId, 'removed', $friendlyName);
-    }
-
-    private function send(int $customerId, string $template, ?string $friendlyName): void
+    /**
+     * @param int $customerId
+     * @param string|null $friendlyName
+     * @param string $templatePath Config path holding the email template ID
+     */
+    public function notify(int $customerId, ?string $friendlyName, string $templatePath): void
     {
         try {
             $customer = $this->customerRepository->getById($customerId);
@@ -50,14 +47,10 @@ class CredentialNotifier
                 return;
             }
 
-            $store = $this->storeManager->getStore($storeId);
-            $customerName = trim($customer->getFirstname() . ' ' . $customer->getLastname());
-            $templateId = $template === 'added'
-                ? $this->config->getAddedEmailTemplate($storeId)
-                : $this->config->getRemovedEmailTemplate($storeId);
+            $customerName = $this->customerNameGeneration->getCustomerName($customer);
 
             $transport = $this->transportBuilder
-                ->setTemplateIdentifier($templateId)
+                ->setTemplateIdentifier($this->config->getEmailTemplate($templatePath, $storeId))
                 ->setTemplateOptions([
                     'area' => Area::AREA_FRONTEND,
                     'store' => $storeId,
@@ -65,7 +58,7 @@ class CredentialNotifier
                 ->setTemplateVars([
                     'customer_name' => $customerName,
                     'passkey_name' => $friendlyName ?: (string) __('Unnamed passkey'),
-                    'store_name' => $store->getFrontendName(),
+                    'store_name' => $this->storeManager->getStore($storeId)->getFrontendName(),
                 ])
                 ->setFromByScope($this->config->getNotificationIdentity($storeId), $storeId)
                 ->addTo($customer->getEmail(), $customerName)
@@ -76,7 +69,7 @@ class CredentialNotifier
             $this->logger->error('Failed to send passkey notification email', [
                 'exception' => $e->getMessage(),
                 'customer_id' => $customerId,
-                'template' => $template,
+                'template' => $templatePath,
             ]);
         }
     }

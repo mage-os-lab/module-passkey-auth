@@ -28,16 +28,20 @@ class CredentialManagement implements CredentialManagementInterface
     {
         $credential = $this->credentialRepository->getById($entityId);
         $this->assertOwnership($credential, $customerId);
+        $this->revokeCredential($credential);
 
+        return true;
+    }
+
+    public function revokeCredential(CredentialInterface $credential): void
+    {
         $this->credentialRepository->delete($credential);
 
         $this->eventManager->dispatch('passkey_credential_remove_after', [
-            'customer_id' => $customerId,
-            'credential_id' => $entityId,
-            'friendly_name' => $credential->getFriendlyName(),
+            'customer_id' => $credential->getCustomerId(),
+            'credential_id' => $credential->getEntityId(),
+            'credential' => $credential,
         ]);
-
-        return true;
     }
 
     public function renameCredential(int $customerId, int $entityId, string $friendlyName): CredentialInterface

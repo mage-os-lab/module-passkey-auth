@@ -6,6 +6,7 @@ namespace MageOS\PasskeyAuth\Test\Integration\Observer;
 
 use MageOS\PasskeyAuth\Api\CredentialManagementInterface;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
+use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\Email\CredentialNotifier;
 use Magento\TestFramework\Helper\Bootstrap;
 use Magento\TestFramework\Mail\Template\TransportBuilderMock;
@@ -32,7 +33,7 @@ class CredentialNotificationTest extends TestCase
     {
         /** @var CredentialNotifier $notifier */
         $notifier = Bootstrap::getObjectManager()->get(CredentialNotifier::class);
-        $notifier->notifyAdded(1, 'Chrome on Windows');
+        $notifier->notify(1, 'Chrome on Windows', Config::XML_PATH_ADDED_EMAIL_TEMPLATE);
 
         $message = $this->transportBuilder->getSentMessage();
 
@@ -78,7 +79,7 @@ class CredentialNotificationTest extends TestCase
     {
         /** @var CredentialNotifier $notifier */
         $notifier = Bootstrap::getObjectManager()->get(CredentialNotifier::class);
-        $notifier->notifyAdded(1, 'Chrome on Windows');
+        $notifier->notify(1, 'Chrome on Windows', Config::XML_PATH_ADDED_EMAIL_TEMPLATE);
 
         $this->assertNull($this->transportBuilder->getSentMessage());
     }

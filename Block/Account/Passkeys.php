@@ -30,6 +30,20 @@ class Passkeys extends Template
         return $this->credentialRepository->getByCustomerId($customerId);
     }
 
+    public function getCreatedLabel(CredentialInterface $credential): string
+    {
+        $createdAt = $credential->getCreatedAt();
+        return $createdAt ? $this->formatDate($createdAt, \IntlDateFormatter::MEDIUM) : '';
+    }
+
+    public function getLastUsedLabel(CredentialInterface $credential): string
+    {
+        $lastUsedAt = $credential->getLastUsedAt();
+        return $lastUsedAt
+            ? $this->formatDate($lastUsedAt, \IntlDateFormatter::MEDIUM, true)
+            : (string) __('Never');
+    }
+
     public function getRegistrationOptionsUrl(): string
     {
         return $this->getUrl('passkey/registration/options');
