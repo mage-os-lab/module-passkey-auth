@@ -12,11 +12,18 @@ Passkeys are bound to a domain, called the relying party ID. The module uses the
 
 A phishing site on another domain cannot get a valid response from a customer's passkey. It also means passkeys stop working if the store's domain changes. See [Configuration](configuration.md#the-store-domain).
 
+## Websites with separate customer accounts
+
+When **Share Customer Accounts** is **Per Website**, each website has its own customers. Websites can still share a domain, and a passkey works on every website that uses its domain. So on sign-in the module also checks that the passkey's customer belongs to the current website. If not, the sign-in is rejected the same way as an unknown passkey.
+
+With global account sharing there is no such check, because one account is valid on every website.
+
 ## Challenges
 
 Each sign-in or registration starts with a random 32-byte challenge. The server stores it in `passkey_challenge` with a random token. The token:
 
 - works once and is deleted when used, whether the check passes or fails;
+- is claimed atomically: if two requests send the same token at the same time, only one of them gets it;
 - expires after 5 minutes;
 - is tied to the ceremony type, so a registration challenge can't be used to sign in;
 - for registration, is tied to the customer who asked for it.
@@ -25,11 +32,13 @@ This blocks replay of old responses. The storefront renews the autofill challeng
 
 ## Accounts that don't exist
 
-When sign-in options are requested for an email, the response has the same shape whether or not the account exists or has passkeys. For an email with no passkeys, the module returns one made-up credential ID derived from the email and the install's secret key. It is the same each time for the same email. Error messages after a failed sign-in are the same for every cause.
+When sign-in options are requested for an email, the response has the same shape whether or not the account exists or has passkeys. For an email with no passkeys, the module returns one made-up credential ID derived from the email and the install's secret key. It is the same each time for the same email.
 
 This also stops a browser from offering an unrelated passkey saved on the device when the typed email has none.
 
 Real passkeys differ between authenticators in ID length and transports. The module does not hide those differences.
+
+After a failed sign-in, the storefront and GraphQL show one message for every cause. REST shows the message of the check that failed, so challenge problems can differ, for example "Invalid or expired challenge token." or "Challenge has expired." An unknown passkey and a passkey that fails verification both give "Passkey verification failed. Please try again.", so no REST message tells whether an account exists.
 
 ## Rate limits
 
@@ -37,17 +46,36 @@ Limits are counted in the Magento cache. They are best-effort: under heavy paral
 
 | What | Limit | Counted per | Applies to |
 |---|---|---|---|
-| Sign-in options | 10 per 60 seconds | Email and IP address | Storefront, REST, GraphQL |
+| Sign-in options | 10 per 60 seconds | Email (trimmed and lowercased) and IP address | Storefront, REST, GraphQL |
 | Registration options | 10 per 60 seconds | Customer | Storefront, REST, GraphQL |
 | Failed sign-ins | 5, then blocked until 15 minutes after the last failure | IP address | Storefront, REST, GraphQL |
 
 Flushing the cache resets the counters.
 
+The failed sign-in limit is checked in the service layer, so the storefront, REST, and GraphQL share one counter per IP address. A headless frontend that calls REST or GraphQL from its own server sends every customer's sign-in from that server's IP, so all of them share one counter.
+
 Admin two-factor sign-in uses Magento_TwoFactorAuth's own protections.
+
+### The client IP address
+
+The IP-based limits need the visitor's real IP address. Magento reads it from `REMOTE_ADDR`. Behind a load balancer, CDN, or reverse proxy, `REMOTE_ADDR` is the proxy's address, and all visitors share one counter.
+
+To fix this, do one of these:
+
+- Have the web server set `REMOTE_ADDR` from the proxy's header, for example with nginx's `real_ip` module or Apache's `mod_remoteip`, trusting only your proxies.
+- Or pass the header to `Magento\Framework\HTTP\PhpEnvironment\RemoteAddress` as its `alternativeHeaders` argument in your own module's `etc/di.xml`, for example `HTTP_X_FORWARDED_FOR`.
+
+Only use a header your proxy always sets. If visitors can send it themselves, they can pick any IP address and get around the limits.
 
 ## Ownership checks
 
 A customer can only list, rename, or delete their own passkeys. The customer ID always comes from the session or token, never from the request. Admin revocation needs the **Revoke Customer Passkeys** permission.
+
+## Login as Customer
+
+While an admin is signed in to the storefront as a customer with Magento's Login as Customer feature, passkey registration is refused. The admin can't add a passkey of their own to the customer's account.
+
+This check reads the storefront session. A customer token from the `generateCustomerTokenAsAdmin` GraphQL mutation looks the same as the customer's own token, so REST and GraphQL registration with such a token is not blocked. If notification emails are on, the customer still gets the "passkey added" email.
 
 ## Cloned authenticators
 
@@ -65,12 +93,19 @@ Passkeys are added alongside the password. They don't replace it. An account is 
 
 ## Logging
 
+Routine rejections are logged as warnings with a `reason` in `var/log/system.log`. Unexpected errors are logged with an `exception` entry, which Magento writes to `var/log/exception.log` instead.
+
 | Event | Where |
 |---|---|
-| Rejected sign-in (unknown passkey, bad signature, wrong origin, counter not increased) | Warning in `var/log/system.log`, plus the `passkey_authentication_failure` event |
-| Failed registration | Error in `var/log/system.log`, plus the `passkey_registration_failure` event |
-| Notification email failed | Error in `var/log/system.log` |
-| Admin passkey registered or failed | Magento_TwoFactorAuth alerts, and `var/log/system.log` for failures |
+| Passkey rejected at sign-in (unknown passkey, passkey of another website, bad signature, wrong origin, counter not increased) | Warning in `var/log/system.log`, plus the `passkey_authentication_failure` event |
+| Other rejected sign-ins (bad or expired challenge, malformed response, rate limit) | Warning in `var/log/system.log` for the storefront and GraphQL. REST returns the message to the caller and doesn't log it. |
+| Failed registration (response failed verification, or the passkey could not be saved) | Warning in `var/log/system.log`, plus the `passkey_registration_failure` event when verification failed |
+| Unexpected error in a storefront passkey request | Error in `var/log/exception.log` |
+| Sign-in succeeded but the token or the passkey's counter could not be saved | Error in `var/log/exception.log` |
+| Notification email failed | Error in `var/log/exception.log` |
+| Admin revoke failed | Error in `var/log/exception.log` |
+| Admin passkey registered | Magento_TwoFactorAuth alert, and info in `var/log/system.log` |
+| Admin passkey registration or sign-in failed | Magento_TwoFactorAuth alert, and a warning in `var/log/system.log` when the passkey check failed |
 | Expired challenges removed by cron | Info in `var/log/system.log` |
 
 Logs include customer IDs and credential IDs, but not keys or challenge tokens.

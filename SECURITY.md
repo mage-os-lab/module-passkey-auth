@@ -30,26 +30,43 @@ accounts and admin two-factor authentication. Key properties relied on:
   domain invalidates all registered passkeys by design.
 - **Single-use, short-lived challenges**: Challenge tokens are stored
   server-side, bound to a ceremony type (and customer where applicable),
-  consumed on first use, and expire after 5 minutes; expired rows are also
-  swept by cron.
+  and expire after 5 minutes. The first request that uses a token claims it
+  atomically by deleting its row, so concurrent requests with the same token
+  cannot both succeed. Expired rows are also swept by cron.
 - **Anti-enumeration**: Authentication options for an email with no
   passkeys (or no account) carry one stable decoy credential descriptor
   derived from the install's crypt key, so they have the same shape as an
-  account with one passkey, and verification errors are deliberately
-  generic. Descriptor details (ID length, transports) of real credentials
-  vary by authenticator and are not disguised.
+  account with one passkey. An unknown credential and a failed verification
+  return the same error. The storefront and GraphQL use one generic message
+  for every sign-in failure; REST also reports challenge errors (such as an
+  expired challenge), which say nothing about the account. Descriptor
+  details (ID length, transports) of real credentials vary by authenticator
+  and are not disguised.
 - **Wrong-account sign-in**: Because the decoy is never empty, a passkey
   sign-in started for an email without passkeys cannot be answered by an
   unrelated passkey saved on the device.
-- **Rate limiting**: Options generation and failed verifications are rate
-  limited per identifier/IP across the storefront, REST, and GraphQL entry
-  points. The cache-based counters are best-effort, not strictly atomic.
+- **Rate limiting**: Sign-in options are limited per email (trimmed and
+  lowercased) and IP address, registration options per customer, and failed
+  sign-ins per IP address. The checks run in the service layer, so the
+  storefront, REST, and GraphQL share the same counters. IP-based limits
+  rely on Magento seeing the real client IP behind a proxy. The cache-based
+  counters are best-effort, not strictly atomic.
 - **Ownership enforcement**: Credential list/rename/delete operations verify
-  the credential belongs to the authenticated customer; admin revocation is
-  gated by a dedicated ACL resource.
-- **Sign-count check**: An assertion whose signature counter does not
-  increase (possible cloned authenticator) is rejected, unless the
-  authenticator always reports zero.
+  the credential belongs to the authenticated customer, whose ID comes from
+  the session or token, never the request. Admin revocation is gated by a
+  dedicated ACL resource.
+- **Per-website accounts**: When customer accounts are shared per website,
+  a passkey whose customer belongs to another website is rejected like an
+  unknown credential, even if the websites share a domain.
+- **Login as Customer**: Passkey registration is refused while an admin is
+  signed in to the storefront as the customer. This reads the storefront
+  session. A customer token from `generateCustomerTokenAsAdmin` cannot be
+  told apart from the customer's own, so REST and GraphQL registration with
+  such a token is not blocked.
+- **Sign-count check**: When the stored or the new signature counter is
+  above zero, an assertion whose counter does not increase (possible cloned
+  authenticator) is rejected. Authenticators that always report zero are
+  not checked.
 - **Change visibility**: Adding or removing a passkey triggers a customer
   notification email (configurable).
 

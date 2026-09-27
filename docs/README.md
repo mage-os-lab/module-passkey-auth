@@ -16,7 +16,7 @@ MageOS Passkey Authentication lets customers sign in to a Magento or Mage-OS sto
 | [How it works and security](security.md) | Challenges, domain binding, rate limits, and what is logged |
 | [Troubleshooting](troubleshooting.md) | Common problems and fixes |
 
-To report a vulnerability, see [SECURITY.md](../SECURITY.md).
+To report a vulnerability, see [SECURITY.md](../SECURITY.md). Changes between releases are listed in [CHANGELOG.md](../CHANGELOG.md).
 
 ## What a passkey is
 

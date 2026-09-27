@@ -12,6 +12,8 @@ Both sign-in and registration take two calls:
 
 A `challengeToken` works once and expires after 5 minutes.
 
+A passkey sign-in fires Magento's `customer_login` event, as a password sign-in does, so the customer's last login time is updated.
+
 The page that calls the browser must be served from the store's domain. Passkeys are bound to the domain of the store's base URL, and the server checks the origin of each response. A headless frontend on a different domain from the Magento base URL will not work. See [Configuration](configuration.md#the-store-domain).
 
 ## Data format
@@ -204,9 +206,9 @@ Customer endpoints need a customer bearer token. The customer ID always comes fr
 | POST | `/V1/passkey/authentication/options` | Guest | `{"email": "…"}` (optional) | Options as a JSON string |
 | POST | `/V1/passkey/authentication/verify` | Guest | `{"challengeToken": "…", "assertionResponseJson": "…"}` | `{"customer_id": 5, "token": "…"}` |
 | POST | `/V1/passkey/registration/options` | Customer | `{}` | Options as a JSON string |
-| POST | `/V1/passkey/registration/verify` | Customer | `{"challengeToken": "…", "attestationResponseJson": "…", "friendlyName": "…"}` | The new passkey |
-| GET | `/V1/passkey/credentials` | Customer | | List of passkeys |
-| PUT | `/V1/passkey/credentials/:entityId` | Customer | `{"friendlyName": "…"}` | The renamed passkey |
+| POST | `/V1/passkey/registration/verify` | Customer | `{"challengeToken": "…", "attestationResponseJson": "…", "friendlyName": "…"}` | The new passkey object |
+| GET | `/V1/passkey/credentials` | Customer | | List of passkey objects, newest first |
+| PUT | `/V1/passkey/credentials/:entityId` | Customer | `{"friendlyName": "…"}` | The renamed passkey object |
 | DELETE | `/V1/passkey/credentials/:entityId` | Customer | | `true` |
 
 The two options endpoints return a JSON **string**, so the response body is JSON inside a JSON string. Decode it twice:
@@ -219,11 +221,25 @@ curl -s -X POST https://shop.example.com/rest/V1/passkey/authentication/options 
 
 `assertionResponseJson` and `attestationResponseJson` are the browser responses as JSON strings, the same as in GraphQL.
 
-Passkey objects contain `entity_id`, `friendly_name`, `transports`, `created_at`, `last_used_at`, and some technical fields (`credential_id`, `aaguid`, `sign_count`, and the stored public key record).
+A passkey object has the same fields as the GraphQL `CustomerPasskey` type:
+
+```json
+{
+  "id": 12,
+  "name": "Work laptop",
+  "transports": ["internal", "hybrid"],
+  "created_at": "2026-09-01 10:15:00",
+  "last_used_at": "2026-09-20 08:02:11"
+}
+```
+
+`id` is the value for `:entityId`. `name` and `last_used_at` are left out when they are empty. Dates are UTC. Keys and WebAuthn IDs are never returned.
 
 ## Errors and limits
 
 - Requests with passkeys turned off fail with "Passkey authentication is not enabled."
-- Options requests and failed sign-ins are rate-limited. See [Rate limits](security.md#rate-limits).
+- Options requests and failed sign-ins are rate-limited. See [Rate limits](security.md#rate-limits). The failed sign-in limit counts per IP address. If your frontend server calls the API for all customers, they share its IP and one counter.
+- A failed GraphQL sign-in returns "Passkey verification failed. Please try again." REST sign-in errors show the check that failed, so they can differ, for example "Invalid or expired challenge token." or "Challenge has expired." An unknown passkey and a failed check give the same message, so neither API reveals whether an account exists.
+- The storefront refuses passkey registration while an admin is signed in as the customer with Login as Customer. The API can't tell a token from `generateCustomerTokenAsAdmin` apart from the customer's own, so registration with such a token is not blocked. See [Login as Customer](security.md#login-as-customer).
 - A customer can have at most 10 passkeys. The options call fails with "Maximum number of passkeys (10) reached." after that.
 - A browser that already holds a passkey for the account refuses to create another one. The browser raises `InvalidStateError`.
