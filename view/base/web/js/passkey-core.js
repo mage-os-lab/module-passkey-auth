@@ -9,6 +9,8 @@
         ENROLLMENT_DISMISS_COUNT_KEY = 'passkey_enrollment_dismiss_count',
         ENROLLMENT_COOLDOWN_MS = 30 * 86400000,
         ENROLLMENT_MAX_DISMISSALS = 3,
+        // Re-issue the autofill challenge before the server's 5-minute TTL runs out
+        CONDITIONAL_REFRESH_MS = 4 * 60000,
         conditional = null,
         webauthnFieldSelectors = null;
 
@@ -137,9 +139,12 @@
          * ceremony: browsers allow only one active WebAuthn request.
          */
         abortConditional: function () {
-            if (conditional && conditional.controller) {
-                conditional.controller.abort();
-                conditional.controller = null;
+            if (conditional) {
+                clearTimeout(conditional.refreshTimer);
+                if (conditional.controller) {
+                    conditional.controller.abort();
+                    conditional.controller = null;
+                }
             }
         },
 
@@ -162,8 +167,12 @@
             this.postJson(conditional.config.optionsUrl, {}).then(function (options) {
                 var request = self.prepareRequestOptions(options);
 
-                // A pending autofill request should last as long as the page.
+                // The browser keeps the request open for as long as the page;
+                // swap in a fresh challenge before the server expires this one.
                 delete request.publicKey.timeout;
+                conditional.refreshTimer = setTimeout(function () {
+                    self.refreshConditional(controller);
+                }, CONDITIONAL_REFRESH_MS);
                 request.mediation = 'conditional';
                 request.signal = controller.signal;
 
@@ -187,22 +196,46 @@
             }).catch(function (err) {
                 // Aborting is the expected path when the user signs in another
                 // way or we hand off to a modal ceremony.
-                if (err && err.name === 'AbortError') {
+                // Aborted, or superseded by a newer request that must not be
+                // cancelled by this one's late failure.
+                if ((err && err.name === 'AbortError') || controller !== conditional.controller) {
                     return;
                 }
 
-                // Re-arm so the autofill entry keeps working, with a cap. Only
-                // report failures after the user picked a passkey (most often an
-                // expired challenge on a long-idle tab); the browser ending the
-                // request on its own is not something the user did.
+                // Only report failures after the user picked a passkey; the
+                // browser ending the request on its own is not something the
+                // user did. Re-arm so the autofill entry keeps working, with a cap.
+                if (picked && typeof conditional.config.onError === 'function') {
+                    conditional.config.onError(err);
+                }
                 if (conditional.restartsLeft > 0) {
                     conditional.restartsLeft--;
-                    if (picked && typeof conditional.config.onError === 'function') {
-                        conditional.config.onError(err);
-                    }
                     self.restartConditional();
                 }
             });
+        },
+
+        /**
+         * Timer callback: re-arm with a fresh challenge. A hidden tab waits until
+         * it is shown again rather than polling the server in the background.
+         * Does not count against the failure restarts.
+         */
+        refreshConditional: function (controller) {
+            var self = this;
+
+            if (!conditional || controller !== conditional.controller) {
+                return;
+            }
+            if (document.hidden) {
+                document.addEventListener('visibilitychange', function onVisible() {
+                    if (!document.hidden) {
+                        document.removeEventListener('visibilitychange', onVisible);
+                        self.refreshConditional(controller);
+                    }
+                });
+                return;
+            }
+            this.restartConditional();
         },
 
         /**
