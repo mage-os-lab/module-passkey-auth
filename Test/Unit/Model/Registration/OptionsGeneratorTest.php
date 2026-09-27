@@ -21,6 +21,7 @@ use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Webauthn\PublicKeyCredentialUserEntity;
 
@@ -29,23 +30,31 @@ class OptionsGeneratorTest extends TestCase
     use MocksConfigTrait;
     use MocksCredentialRepositoryTrait;
 
-    private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
-    private UserHandleGenerator&MockObject $userHandleGeneratorMock;
+    private CustomerRepositoryInterface&Stub $customerRepositoryMock;
+    private UserHandleGenerator&Stub $userHandleGeneratorMock;
     private Ceremony&MockObject $ceremonyMock;
-    private RateLimiter&MockObject $rateLimiterMock;
-    private OptionsGenerator $optionsGenerator;
+    private RateLimiter&Stub $rateLimiterMock;
+    private bool $customerRepositoryIsMock = false;
+    private bool $userHandleGeneratorIsMock = false;
+    private ?OptionsGenerator $optionsGenerator = null;
 
     protected function setUp(): void
     {
-        $this->createConfigMock();
-        $this->createCredentialRepositoryMock();
+        $this->createConfigStub();
+        $this->createCredentialRepositoryStub();
 
-        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
-        $this->userHandleGeneratorMock = $this->createMock(UserHandleGenerator::class);
+        $this->customerRepositoryMock = $this->createStub(CustomerRepositoryInterface::class);
+        $this->userHandleGeneratorMock = $this->createStub(UserHandleGenerator::class);
         $this->ceremonyMock = $this->createMock(Ceremony::class);
-        $this->rateLimiterMock = $this->createMock(RateLimiter::class);
+        $this->rateLimiterMock = $this->createStub(RateLimiter::class);
+    }
 
-        $this->optionsGenerator = new OptionsGenerator(
+    /**
+     * Build the subject lazily, so tests can first replace stubs with mocks.
+     */
+    private function optionsGenerator(): OptionsGenerator
+    {
+        return $this->optionsGenerator ??= new OptionsGenerator(
             $this->configMock,
             $this->customerRepositoryMock,
             $this->credentialRepositoryMock,
@@ -56,13 +65,31 @@ class OptionsGeneratorTest extends TestCase
         );
     }
 
+    private function mockCustomerRepository(): CustomerRepositoryInterface&MockObject
+    {
+        if (!$this->customerRepositoryIsMock) {
+            $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
+            $this->customerRepositoryIsMock = true;
+        }
+        return $this->customerRepositoryMock;
+    }
+
+    private function mockUserHandleGenerator(): UserHandleGenerator&MockObject
+    {
+        if (!$this->userHandleGeneratorIsMock) {
+            $this->userHandleGeneratorMock = $this->createMock(UserHandleGenerator::class);
+            $this->userHandleGeneratorIsMock = true;
+        }
+        return $this->userHandleGeneratorMock;
+    }
+
     private function configureCustomer(int $customerId): void
     {
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
         $customer->method('getEmail')->willReturn('test@example.com');
         $customer->method('getFirstname')->willReturn('John');
         $customer->method('getLastname')->willReturn('Doe');
-        $this->customerRepositoryMock->method('getById')
+        $this->mockCustomerRepository()->method('getById')
             ->with($customerId)
             ->willReturn($customer);
     }
@@ -74,7 +101,7 @@ class OptionsGeneratorTest extends TestCase
         $this->configureCountByCustomerId($customerId, $existingCount);
         $this->configureGetByCustomerId($customerId, $existing);
         $this->configureCustomer($customerId);
-        $this->userHandleGeneratorMock->method('getOrGenerate')
+        $this->mockUserHandleGenerator()->method('getOrGenerate')
             ->with($customerId)
             ->willReturn('user-handle-bytes');
     }
@@ -87,12 +114,13 @@ class OptionsGeneratorTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
 
-        $this->optionsGenerator->generate(42);
+        $this->optionsGenerator()->generate(42);
     }
 
     public function testGenerateThrowsWhenRateLimited(): void
     {
         $this->configureEnabled(true);
+        $this->rateLimiterMock = $this->createMock(RateLimiter::class);
         $this->rateLimiterMock->expects($this->once())
             ->method('checkOptionsRate')
             ->with('reg_42')
@@ -102,7 +130,7 @@ class OptionsGeneratorTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Too many passkey requests. Please try again later.');
 
-        $this->optionsGenerator->generate(42);
+        $this->optionsGenerator()->generate(42);
     }
 
     public function testGenerateThrowsWhenMaxCredentialsReached(): void
@@ -115,7 +143,7 @@ class OptionsGeneratorTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Maximum number of passkeys (10) reached.');
 
-        $this->optionsGenerator->generate(42);
+        $this->optionsGenerator()->generate(42);
     }
 
     public function testGenerateSucceedsUnderMaxCredentials(): void
@@ -125,7 +153,7 @@ class OptionsGeneratorTest extends TestCase
             ->method('createRegistrationOptions')
             ->willReturn(['challenge' => 'abc', 'challengeToken' => 'token123']);
 
-        $result = $this->optionsGenerator->generate(42);
+        $result = $this->optionsGenerator()->generate(42);
 
         $this->assertSame('{"challenge":"abc","challengeToken":"token123"}', $result);
     }
@@ -135,7 +163,7 @@ class OptionsGeneratorTest extends TestCase
         $customerId = 42;
         $this->configureHappyPath($customerId);
 
-        $this->userHandleGeneratorMock->expects($this->once())
+        $this->mockUserHandleGenerator()->expects($this->once())
             ->method('getOrGenerate')
             ->with($customerId);
 
@@ -153,18 +181,18 @@ class OptionsGeneratorTest extends TestCase
             )
             ->willReturn(['challengeToken' => 'challenge-token-abc']);
 
-        $this->optionsGenerator->generate($customerId);
+        $this->optionsGenerator()->generate($customerId);
     }
 
     public function testGenerateExcludesExistingCredentials(): void
     {
         $customerId = 42;
 
-        $cred1 = $this->createMock(CredentialInterface::class);
+        $cred1 = $this->createStub(CredentialInterface::class);
         $cred1->method('getCredentialId')->willReturn(base64_encode('cred-id-1'));
         $cred1->method('getTransportsArray')->willReturn(['usb', 'nfc']);
 
-        $cred2 = $this->createMock(CredentialInterface::class);
+        $cred2 = $this->createStub(CredentialInterface::class);
         $cred2->method('getCredentialId')->willReturn(base64_encode('cred-id-2'));
         $cred2->method('getTransportsArray')->willReturn(['internal']);
 
@@ -178,7 +206,7 @@ class OptionsGeneratorTest extends TestCase
                 return ['challengeToken' => 'token-xyz'];
             });
 
-        $this->optionsGenerator->generate($customerId);
+        $this->optionsGenerator()->generate($customerId);
 
         $this->assertNotNull($capturedExclude);
         $this->assertCount(2, $capturedExclude);
@@ -200,7 +228,7 @@ class OptionsGeneratorTest extends TestCase
                 'challengeToken' => 'my-challenge-token',
             ]);
 
-        $decoded = json_decode($this->optionsGenerator->generate(42), true);
+        $decoded = json_decode($this->optionsGenerator()->generate(42), true);
 
         $this->assertSame('my-challenge-token', $decoded['challengeToken']);
         $this->assertSame(['id' => 'example.com', 'name' => 'Test Store'], $decoded['rp']);

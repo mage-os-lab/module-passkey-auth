@@ -18,29 +18,43 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class ChallengeManagerTest extends TestCase
 {
-    private ChallengeFactory&MockObject $challengeFactory;
-    private ChallengeResource&MockObject $challengeResource;
-    private CollectionFactory&MockObject $collectionFactory;
-    private DateTime&MockObject $dateTime;
-    private ChallengeManager $manager;
+    private ChallengeFactory&Stub $challengeFactory;
+    private ChallengeResource&Stub $challengeResource;
+    private CollectionFactory&Stub $collectionFactory;
+    private DateTime&Stub $dateTime;
+    private ?ChallengeManager $manager = null;
 
     protected function setUp(): void
     {
-        $this->challengeFactory = $this->createMock(ChallengeFactory::class);
-        $this->challengeResource = $this->createMock(ChallengeResource::class);
-        $this->collectionFactory = $this->createMock(CollectionFactory::class);
-        $this->dateTime = $this->createMock(DateTime::class);
+        $this->challengeFactory = $this->createStub(ChallengeFactory::class);
+        $this->challengeResource = $this->createStub(ChallengeResource::class);
+        $this->collectionFactory = $this->createStub(CollectionFactory::class);
+        $this->dateTime = $this->createStub(DateTime::class);
+    }
 
-        $this->manager = new ChallengeManager(
+    private function manager(): ChallengeManager
+    {
+        return $this->manager ??= new ChallengeManager(
             $this->challengeFactory,
             $this->challengeResource,
             $this->collectionFactory,
             $this->dateTime
         );
+    }
+
+    /**
+     * Replace the resource stub with a mock object, for tests that set expectations. Call before manager().
+     */
+    private function mockChallengeResource(): ChallengeResource&MockObject
+    {
+        $mock = $this->createMock(ChallengeResource::class);
+        $this->challengeResource = $mock;
+        return $mock;
     }
 
     private function createModelMock(): AbstractModel&MockObject
@@ -51,9 +65,9 @@ class ChallengeManagerTest extends TestCase
             ->getMock();
     }
 
-    private function createConsumeModel(array $data): AbstractModel&MockObject
+    private function createConsumeModel(array $data): AbstractModel&Stub
     {
-        $model = $this->createModelMock();
+        $model = $this->createStub(AbstractModel::class);
 
         $model->method('getId')->willReturn($data['id'] ?? null);
         $model->method('getData')->willReturnCallback(
@@ -68,9 +82,9 @@ class ChallengeManagerTest extends TestCase
         return $model;
     }
 
-    private function createCollectionWithModel(AbstractModel&MockObject $model): void
+    private function createCollectionWithModel(AbstractModel&Stub $model): void
     {
-        $collection = $this->createMock(Collection::class);
+        $collection = $this->createStub(Collection::class);
         $this->collectionFactory->method('create')->willReturn($collection);
         $collection->method('addFieldToFilter')->willReturnSelf();
         $collection->method('getFirstItem')->willReturn($model);
@@ -80,17 +94,19 @@ class ChallengeManagerTest extends TestCase
     {
         $model = $this->createModelMock();
 
-        $this->challengeFactory->expects($this->once())
+        $challengeFactory = $this->createMock(ChallengeFactory::class);
+        $this->challengeFactory = $challengeFactory;
+        $challengeFactory->expects($this->once())
             ->method('create')
             ->willReturn($model);
 
         $model->expects($this->once())->method('setData');
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('save')
             ->with($model);
 
-        $token = $this->manager->create('registration', '{"challenge":"abc"}', 42);
+        $token = $this->manager()->create('registration', '{"challenge":"abc"}', 42);
 
         $this->assertSame(64, strlen($token));
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $token);
@@ -110,7 +126,7 @@ class ChallengeManagerTest extends TestCase
                 return $model;
             });
 
-        $this->manager->create('registration', '{"challenge":"data"}', 99);
+        $this->manager()->create('registration', '{"challenge":"data"}', 99);
 
         $this->assertSame('registration', $capturedData['type']);
         $this->assertSame('{"challenge":"data"}', $capturedData['challenge_data']);
@@ -133,7 +149,7 @@ class ChallengeManagerTest extends TestCase
                 return $model;
             });
 
-        $this->manager->create('authentication', '{"challenge":"x"}');
+        $this->manager()->create('authentication', '{"challenge":"x"}');
 
         $this->assertNull($capturedData['customer_id']);
     }
@@ -159,11 +175,11 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('delete')
             ->with($model);
 
-        $result = $this->manager->consume('abc123', 'registration', 42);
+        $result = $this->manager()->consume('abc123', 'registration', 42);
 
         $this->assertSame('{"challenge":"payload"}', $result);
     }
@@ -177,7 +193,7 @@ class ChallengeManagerTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid or expired challenge token.');
 
-        $this->manager->consume('nonexistent', 'registration');
+        $this->manager()->consume('nonexistent', 'registration');
     }
 
     public function testConsumeThrowsOnTypeMismatch(): void
@@ -192,14 +208,14 @@ class ChallengeManagerTest extends TestCase
 
         $this->createCollectionWithModel($model);
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('delete')
             ->with($model);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge type mismatch.');
 
-        $this->manager->consume('token123', 'registration');
+        $this->manager()->consume('token123', 'registration');
     }
 
     public function testConsumeThrowsOnCustomerMismatch(): void
@@ -217,14 +233,14 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('delete')
             ->with($model);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge does not belong to this customer.');
 
-        $this->manager->consume('token123', 'registration', 42);
+        $this->manager()->consume('token123', 'registration', 42);
     }
 
     public function testConsumeSkipsCustomerCheckWhenNull(): void
@@ -242,11 +258,11 @@ class ChallengeManagerTest extends TestCase
 
         $this->dateTime->method('gmtTimestamp')->willReturn(1000100);
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('delete')
             ->with($model);
 
-        $result = $this->manager->consume('token123', 'authentication');
+        $result = $this->manager()->consume('token123', 'authentication');
 
         $this->assertSame('{"challenge":"ok"}', $result);
     }
@@ -266,14 +282,14 @@ class ChallengeManagerTest extends TestCase
         // 1000000 + 301 = expired (TTL is 300)
         $this->dateTime->method('gmtTimestamp')->willReturn(1000301);
 
-        $this->challengeResource->expects($this->once())
+        $this->mockChallengeResource()->expects($this->once())
             ->method('delete')
             ->with($model);
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Challenge has expired.');
 
-        $this->manager->consume('token123', 'registration');
+        $this->manager()->consume('token123', 'registration');
     }
 
     public function testCleanExpiredReturnsDeleteCount(): void
@@ -292,7 +308,7 @@ class ChallengeManagerTest extends TestCase
             ->with('passkey_challenge', ['created_at < ?' => $expectedCutoff])
             ->willReturn(5);
 
-        $result = $this->manager->cleanExpired();
+        $result = $this->manager()->cleanExpired();
 
         $this->assertSame(5, $result);
     }

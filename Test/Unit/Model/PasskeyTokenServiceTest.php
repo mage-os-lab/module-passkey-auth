@@ -15,20 +15,24 @@ use Magento\Integration\Model\CustomUserContext;
 use Magento\Integration\Model\CustomUserContextFactory;
 use Magento\Integration\Model\UserToken\UserTokenParameters;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class PasskeyTokenServiceTest extends TestCase
 {
-    private TokenManager&MockObject $tokenManager;
+    private TokenManager&Stub $tokenManager;
     private CustomUserContextFactory&MockObject $userContextFactory;
-    private PasskeyTokenService $service;
+    private ?PasskeyTokenService $service = null;
 
     protected function setUp(): void
     {
-        $this->tokenManager = $this->createMock(TokenManager::class);
+        $this->tokenManager = $this->createStub(TokenManager::class);
         $this->userContextFactory = $this->createMock(CustomUserContextFactory::class);
+    }
 
-        $this->service = new PasskeyTokenService(
+    private function service(): PasskeyTokenService
+    {
+        return $this->service ??= new PasskeyTokenService(
             $this->tokenManager,
             $this->userContextFactory
         );
@@ -39,8 +43,8 @@ class PasskeyTokenServiceTest extends TestCase
         $customerId = 42;
         $expectedToken = 'abc123tokenvalue';
 
-        $userContext = $this->createMock(CustomUserContext::class);
-        $tokenParams = $this->createMock(UserTokenParameters::class);
+        $userContext = $this->createStub(CustomUserContext::class);
+        $tokenParams = $this->createStub(UserTokenParameters::class);
 
         $this->userContextFactory->expects($this->once())
             ->method('create')
@@ -50,16 +54,19 @@ class PasskeyTokenServiceTest extends TestCase
             ])
             ->willReturn($userContext);
 
-        $this->tokenManager->expects($this->once())
+        $tokenManager = $this->createMock(TokenManager::class);
+        $this->tokenManager = $tokenManager;
+
+        $tokenManager->expects($this->once())
             ->method('createUserTokenParameters')
             ->willReturn($tokenParams);
 
-        $this->tokenManager->expects($this->once())
+        $tokenManager->expects($this->once())
             ->method('create')
             ->with($userContext, $tokenParams)
             ->willReturn($expectedToken);
 
-        $result = $this->service->createTokenForCustomer($customerId);
+        $result = $this->service()->createTokenForCustomer($customerId);
 
         $this->assertSame($expectedToken, $result);
     }
@@ -68,8 +75,8 @@ class PasskeyTokenServiceTest extends TestCase
     {
         $customerId = 99;
 
-        $userContext = $this->createMock(CustomUserContext::class);
-        $tokenParams = $this->createMock(UserTokenParameters::class);
+        $userContext = $this->createStub(CustomUserContext::class);
+        $tokenParams = $this->createStub(UserTokenParameters::class);
 
         $this->userContextFactory->expects($this->once())
             ->method('create')
@@ -83,6 +90,6 @@ class PasskeyTokenServiceTest extends TestCase
         $this->tokenManager->method('createUserTokenParameters')->willReturn($tokenParams);
         $this->tokenManager->method('create')->willReturn('token');
 
-        $this->service->createTokenForCustomer($customerId);
+        $this->service()->createTokenForCustomer($customerId);
     }
 }

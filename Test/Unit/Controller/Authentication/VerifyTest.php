@@ -16,13 +16,13 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadata;
 use Magento\Framework\Stdlib\Cookie\CookieMetadataFactory;
 use Magento\Framework\Stdlib\CookieManagerInterface;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class VerifyTest extends TestCase
@@ -31,31 +31,32 @@ class VerifyTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
-    private AuthenticationVerifierInterface&MockObject $verifierMock;
-    private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
-    private JsonSerializer&MockObject $jsonMock;
-    private CookieManagerInterface&MockObject $cookieManagerMock;
-    private CookieMetadataFactory&MockObject $cookieMetadataFactoryMock;
-    private Verify $controller;
+    private HttpRequest&Stub $requestMock;
+    private AuthenticationVerifierInterface&Stub $verifierMock;
+    private CustomerRepositoryInterface&Stub $customerRepositoryMock;
+    private JsonSerializer&Stub $jsonMock;
+    private CookieManagerInterface&Stub $cookieManagerMock;
+    private CookieMetadataFactory&Stub $cookieMetadataFactoryMock;
+    private ?Verify $controller = null;
 
     protected function setUp(): void
     {
-        $this->createJsonResultMock();
-        $this->createLoggerMock();
-        $this->createCustomerSessionMock();
+        $this->createJsonResultStub();
+        $this->createLoggerStub();
+        $this->createCustomerSessionStub();
 
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getContent'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createStub(HttpRequest::class);
 
-        $this->verifierMock = $this->createMock(AuthenticationVerifierInterface::class);
-        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
-        $this->jsonMock = $this->createMock(JsonSerializer::class);
-        $this->cookieManagerMock = $this->createMock(CookieManagerInterface::class);
-        $this->cookieMetadataFactoryMock = $this->createMock(CookieMetadataFactory::class);
+        $this->verifierMock = $this->createStub(AuthenticationVerifierInterface::class);
+        $this->customerRepositoryMock = $this->createStub(CustomerRepositoryInterface::class);
+        $this->jsonMock = $this->createStub(JsonSerializer::class);
+        $this->cookieManagerMock = $this->createStub(CookieManagerInterface::class);
+        $this->cookieMetadataFactoryMock = $this->createStub(CookieMetadataFactory::class);
+    }
 
-        $this->controller = new Verify(
+    private function controller(): Verify
+    {
+        return $this->controller ??= new Verify(
             $this->requestMock,
             $this->jsonFactoryMock,
             $this->verifierMock,
@@ -72,14 +73,15 @@ class VerifyTest extends TestCase
     {
         $bodyJson = json_encode($body);
         $this->requestMock->method('getContent')->willReturn($bodyJson);
+        $this->jsonMock = $this->createMock(JsonSerializer::class);
         $this->jsonMock->method('unserialize')
             ->with($bodyJson)
             ->willReturn($body);
     }
 
-    private function createSuccessResult(int $customerId): AuthenticationResultInterface&MockObject
+    private function createSuccessResult(int $customerId): AuthenticationResultInterface&Stub
     {
-        $result = $this->createMock(AuthenticationResultInterface::class);
+        $result = $this->createStub(AuthenticationResultInterface::class);
         $result->method('getCustomerId')->willReturn($customerId);
         return $result;
     }
@@ -95,26 +97,29 @@ class VerifyTest extends TestCase
             ->willReturn($credentialJson);
 
         $authResult = $this->createSuccessResult(42);
+        $this->verifierMock = $this->createMock(AuthenticationVerifierInterface::class);
         $this->verifierMock->expects($this->once())
             ->method('verify')
             ->with('my-tok', $credentialJson)
             ->willReturn($authResult);
 
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
+        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
         $this->customerRepositoryMock->expects($this->once())
             ->method('getById')
             ->with(42)
             ->willReturn($customer);
 
-        $this->customerSessionMock->expects($this->once())
+        $this->mockCustomerSession()->expects($this->once())
             ->method('setCustomerDataAsLoggedIn')
             ->with($customer);
 
+        $this->cookieManagerMock = $this->createMock(CookieManagerInterface::class);
         $this->cookieManagerMock->method('getCookie')
             ->with('mage-cache-sessid')
             ->willReturn(null);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertNull($this->capturedHttpCode);
@@ -134,14 +139,17 @@ class VerifyTest extends TestCase
         $authResult = $this->createSuccessResult(10);
         $this->verifierMock->method('verify')->willReturn($authResult);
 
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
+        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
         $this->customerRepositoryMock->method('getById')->with(10)->willReturn($customer);
 
+        $this->cookieManagerMock = $this->createMock(CookieManagerInterface::class);
         $this->cookieManagerMock->method('getCookie')
             ->with('mage-cache-sessid')
             ->willReturn('some-session-value');
 
         $cookieMetadata = $this->createMock(CookieMetadata::class);
+        $this->cookieMetadataFactoryMock = $this->createMock(CookieMetadataFactory::class);
         $this->cookieMetadataFactoryMock->expects($this->once())
             ->method('createCookieMetadata')
             ->willReturn($cookieMetadata);
@@ -154,7 +162,7 @@ class VerifyTest extends TestCase
             ->method('deleteCookie')
             ->with('mage-cache-sessid', $cookieMetadata);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertNull($this->capturedHttpCode);
@@ -173,9 +181,11 @@ class VerifyTest extends TestCase
         $authResult = $this->createSuccessResult(20);
         $this->verifierMock->method('verify')->willReturn($authResult);
 
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
+        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
         $this->customerRepositoryMock->method('getById')->with(20)->willReturn($customer);
 
+        $this->cookieManagerMock = $this->createMock(CookieManagerInterface::class);
         $this->cookieManagerMock->method('getCookie')
             ->with('mage-cache-sessid')
             ->willReturn(null);
@@ -183,10 +193,11 @@ class VerifyTest extends TestCase
         $this->cookieManagerMock->expects($this->never())
             ->method('deleteCookie');
 
+        $this->cookieMetadataFactoryMock = $this->createMock(CookieMetadataFactory::class);
         $this->cookieMetadataFactoryMock->expects($this->never())
             ->method('createCookieMetadata');
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertNull($this->capturedHttpCode);
@@ -205,11 +216,11 @@ class VerifyTest extends TestCase
         $this->verifierMock->method('verify')
             ->willThrowException(new LocalizedException(__('Challenge expired.')));
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('error')
             ->with('Passkey authentication verify error', ['exception' => 'Challenge expired.']);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);
@@ -232,11 +243,11 @@ class VerifyTest extends TestCase
         $this->verifierMock->method('verify')
             ->willThrowException(new \RuntimeException('Unexpected failure'));
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('error')
             ->with('Passkey authentication verify error', ['exception' => 'Unexpected failure']);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);

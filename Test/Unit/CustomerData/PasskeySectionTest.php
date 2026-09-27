@@ -22,17 +22,20 @@ class PasskeySectionTest extends TestCase
     use MocksCredentialRepositoryTrait;
     use MocksCustomerSessionTrait;
 
-    private PasskeySection $section;
+    private ?PasskeySection $section = null;
     private NewAccountFlag&Stub $newAccountFlag;
 
     protected function setUp(): void
     {
-        $this->createConfigMock();
-        $this->createCustomerSessionMock();
-        $this->createCredentialRepositoryMock();
+        $this->createConfigStub();
+        $this->createCustomerSessionStub();
+        $this->createCredentialRepositoryStub();
         $this->newAccountFlag = $this->createStub(NewAccountFlag::class);
+    }
 
-        $this->section = new PasskeySection(
+    private function section(): PasskeySection
+    {
+        return $this->section ??= new PasskeySection(
             $this->configMock,
             $this->customerSessionMock,
             $this->credentialRepositoryMock,
@@ -44,7 +47,7 @@ class PasskeySectionTest extends TestCase
     {
         $this->configureNotLoggedIn();
 
-        $result = $this->section->getSectionData();
+        $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => false], $result);
     }
@@ -54,7 +57,7 @@ class PasskeySectionTest extends TestCase
         $this->configureLoggedIn(42);
         $this->configureEnabled(false);
 
-        $result = $this->section->getSectionData();
+        $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => false], $result);
     }
@@ -65,7 +68,7 @@ class PasskeySectionTest extends TestCase
         $this->configureEnabled(true);
         $this->configurePromptAfterLogin(false);
 
-        $result = $this->section->getSectionData();
+        $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => false], $result);
     }
@@ -77,7 +80,7 @@ class PasskeySectionTest extends TestCase
         $this->configurePromptAfterLogin(true);
         $this->configureCountByCustomerId(42, 2);
 
-        $result = $this->section->getSectionData();
+        $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => false], $result);
     }
@@ -89,7 +92,7 @@ class PasskeySectionTest extends TestCase
         $this->configurePromptAfterLogin(true);
         $this->configureCountByCustomerId(42, 0);
 
-        $result = $this->section->getSectionData();
+        $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => true], $result);
     }
@@ -103,7 +106,7 @@ class PasskeySectionTest extends TestCase
         $this->newAccountFlag->method('isSetFor')->willReturn(true);
         $this->configureCountByCustomerId(42, 0);
 
-        $this->assertSame(['show_enrollment_prompt' => false], $this->section->getSectionData());
+        $this->assertSame(['show_enrollment_prompt' => false], $this->section()->getSectionData());
     }
 
     public function testNewAccountFollowsRegistrationSettingWhenEnabled(): void
@@ -115,6 +118,6 @@ class PasskeySectionTest extends TestCase
         $this->newAccountFlag->method('isSetFor')->willReturn(true);
         $this->configureCountByCustomerId(42, 0);
 
-        $this->assertSame(['show_enrollment_prompt' => true], $this->section->getSectionData());
+        $this->assertSame(['show_enrollment_prompt' => true], $this->section()->getSectionData());
     }
 }

@@ -9,15 +9,15 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Test\Unit\Traits;
 
 use MageOS\PasskeyAuth\Model\Config;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 
 trait MocksConfigTrait
 {
-    private Config&MockObject $configMock;
+    private Config&Stub $configMock;
 
-    private function createConfigMock(): Config&MockObject
+    private function createConfigStub(): Config&Stub
     {
-        $this->configMock = $this->createMock(Config::class);
+        $this->configMock = $this->createStub(Config::class);
         return $this->configMock;
     }
 

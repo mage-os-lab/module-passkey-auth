@@ -25,6 +25,7 @@ use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class OptionsGeneratorTest extends TestCase
@@ -32,103 +33,143 @@ class OptionsGeneratorTest extends TestCase
     use MocksConfigTrait;
     use MocksCredentialRepositoryTrait;
 
-    private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
-    private Ceremony&MockObject $ceremonyMock;
-    private RateLimiter&MockObject $rateLimiterMock;
-    private OptionsGenerator $optionsGenerator;
+    private CustomerRepositoryInterface&Stub $customerRepositoryMock;
+    private Ceremony&Stub $ceremonyMock;
+    private RateLimiter&Stub $rateLimiterMock;
+    private bool $customerRepositoryIsMock = false;
+    private bool $ceremonyIsMock = false;
+    private bool $rateLimiterIsMock = false;
+    private StoreManagerInterface&Stub $storeManagerStub;
+    private RemoteAddress&Stub $remoteAddressStub;
+    private EncryptorInterface&Stub $encryptorStub;
+    private ?OptionsGenerator $optionsGenerator = null;
 
     protected function setUp(): void
     {
-        $this->createConfigMock();
-        $this->createCredentialRepositoryMock();
+        $this->createConfigStub();
+        $this->createCredentialRepositoryStub();
 
-        $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
-        $this->ceremonyMock = $this->createMock(Ceremony::class);
-        $this->rateLimiterMock = $this->createMock(RateLimiter::class);
+        $this->customerRepositoryMock = $this->createStub(CustomerRepositoryInterface::class);
+        $this->ceremonyMock = $this->createStub(Ceremony::class);
+        $this->rateLimiterMock = $this->createStub(RateLimiter::class);
 
         $storeStub = $this->createStub(StoreInterface::class);
         $storeStub->method('getWebsiteId')->willReturn('1');
-        $storeManagerStub = $this->createStub(StoreManagerInterface::class);
-        $storeManagerStub->method('getStore')->willReturn($storeStub);
+        $this->storeManagerStub = $this->createStub(StoreManagerInterface::class);
+        $this->storeManagerStub->method('getStore')->willReturn($storeStub);
 
-        $remoteAddressStub = $this->createStub(RemoteAddress::class);
-        $remoteAddressStub->method('getRemoteAddress')->willReturn('127.0.0.1');
+        $this->remoteAddressStub = $this->createStub(RemoteAddress::class);
+        $this->remoteAddressStub->method('getRemoteAddress')->willReturn('127.0.0.1');
 
-        $encryptorStub = $this->createStub(EncryptorInterface::class);
-        $encryptorStub->method('hash')->willReturnCallback(fn (string $data) => hash_hmac('sha256', $data, 'key'));
+        $this->encryptorStub = $this->createStub(EncryptorInterface::class);
+        $this->encryptorStub->method('hash')
+            ->willReturnCallback(fn (string $data) => hash_hmac('sha256', $data, 'key'));
+    }
 
-        $this->optionsGenerator = new OptionsGenerator(
+    /**
+     * Build the subject lazily, so tests can first replace stubs with mocks.
+     */
+    private function optionsGenerator(): OptionsGenerator
+    {
+        return $this->optionsGenerator ??= new OptionsGenerator(
             $this->configMock,
             $this->customerRepositoryMock,
             $this->credentialRepositoryMock,
             $this->ceremonyMock,
-            $storeManagerStub,
+            $this->storeManagerStub,
             new Json(),
             $this->rateLimiterMock,
-            $remoteAddressStub,
-            $encryptorStub
+            $this->remoteAddressStub,
+            $this->encryptorStub
         );
+    }
+
+    private function mockCustomerRepository(): CustomerRepositoryInterface&MockObject
+    {
+        if (!$this->customerRepositoryIsMock) {
+            $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
+            $this->customerRepositoryIsMock = true;
+        }
+        return $this->customerRepositoryMock;
+    }
+
+    private function mockCeremony(): Ceremony&MockObject
+    {
+        if (!$this->ceremonyIsMock) {
+            $this->ceremonyMock = $this->createMock(Ceremony::class);
+            $this->ceremonyIsMock = true;
+        }
+        return $this->ceremonyMock;
+    }
+
+    private function mockRateLimiter(): RateLimiter&MockObject
+    {
+        if (!$this->rateLimiterIsMock) {
+            $this->rateLimiterMock = $this->createMock(RateLimiter::class);
+            $this->rateLimiterIsMock = true;
+        }
+        return $this->rateLimiterMock;
     }
 
     public function testGenerateThrowsWhenDisabled(): void
     {
         $this->configureEnabled(false);
-        $this->ceremonyMock->expects($this->never())->method('createAuthenticationOptions');
+        $this->mockCeremony()->expects($this->never())->method('createAuthenticationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
 
-        $this->optionsGenerator->generate('user@example.com');
+        $this->optionsGenerator()->generate('user@example.com');
     }
 
     public function testGenerateThrowsWhenRateLimited(): void
     {
         $this->configureEnabled(true);
 
-        $this->rateLimiterMock->expects($this->once())
+        $this->mockRateLimiter()->expects($this->once())
             ->method('checkOptionsRate')
             ->with('auth_user@example.com_127.0.0.1')
             ->willThrowException(new LocalizedException(__('Too many passkey requests. Please try again later.')));
-        $this->ceremonyMock->expects($this->never())->method('createAuthenticationOptions');
+        $this->mockCeremony()->expects($this->never())->method('createAuthenticationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Too many passkey requests. Please try again later.');
 
-        $this->optionsGenerator->generate('user@example.com');
+        $this->optionsGenerator()->generate('user@example.com');
     }
 
     public function testGenerateRateLimitKeyForAnonymousRequest(): void
     {
         $this->configureEnabled(true);
 
-        $this->rateLimiterMock->expects($this->once())
+        $this->mockRateLimiter()->expects($this->once())
             ->method('checkOptionsRate')
             ->with('auth_anonymous_127.0.0.1');
         $this->ceremonyMock->method('createAuthenticationOptions')->willReturn(['challengeToken' => 't']);
 
-        $this->optionsGenerator->generate();
+        $this->optionsGenerator()->generate();
     }
 
     public function testGenerateWithEmailCustomerFound(): void
     {
         $this->configureEnabled(true);
 
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
         $customer->method('getId')->willReturn('42');
 
-        $this->customerRepositoryMock->expects($this->once())
+        $this->mockCustomerRepository()->expects($this->once())
             ->method('get')
             ->with('user@example.com', 1)
             ->willReturn($customer);
 
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCredentialId')->willReturn(base64_encode('cred-id-1'));
         $credential->method('getTransportsArray')->willReturn(['usb', 'nfc']);
 
         $this->configureGetByCustomerId(42, [$credential]);
 
         $capturedAllow = null;
-        $this->ceremonyMock->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->willReturnCallback(function (array $allow, string $type, ?int $customerId) use (&$capturedAllow) {
                 $this->assertSame(ChallengeManager::TYPE_AUTHENTICATION, $type);
@@ -141,7 +182,7 @@ class OptionsGeneratorTest extends TestCase
                 ];
             });
 
-        $decoded = json_decode($this->optionsGenerator->generate('user@example.com'), true);
+        $decoded = json_decode($this->optionsGenerator()->generate('user@example.com'), true);
 
         $this->assertNotNull($capturedAllow);
         $this->assertCount(1, $capturedAllow);
@@ -159,9 +200,9 @@ class OptionsGeneratorTest extends TestCase
 
         $this->customerRepositoryMock->method('get')
             ->willThrowException(new NoSuchEntityException(__('No such entity.')));
-        $this->credentialRepositoryMock->expects($this->never())->method('getByCustomerId');
+        $this->mockCredentialRepository()->expects($this->never())->method('getByCustomerId');
 
-        $this->ceremonyMock->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->with(
                 $this->callback(fn (array $allow) => count($allow) === 1
@@ -175,7 +216,7 @@ class OptionsGeneratorTest extends TestCase
                 'challengeToken' => 'token-for-unknown',
             ]);
 
-        $decoded = json_decode($this->optionsGenerator->generate(' Nonexistent@Example.com'), true);
+        $decoded = json_decode($this->optionsGenerator()->generate(' Nonexistent@Example.com'), true);
 
         $this->assertNotNull($decoded, 'Anti-enumeration: should return valid JSON even for nonexistent email');
         $this->assertArrayHasKey('challenge', $decoded);
@@ -192,7 +233,7 @@ class OptionsGeneratorTest extends TestCase
         $this->customerRepositoryMock->method('get')->willReturn($customer);
         $this->credentialRepositoryMock->method('getByCustomerId')->willReturn([]);
 
-        $this->ceremonyMock->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->with(
                 $this->callback(fn (array $allow) => count($allow) === 1
@@ -203,20 +244,20 @@ class OptionsGeneratorTest extends TestCase
             )
             ->willReturn(['challenge' => 'abc', 'challengeToken' => 't']);
 
-        $this->optionsGenerator->generate('jane@example.com');
+        $this->optionsGenerator()->generate('jane@example.com');
     }
 
     public function testGenerateWithoutEmail(): void
     {
         $this->configureEnabled(true);
 
-        $this->customerRepositoryMock->expects($this->never())->method('get');
-        $this->ceremonyMock->expects($this->once())
+        $this->mockCustomerRepository()->expects($this->never())->method('get');
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->with([], ChallengeManager::TYPE_AUTHENTICATION, null)
             ->willReturn(['challenge' => 'abc', 'challengeToken' => 'token-no-email']);
 
-        $decoded = json_decode($this->optionsGenerator->generate(null), true);
+        $decoded = json_decode($this->optionsGenerator()->generate(null), true);
 
         $this->assertSame(['challenge' => 'abc', 'challengeToken' => 'token-no-email'], $decoded);
     }
@@ -225,25 +266,25 @@ class OptionsGeneratorTest extends TestCase
     {
         $this->configureEnabled(true);
 
-        $customer = $this->createMock(CustomerInterface::class);
+        $customer = $this->createStub(CustomerInterface::class);
         $customer->method('getId')->willReturn(99);
 
-        $this->customerRepositoryMock->method('get')
+        $this->mockCustomerRepository()->method('get')
             ->with('multi@example.com', 1)
             ->willReturn($customer);
 
-        $credential1 = $this->createMock(CredentialInterface::class);
+        $credential1 = $this->createStub(CredentialInterface::class);
         $credential1->method('getCredentialId')->willReturn(base64_encode('cred-aaa'));
         $credential1->method('getTransportsArray')->willReturn(['usb']);
 
-        $credential2 = $this->createMock(CredentialInterface::class);
+        $credential2 = $this->createStub(CredentialInterface::class);
         $credential2->method('getCredentialId')->willReturn(base64_encode('cred-bbb'));
         $credential2->method('getTransportsArray')->willReturn(['internal', 'hybrid']);
 
         $this->configureGetByCustomerId(99, [$credential1, $credential2]);
 
         $capturedAllow = null;
-        $this->ceremonyMock->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->willReturnCallback(function (array $allow, string $type, ?int $customerId) use (&$capturedAllow) {
                 $this->assertSame(99, $customerId);
@@ -251,7 +292,7 @@ class OptionsGeneratorTest extends TestCase
                 return ['challengeToken' => 'multi-token'];
             });
 
-        $this->optionsGenerator->generate('multi@example.com');
+        $this->optionsGenerator()->generate('multi@example.com');
 
         $this->assertNotNull($capturedAllow);
         $this->assertCount(2, $capturedAllow);

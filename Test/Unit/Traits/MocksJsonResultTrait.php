@@ -10,28 +10,28 @@ namespace MageOS\PasskeyAuth\Test\Unit\Traits;
 
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\JsonFactory;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 
 trait MocksJsonResultTrait
 {
-    private JsonFactory&MockObject $jsonFactoryMock;
-    private Json&MockObject $jsonResultMock;
+    private JsonFactory&Stub $jsonFactoryMock;
+    private Json&Stub $jsonResultMock;
     private ?int $capturedHttpCode = null;
     private ?array $capturedData = null;
 
-    private function createJsonResultMock(): JsonFactory&MockObject
+    private function createJsonResultStub(): JsonFactory&Stub
     {
-        $this->jsonFactoryMock = $this->createMock(JsonFactory::class);
-        $this->jsonResultMock = $this->createMock(Json::class);
+        $this->jsonFactoryMock = $this->createStub(JsonFactory::class);
+        $this->jsonResultMock = $this->createStub(Json::class);
 
         $this->jsonResultMock->method('setHttpResponseCode')
-            ->willReturnCallback(function (int $code): Json&MockObject {
+            ->willReturnCallback(function (int $code): Json {
                 $this->capturedHttpCode = $code;
                 return $this->jsonResultMock;
             });
 
         $this->jsonResultMock->method('setData')
-            ->willReturnCallback(function (array $data): Json&MockObject {
+            ->willReturnCallback(function (array $data): Json {
                 $this->capturedData = $data;
                 return $this->jsonResultMock;
             });

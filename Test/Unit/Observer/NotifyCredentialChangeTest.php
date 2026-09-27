@@ -30,7 +30,7 @@ class NotifyCredentialChangeTest extends TestCase
 
     public function testNotifiesWithCredentialNameAndTemplatePath(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn(42);
         $credential->method('getFriendlyName')->willReturn('Chrome on Windows');
 
@@ -50,7 +50,7 @@ class NotifyCredentialChangeTest extends TestCase
 
     public function testSkipsInvalidCustomerId(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn(0);
 
         $this->notifierMock->expects($this->never())->method('notify');

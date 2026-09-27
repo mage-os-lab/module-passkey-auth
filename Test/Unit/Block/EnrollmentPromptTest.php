@@ -16,32 +16,33 @@ use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\View\Element\Template\Context;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class EnrollmentPromptTest extends TestCase
 {
     use MocksConfigTrait;
 
-    private Context&MockObject $contextMock;
-    private EventManagerInterface&MockObject $eventManagerMock;
-    private ScopeConfigInterface&MockObject $scopeConfigMock;
+    private Context&Stub $contextMock;
+    private EventManagerInterface&Stub $eventManagerMock;
+    private ScopeConfigInterface&Stub $scopeConfigMock;
 
     protected function setUp(): void
     {
-        $this->eventManagerMock = $this->createMock(EventManagerInterface::class);
-        $this->scopeConfigMock = $this->createMock(ScopeConfigInterface::class);
+        $this->eventManagerMock = $this->createStub(EventManagerInterface::class);
+        $this->scopeConfigMock = $this->createStub(ScopeConfigInterface::class);
 
-        $cacheMock = $this->createMock(CacheInterface::class);
-        $cacheStateMock = $this->createMock(CacheStateInterface::class);
+        $cacheMock = $this->createStub(CacheInterface::class);
+        $cacheStateMock = $this->createStub(CacheStateInterface::class);
         $cacheStateMock->method('isEnabled')->willReturn(false);
 
-        $this->contextMock = $this->createMock(Context::class);
+        $this->contextMock = $this->createStub(Context::class);
         $this->contextMock->method('getEventManager')->willReturn($this->eventManagerMock);
         $this->contextMock->method('getScopeConfig')->willReturn($this->scopeConfigMock);
         $this->contextMock->method('getCache')->willReturn($cacheMock);
         $this->contextMock->method('getCacheState')->willReturn($cacheStateMock);
 
-        $this->createConfigMock();
+        $this->createConfigStub();
     }
 
     private function createBlock(): EnrollmentPrompt&MockObject
@@ -59,6 +60,7 @@ class EnrollmentPromptTest extends TestCase
     {
         $block = $this->createBlock();
         $this->configureEnabled(false);
+        $block->expects($this->never())->method('fetchView');
 
         $this->assertSame('', $block->toHtml());
     }
@@ -69,6 +71,7 @@ class EnrollmentPromptTest extends TestCase
         $this->configureEnabled(true);
         $this->configurePromptAfterLogin(false);
         $this->configurePromptOnRegistration(false);
+        $block->expects($this->never())->method('fetchView');
 
         $this->assertSame('', $block->toHtml());
     }
@@ -82,7 +85,7 @@ class EnrollmentPromptTest extends TestCase
         $this->configurePromptOnRegistration(true);
 
         $block->method('getTemplateFile')->willReturn('template.phtml');
-        $block->method('fetchView')->willReturn('<div>prompt</div>');
+        $block->expects($this->once())->method('fetchView')->willReturn('<div>prompt</div>');
 
         $this->assertSame('<div>prompt</div>', $block->toHtml());
     }
@@ -95,7 +98,7 @@ class EnrollmentPromptTest extends TestCase
         $this->configurePromptAfterLogin(true);
 
         $block->method('getTemplateFile')->willReturn('template.phtml');
-        $block->method('fetchView')->willReturn('<div>prompt</div>');
+        $block->expects($this->once())->method('fetchView')->willReturn('<div>prompt</div>');
 
         $this->assertSame('<div>prompt</div>', $block->toHtml());
     }

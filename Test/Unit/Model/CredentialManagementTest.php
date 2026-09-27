@@ -15,22 +15,25 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\AuthorizationException;
 use Magento\Framework\Exception\LocalizedException;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class CredentialManagementTest extends TestCase
 {
     use MocksCredentialRepositoryTrait;
 
-    private EventManager&MockObject $eventManagerMock;
-    private CredentialManagement $credentialManagement;
+    private EventManager&Stub $eventManagerMock;
+    private ?CredentialManagement $credentialManagement = null;
 
     protected function setUp(): void
     {
-        $this->createCredentialRepositoryMock();
-        $this->eventManagerMock = $this->createMock(EventManager::class);
+        $this->createCredentialRepositoryStub();
+        $this->eventManagerMock = $this->createStub(EventManager::class);
+    }
 
-        $this->credentialManagement = new CredentialManagement(
+    private function credentialManagement(): CredentialManagement
+    {
+        return $this->credentialManagement ??= new CredentialManagement(
             $this->credentialRepositoryMock,
             $this->eventManagerMock
         );
@@ -39,13 +42,13 @@ class CredentialManagementTest extends TestCase
     public function testListCredentialsDelegatesToRepository(): void
     {
         $customerId = 42;
-        $credentialA = $this->createMock(CredentialInterface::class);
-        $credentialB = $this->createMock(CredentialInterface::class);
+        $credentialA = $this->createStub(CredentialInterface::class);
+        $credentialB = $this->createStub(CredentialInterface::class);
         $expected = [$credentialA, $credentialB];
 
         $this->configureGetByCustomerId($customerId, $expected);
 
-        $result = $this->credentialManagement->listCredentials($customerId);
+        $result = $this->credentialManagement()->listCredentials($customerId);
 
         $this->assertSame($expected, $result);
     }
@@ -55,20 +58,23 @@ class CredentialManagementTest extends TestCase
         $customerId = 10;
         $entityId = 55;
 
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn($customerId);
         $credential->method('getEntityId')->willReturn($entityId);
 
-        $this->credentialRepositoryMock->method('getById')
+        $credentialRepository = $this->mockCredentialRepository();
+        $credentialRepository->method('getById')
             ->with($entityId)
             ->willReturn($credential);
 
-        $this->credentialRepositoryMock->expects($this->once())
+        $credentialRepository->expects($this->once())
             ->method('delete')
             ->with($credential)
             ->willReturn(true);
 
-        $this->eventManagerMock->expects($this->once())
+        $eventManager = $this->createMock(EventManager::class);
+        $this->eventManagerMock = $eventManager;
+        $eventManager->expects($this->once())
             ->method('dispatch')
             ->with('passkey_credential_remove_after', [
                 'customer_id' => $customerId,
@@ -76,7 +82,7 @@ class CredentialManagementTest extends TestCase
                 'credential' => $credential,
             ]);
 
-        $result = $this->credentialManagement->deleteCredential($customerId, $entityId);
+        $result = $this->credentialManagement()->deleteCredential($customerId, $entityId);
 
         $this->assertTrue($result);
     }
@@ -87,16 +93,16 @@ class CredentialManagementTest extends TestCase
         $otherCustomerId = 99;
         $entityId = 55;
 
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn($otherCustomerId);
 
-        $this->credentialRepositoryMock->method('getById')
+        $this->mockCredentialRepository()->method('getById')
             ->with($entityId)
             ->willReturn($credential);
 
         $this->expectException(AuthorizationException::class);
 
-        $this->credentialManagement->deleteCredential($customerId, $entityId);
+        $this->credentialManagement()->deleteCredential($customerId, $entityId);
     }
 
     public function testRenameCredentialSuccess(): void
@@ -111,17 +117,18 @@ class CredentialManagementTest extends TestCase
             ->method('setFriendlyName')
             ->with($friendlyName);
 
-        $this->credentialRepositoryMock->method('getById')
+        $credentialRepository = $this->mockCredentialRepository();
+        $credentialRepository->method('getById')
             ->with($entityId)
             ->willReturn($credential);
 
-        $savedCredential = $this->createMock(CredentialInterface::class);
-        $this->credentialRepositoryMock->expects($this->once())
+        $savedCredential = $this->createStub(CredentialInterface::class);
+        $credentialRepository->expects($this->once())
             ->method('save')
             ->with($credential)
             ->willReturn($savedCredential);
 
-        $result = $this->credentialManagement->renameCredential($customerId, $entityId, $friendlyName);
+        $result = $this->credentialManagement()->renameCredential($customerId, $entityId, $friendlyName);
 
         $this->assertSame($savedCredential, $result);
     }
@@ -133,16 +140,16 @@ class CredentialManagementTest extends TestCase
         $entityId = 55;
         $friendlyName = 'My YubiKey';
 
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn($otherCustomerId);
 
-        $this->credentialRepositoryMock->method('getById')
+        $this->mockCredentialRepository()->method('getById')
             ->with($entityId)
             ->willReturn($credential);
 
         $this->expectException(AuthorizationException::class);
 
-        $this->credentialManagement->renameCredential($customerId, $entityId, $friendlyName);
+        $this->credentialManagement()->renameCredential($customerId, $entityId, $friendlyName);
     }
 
     public function testRenameCredentialRejectsEmptyName(): void
@@ -150,7 +157,7 @@ class CredentialManagementTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey name cannot be empty.');
 
-        $this->credentialManagement->renameCredential(10, 55, '   ');
+        $this->credentialManagement()->renameCredential(10, 55, '   ');
     }
 
     public function testValidateFriendlyNameEmpty(): void
@@ -158,7 +165,7 @@ class CredentialManagementTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey name cannot be empty.');
 
-        $this->credentialManagement->validateFriendlyName('   ');
+        $this->credentialManagement()->validateFriendlyName('   ');
     }
 
     public function testValidateFriendlyNameTooLong(): void
@@ -166,7 +173,7 @@ class CredentialManagementTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey name must be 255 characters or fewer.');
 
-        $this->credentialManagement->validateFriendlyName(str_repeat('a', 256));
+        $this->credentialManagement()->validateFriendlyName(str_repeat('a', 256));
     }
 
     public function testValidateFriendlyNameWithXssChars(): void
@@ -174,6 +181,6 @@ class CredentialManagementTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey names can\'t contain <, > or &.');
 
-        $this->credentialManagement->validateFriendlyName('My <script>Key');
+        $this->credentialManagement()->validateFriendlyName('My <script>Key');
     }
 }

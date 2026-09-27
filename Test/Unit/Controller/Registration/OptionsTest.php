@@ -14,12 +14,12 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\App\Request\InvalidRequestException;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class OptionsTest extends TestCase
@@ -28,25 +28,26 @@ class OptionsTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
-    private RegistrationOptionsInterface&MockObject $registrationOptionsMock;
-    private ResultFactory&MockObject $resultFactoryMock;
-    private Options $controller;
+    private HttpRequest&Stub $requestMock;
+    private RegistrationOptionsInterface&Stub $registrationOptionsMock;
+    private ResultFactory&Stub $resultFactoryMock;
+    private ?Options $controller = null;
 
     protected function setUp(): void
     {
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getHeader', 'getContent'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createStub(HttpRequest::class);
 
-        $this->createJsonResultMock();
-        $this->createCustomerSessionMock();
-        $this->registrationOptionsMock = $this->createMock(RegistrationOptionsInterface::class);
-        $this->createLoggerMock();
+        $this->createJsonResultStub();
+        $this->createCustomerSessionStub();
+        $this->registrationOptionsMock = $this->createStub(RegistrationOptionsInterface::class);
+        $this->createLoggerStub();
 
-        $this->resultFactoryMock = $this->createMock(ResultFactory::class);
+        $this->resultFactoryMock = $this->createStub(ResultFactory::class);
+    }
 
-        $this->controller = new Options(
+    private function controller(): Options
+    {
+        return $this->controller ??= new Options(
             $this->requestMock,
             $this->jsonFactoryMock,
             $this->customerSessionMock,
@@ -60,7 +61,7 @@ class OptionsTest extends TestCase
     {
         $this->configureNotLoggedIn();
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(401, $this->capturedHttpCode);
@@ -73,11 +74,12 @@ class OptionsTest extends TestCase
         $this->configureLoggedIn(42);
 
         $optionsPayload = ['challenge' => 'abc123', 'rp' => ['name' => 'Test']];
+        $this->registrationOptionsMock = $this->createMock(RegistrationOptionsInterface::class);
         $this->registrationOptionsMock->method('generate')
             ->with(42)
             ->willReturn(json_encode($optionsPayload));
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertNull($this->capturedHttpCode);
@@ -91,7 +93,7 @@ class OptionsTest extends TestCase
         $this->registrationOptionsMock->method('generate')
             ->willThrowException(new LocalizedException(new Phrase('Too many credentials.')));
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);
@@ -106,11 +108,11 @@ class OptionsTest extends TestCase
         $this->registrationOptionsMock->method('generate')
             ->willThrowException(new \RuntimeException('Unexpected failure'));
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('error')
             ->with('Passkey registration options error', ['exception' => 'Unexpected failure']);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);
@@ -123,14 +125,17 @@ class OptionsTest extends TestCase
 
     public function testValidateForCsrfWithAjaxHeader(): void
     {
+        $this->requestMock = $this->createMock(HttpRequest::class);
+        $this->resultFactoryMock = $this->createMock(ResultFactory::class);
+
         $this->requestMock->method('getHeader')
             ->with('X-Requested-With')
             ->willReturn('XMLHttpRequest');
 
-        $this->assertTrue($this->controller->validateForCsrf($this->requestMock));
+        $this->assertTrue($this->controller()->validateForCsrf($this->requestMock));
 
         // Test createCsrfValidationException returns InvalidRequestException
-        $csrfJsonMock = $this->createMock(Json::class);
+        $csrfJsonMock = $this->createStub(Json::class);
         $csrfJsonMock->method('setHttpResponseCode')->willReturnSelf();
         $csrfJsonMock->method('setData')->willReturnSelf();
 
@@ -138,7 +143,7 @@ class OptionsTest extends TestCase
             ->with(ResultFactory::TYPE_JSON)
             ->willReturn($csrfJsonMock);
 
-        $exception = $this->controller->createCsrfValidationException($this->requestMock);
+        $exception = $this->controller()->createCsrfValidationException($this->requestMock);
         $this->assertInstanceOf(InvalidRequestException::class, $exception);
     }
 }
