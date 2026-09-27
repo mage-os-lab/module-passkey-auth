@@ -13,7 +13,7 @@ use MageOS\PasskeyAuth\Controller\Account\Delete;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
@@ -26,16 +26,14 @@ class DeleteTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
+    private HttpRequest&MockObject $requestMock;
     private CredentialManagementInterface&MockObject $credentialManagementMock;
     private ResultFactory&MockObject $resultFactoryMock;
     private Delete $controller;
 
     protected function setUp(): void
     {
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getHeader'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createMock(HttpRequest::class);
 
         $this->createJsonResultMock();
         $this->createCustomerSessionMock();
@@ -123,9 +121,7 @@ class DeleteTest extends TestCase
 
     public function testValidateForCsrfWithAjaxHeader(): void
     {
-        $requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getHeader'])
-            ->getMockForAbstractClass();
+        $requestMock = $this->createMock(HttpRequest::class);
 
         $requestMock->method('getHeader')
             ->with('X-Requested-With')

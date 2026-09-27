@@ -16,7 +16,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadata;
@@ -31,7 +31,7 @@ class VerifyTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
+    private HttpRequest&MockObject $requestMock;
     private AuthenticationVerifierInterface&MockObject $verifierMock;
     private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
     private JsonSerializer&MockObject $jsonMock;
@@ -45,9 +45,7 @@ class VerifyTest extends TestCase
         $this->createLoggerMock();
         $this->createCustomerSessionMock();
 
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getContent'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createMock(HttpRequest::class);
 
         $this->verifierMock = $this->createMock(AuthenticationVerifierInterface::class);
         $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);

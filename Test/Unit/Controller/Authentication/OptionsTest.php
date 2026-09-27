@@ -12,7 +12,7 @@ use MageOS\PasskeyAuth\Api\AuthenticationOptionsInterface;
 use MageOS\PasskeyAuth\Controller\Authentication\Options;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -23,7 +23,7 @@ class OptionsTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
+    private HttpRequest&MockObject $requestMock;
     private AuthenticationOptionsInterface&MockObject $authOptionsMock;
     private JsonSerializer&MockObject $jsonMock;
     private Options $controller;
@@ -33,9 +33,7 @@ class OptionsTest extends TestCase
         $this->createJsonResultMock();
         $this->createLoggerMock();
 
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getContent'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createMock(HttpRequest::class);
 
         $this->authOptionsMock = $this->createMock(AuthenticationOptionsInterface::class);
         $this->jsonMock = $this->createMock(JsonSerializer::class);

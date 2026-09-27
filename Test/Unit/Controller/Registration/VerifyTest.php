@@ -15,7 +15,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\App\Request\InvalidRequestException;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
@@ -30,7 +30,7 @@ class VerifyTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private RequestInterface&MockObject $requestMock;
+    private HttpRequest&MockObject $requestMock;
     private RegistrationVerifierInterface&MockObject $registrationVerifierMock;
     private JsonSerializer&MockObject $jsonSerializerMock;
     private ResultFactory&MockObject $resultFactoryMock;
@@ -38,9 +38,7 @@ class VerifyTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getHeader', 'getContent'])
-            ->getMockForAbstractClass();
+        $this->requestMock = $this->createMock(HttpRequest::class);
 
         $this->createJsonResultMock();
         $this->createCustomerSessionMock();
