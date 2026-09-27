@@ -69,6 +69,7 @@ class CredentialManagementTest extends TestCase
             ->with('passkey_credential_remove_after', [
                 'customer_id' => $customerId,
                 'credential_id' => $entityId,
+                'credential' => $credential,
             ]);
 
         $result = $this->credentialManagement->deleteCredential($customerId, $entityId);

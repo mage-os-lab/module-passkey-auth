@@ -17,10 +17,21 @@ window.addEventListener('alpine:init', () => {
             this.available = passkeyCore.isAvailable();
             this.optionsUrl = this.$el.dataset.optionsUrl;
             this.verifyUrl = this.$el.dataset.verifyUrl;
+
+            if (this.available) {
+                passkeyCore.startConditional({
+                    optionsUrl: this.optionsUrl,
+                    verifyUrl: this.verifyUrl,
+                    onError: () => {
+                        this.message = 'Passkey sign-in didn\'t complete. Please try again.';
+                        this.messageType = 'error';
+                    }
+                });
+            }
         },
 
         getEmail() {
-            const field = document.querySelector('input#email, input[name="login[username]"]');
+            const field = document.querySelector(passkeyCore.EMAIL_SELECTORS);
             return field ? field.value : '';
         },
 
@@ -29,32 +40,25 @@ window.addEventListener('alpine:init', () => {
             this.messageType = '';
             this.loading = true;
 
+            // Only one WebAuthn request may be active: hand off from the
+            // pending autofill (conditional) request to the modal ceremony.
+            passkeyCore.abortConditional();
+
             try {
-                const options = await this.fetchOptions(this.getEmail());
+                const options = await passkeyCore.postJson(
+                    this.optionsUrl,
+                    {email: this.getEmail()},
+                    'Unable to sign in with passkey. Please use your password.'
+                );
                 const result = await this.performAssertion(options);
-                await this.verifyAssertion(result.challengeToken, result.credential);
+                await passkeyCore.postJson(this.verifyUrl, result, 'Passkey verification failed. Please try again.');
                 window.location.reload();
             } catch (error) {
                 this.message = error.message || 'Passkey sign-in failed.';
                 this.messageType = 'error';
                 this.loading = false;
+                passkeyCore.restartConditional();
             }
-        },
-
-        async fetchOptions(email) {
-            const response = await fetch(this.optionsUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email: email}),
-                credentials: 'same-origin'
-            });
-            const data = await response.json();
-
-            if (data.errors) {
-                throw new Error(data.message || 'Unable to sign in with passkey. Please use your password.');
-            }
-
-            return data;
         },
 
         async performAssertion(serverOptions) {
@@ -73,25 +77,6 @@ window.addEventListener('alpine:init', () => {
                 }
                 throw new Error('Unable to sign in with passkey. Please use your password.');
             }
-        },
-
-        async verifyAssertion(challengeToken, credential) {
-            const response = await fetch(this.verifyUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    challengeToken: challengeToken,
-                    credential: credential
-                }),
-                credentials: 'same-origin'
-            });
-            const data = await response.json();
-
-            if (data.errors) {
-                throw new Error(data.message || 'Passkey verification failed. Please try again.');
-            }
-
-            return data;
         }
     }));
 }, {once: true});

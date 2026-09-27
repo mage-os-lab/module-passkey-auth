@@ -9,7 +9,8 @@ define([
     $.widget('mageOS.passkeyLogin', {
         options: {
             optionsUrl: '',
-            verifyUrl: ''
+            verifyUrl: '',
+            emailSelectors: passkeyCore.EMAIL_SELECTORS
         },
 
         _create: function () {
@@ -21,6 +22,15 @@ define([
             this.$button = this.element.find('#passkey-login-btn');
             this.$message = this.element.find('#passkey-login-message');
             this.$button.on('click', this._onLogin.bind(this));
+
+            passkeyCore.startConditional({
+                optionsUrl: this.options.optionsUrl,
+                verifyUrl: this.options.verifyUrl,
+                selectors: this.options.emailSelectors,
+                onError: function () {
+                    this._showMessage($t('Passkey sign-in didn\'t complete. Please try again.'), 'error');
+                }.bind(this)
+            });
         },
 
         _onLogin: function () {
@@ -28,42 +38,48 @@ define([
             var email = this._getEmailValue();
 
             this._clearMessage();
-            this.$button.prop('disabled', true);
+            this._setBusy(true);
 
-            this._fetchOptions(email)
+            // Only one WebAuthn request may be active: hand off from the
+            // pending autofill (conditional) request to the modal ceremony.
+            passkeyCore.abortConditional();
+
+            passkeyCore.postJson(
+                this.options.optionsUrl,
+                { email: email },
+                $t('Unable to sign in with passkey. Please use your password.')
+            )
                 .then(function (options) {
                     return self._performAssertion(options);
                 })
                 .then(function (result) {
-                    return self._verifyAssertion(result.challengeToken, result.credential);
+                    return passkeyCore.postJson(
+                        self.options.verifyUrl,
+                        result,
+                        $t('Passkey verification failed. Please try again.')
+                    );
                 })
                 .then(function () {
+                    self._showMessage($t('Signed in. One moment…'), 'success');
                     window.location.reload();
                 })
                 .catch(function (error) {
                     self._showMessage(error.message || $t('Passkey sign-in failed.'), 'error');
-                    self.$button.prop('disabled', false);
+                    self._setBusy(false);
+                    passkeyCore.restartConditional();
                 });
         },
 
-        _getEmailValue: function () {
-            var $emailField = $('input#email, input[name="login[username]"]');
-            return $emailField.length ? $emailField.val() : '';
+        _setBusy: function (busy) {
+            this.$button.prop('disabled', busy)
+                .attr('aria-busy', busy ? 'true' : 'false')
+                .toggleClass('passkey-busy', busy)
+                .find('span')
+                .text(busy ? $t('Waiting for your passkey…') : $t('Sign in with Passkey'));
         },
 
-        _fetchOptions: function (email) {
-            return $.ajax({
-                url: this.options.optionsUrl,
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ email: email }),
-                dataType: 'json'
-            }).then(function (data) {
-                if (data.errors) {
-                    throw new Error(data.message || $t('Unable to sign in with passkey. Please use your password.'));
-                }
-                return data;
-            });
+        _getEmailValue: function () {
+            return $(this.options.emailSelectors).val() || '';
         },
 
         _performAssertion: function (serverOptions) {
@@ -83,24 +99,6 @@ define([
                     }
                     throw new Error($t('Unable to sign in with passkey. Please use your password.'));
                 });
-        },
-
-        _verifyAssertion: function (challengeToken, credential) {
-            return $.ajax({
-                url: this.options.verifyUrl,
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    challengeToken: challengeToken,
-                    credential: credential
-                }),
-                dataType: 'json'
-            }).then(function (data) {
-                if (data.errors) {
-                    throw new Error(data.message || $t('Passkey verification failed. Please try again.'));
-                }
-                return data;
-            });
         },
 
         _showMessage: function (text, type) {

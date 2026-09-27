@@ -38,8 +38,8 @@ define([
 
             prompt({
                 title: $t('Register a Passkey'),
-                content: $t('Give this passkey a name (optional):'),
-                value: '',
+                content: $t('Give this passkey a name so you can recognize it later:'),
+                value: passkeyCore.suggestName(),
                 actions: {
                     confirm: function (friendlyName) {
                         self._doRegistration(friendlyName || null);
@@ -54,8 +54,10 @@ define([
 
         _doRegistration: function (friendlyName) {
             var self = this;
+            var $addButton = this.element.find('#passkey-add-btn');
 
             this._clearMessage();
+            $addButton.prop('disabled', true).attr('aria-busy', 'true');
 
             $.ajax({
                 url: this.options.registrationOptionsUrl,
@@ -85,6 +87,7 @@ define([
             }).then(function (result) {
                 if (result.errors) {
                     self._showMessage(result.message, 'error');
+                    $addButton.prop('disabled', false).attr('aria-busy', 'false');
                 } else {
                     self._showMessage($t('Passkey registered successfully.'), 'success');
                     setTimeout(function () { window.location.reload(); }, 1000);
@@ -92,9 +95,15 @@ define([
             }).catch(function (err) {
                 if (err.name === 'NotAllowedError') {
                     self._showMessage($t('Passkey registration was cancelled.'), 'error');
+                } else if (err.name === 'InvalidStateError') {
+                    self._showMessage(
+                        $t('This device already has a passkey for your account. Try signing in with it instead.'),
+                        'error'
+                    );
                 } else {
                     self._showMessage(err.message || err.responseJSON?.message || $t('Registration failed.'), 'error');
                 }
+                $addButton.prop('disabled', false).attr('aria-busy', 'false');
             });
         },
 
@@ -102,9 +111,10 @@ define([
             var self = this;
             var $row = $(e.currentTarget).closest('tr');
             var entityId = $row.data('entity-id');
+            var name = $.trim($row.find('.name-display').text()) || $t('this passkey');
 
             confirm({
-                content: $t('Are you sure you want to delete this passkey?'),
+                content: $t('Delete "%1"? You will no longer be able to sign in with it.').replace('%1', name),
                 actions: {
                     confirm: function () {
                         $.ajax({
@@ -171,10 +181,13 @@ define([
                 $display.hide();
                 $edit.show().focus().select();
 
-                $edit.one('keydown', function (evt) {
+                $edit.off('keydown.passkeyRename').on('keydown.passkeyRename', function (evt) {
                     if (evt.key === 'Enter') {
+                        evt.preventDefault();
+                        $edit.off('keydown.passkeyRename');
                         $(e.currentTarget).trigger('click');
                     } else if (evt.key === 'Escape') {
+                        $edit.off('keydown.passkeyRename');
                         $edit.hide();
                         $display.show();
                     }

@@ -1,8 +1,9 @@
 define([
     'jquery',
     'Magento_Customer/js/customer-data',
+    'MageOS_PasskeyAuth/js/passkey-core',
     'jquery/ui'
-], function ($, customerData) {
+], function ($, customerData, passkeyCore) {
     'use strict';
 
     $.widget('mageOS.enrollmentPrompt', {
@@ -26,7 +27,8 @@ define([
 
         _handleSectionUpdate: function (data) {
             if (data && data.show_enrollment_prompt
-                && !sessionStorage.getItem('passkey_enrollment_dismissed')
+                && passkeyCore.isAvailable()
+                && !passkeyCore.isEnrollmentSnoozed()
             ) {
                 this.element.show();
             } else {
@@ -39,7 +41,7 @@ define([
         },
 
         _onDismiss: function () {
-            sessionStorage.setItem('passkey_enrollment_dismissed', '1');
+            passkeyCore.recordEnrollmentDismissal();
             this.element.fadeOut(300);
         }
     });

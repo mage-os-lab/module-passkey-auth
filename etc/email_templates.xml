@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Email:etc/email_templates.xsd">
+    <template id="customer_passkey_added_email_template"
+              label="Passkey Added to Account"
+              file="passkey_added.html"
+              type="html"
+              module="MageOS_PasskeyAuth"
+              area="frontend"/>
+    <template id="customer_passkey_removed_email_template"
+              label="Passkey Removed from Account"
+              file="passkey_removed.html"
+              type="html"
+              module="MageOS_PasskeyAuth"
+              area="frontend"/>
+</config>

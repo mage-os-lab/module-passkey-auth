@@ -92,6 +92,22 @@
         </arguments>
     </type>
 
+    <!-- Admin grid: register listing data source -->
+    <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
+        <arguments>
+            <argument name="collections" xsi:type="array">
+                <item name="passkey_credential_listing_data_source" xsi:type="string">MageOS\PasskeyAuth\Model\ResourceModel\Credential\Grid\Collection</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="MageOS\PasskeyAuth\Model\ResourceModel\Credential\Grid\Collection">
+        <arguments>
+            <argument name="mainTable" xsi:type="string">passkey_credential</argument>
+            <argument name="resourceModel" xsi:type="string">MageOS\PasskeyAuth\Model\ResourceModel\Credential</argument>
+        </arguments>
+    </type>
+
     <!-- CLI Commands -->
     <type name="Magento\Framework\Console\CommandListInterface">
         <arguments>
@@ -100,4 +116,18 @@
             </argument>
         </arguments>
     </type>
+
+    <!-- Customer notification emails: one observer, wired per event with its template -->
+    <virtualType name="MageOS\PasskeyAuth\Observer\NotifyCredentialAdded"
+                 type="MageOS\PasskeyAuth\Observer\NotifyCredentialChange">
+        <arguments>
+            <argument name="templatePath" xsi:type="const">MageOS\PasskeyAuth\Model\Config::XML_PATH_ADDED_EMAIL_TEMPLATE</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MageOS\PasskeyAuth\Observer\NotifyCredentialRemoved"
+                 type="MageOS\PasskeyAuth\Observer\NotifyCredentialChange">
+        <arguments>
+            <argument name="templatePath" xsi:type="const">MageOS\PasskeyAuth\Model\Config::XML_PATH_REMOVED_EMAIL_TEMPLATE</argument>
+        </arguments>
+    </virtualType>
 </config>
