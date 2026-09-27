@@ -53,23 +53,24 @@ class ResetPasskeyTfaCommandTest extends TestCase
         $user2->method('getId')->willReturn(2);
         $user2->method('getUserName')->willReturn('admin2');
 
-        $collection = $this->createMock(UserCollection::class);
-        $collection->method('getIterator')->willReturn(new \ArrayIterator([$user1, $user2]));
-        $this->userCollectionFactory->method('create')->willReturn($collection);
+        $this->mockUserCollection([$user1, $user2]);
 
         $this->userConfigManager->method('getProviderConfig')
             ->willReturnCallback(function (int $userId, string $code) {
-                if ($userId === 1 && $code === Engine::PROVIDER_CODE_ALL) {
-                    return ['registration' => ['credential_id' => 'abc']];
-                }
-                if ($userId === 2 && $code === Engine::PROVIDER_CODE_HARDWARE) {
-                    return ['registration' => ['credential_id' => 'def']];
-                }
-                return null;
+                return in_array($userId, [1, 2], true) && $code === Engine::CODE
+                    ? ['registration' => ['credential_id' => 'abc' . $userId]]
+                    : null;
             });
 
         $this->userConfigManager->expects($this->exactly(2))
-            ->method('resetProviderConfig');
+            ->method('resetProviderConfig')
+            ->willReturnCallback(function (int $userId, string $code) {
+                $this->assertContains([$userId, $code], [
+                    [1, Engine::CODE],
+                    [2, Engine::CODE],
+                ]);
+                return true;
+            });
 
         $input = $this->createMock(InputInterface::class);
         $input->method('getOption')->with('force')->willReturn(true);
@@ -85,9 +86,7 @@ class ResetPasskeyTfaCommandTest extends TestCase
 
     public function testExecuteReturnsSuccessWhenNoUsersConfigured(): void
     {
-        $collection = $this->createMock(UserCollection::class);
-        $collection->method('getIterator')->willReturn(new \ArrayIterator([]));
-        $this->userCollectionFactory->method('create')->willReturn($collection);
+        $this->mockUserCollection([]);
 
         $this->userConfigManager->expects($this->never())->method('resetProviderConfig');
 
@@ -102,5 +101,17 @@ class ResetPasskeyTfaCommandTest extends TestCase
         $result = $ref->invoke($this->command, $input, $output);
 
         $this->assertSame(0, $result);
+    }
+
+    private function mockUserCollection(array $users): void
+    {
+        $collection = $this->createMock(UserCollection::class);
+        $collection->method('addFieldToSelect')->willReturnSelf();
+        $collection->method('setPageSize')->willReturnSelf();
+        $collection->method('setCurPage')->willReturnSelf();
+        $collection->method('clear')->willReturnSelf();
+        $collection->method('getLastPageNumber')->willReturn(1);
+        $collection->method('getIterator')->willReturn(new \ArrayIterator($users));
+        $this->userCollectionFactory->method('create')->willReturn($collection);
     }
 }

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Model;
 
 use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
+use MageOS\PasskeyAuth\Model\WebAuthn\BaseUrlParserTrait;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\StoreManagerInterface;
 
 class Config implements WebAuthnConfigInterface
 {
+    use BaseUrlParserTrait;
+
     public const XML_PATH_ENABLED = 'customer/passkey/enabled';
     public const XML_PATH_PROMPT_AFTER_LOGIN = 'customer/passkey/prompt_after_login';
     public const XML_PATH_PROMPT_ON_REGISTRATION = 'customer/passkey/prompt_on_registration';
@@ -17,6 +20,7 @@ class Config implements WebAuthnConfigInterface
     private const MAX_CREDENTIALS = 10;
     private const USER_VERIFICATION = 'preferred';
     private const ATTESTATION_CONVEYANCE = 'none';
+    private const RESIDENT_KEY = 'preferred';
     private const CEREMONY_TIMEOUT = 60000;
 
     public function __construct(
@@ -50,6 +54,11 @@ class Config implements WebAuthnConfigInterface
         return self::ATTESTATION_CONVEYANCE;
     }
 
+    public function getResidentKeyRequirement(): string
+    {
+        return self::RESIDENT_KEY;
+    }
+
     public function getCeremonyTimeout(): int
     {
         return self::CEREMONY_TIMEOUT;
@@ -67,15 +76,7 @@ class Config implements WebAuthnConfigInterface
 
     public function getRpId(): string
     {
-        $baseUrl = $this->storeManager->getStore()->getBaseUrl();
-        $parsed = parse_url($baseUrl);
-        $host = $parsed['host'] ?? null;
-        if ($host === null) {
-            throw new \RuntimeException(
-                'Cannot determine RP ID: store base URL has no host component.'
-            );
-        }
-        return $host;
+        return $this->parseRpId($this->storeManager->getStore()->getBaseUrl());
     }
 
     public function getRpName(): string
@@ -85,16 +86,6 @@ class Config implements WebAuthnConfigInterface
 
     public function getAllowedOrigins(): array
     {
-        $baseUrl = $this->storeManager->getStore()->getBaseUrl();
-        $parsed = parse_url($baseUrl);
-        $scheme = $parsed['scheme'] ?? null;
-        $host = $parsed['host'] ?? null;
-        if ($scheme === null || $host === null) {
-            throw new \RuntimeException(
-                'Cannot determine allowed origins: store base URL is missing scheme or host.'
-            );
-        }
-        $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
-        return [$scheme . '://' . $host . $port];
+        return [$this->parseOrigin($this->storeManager->getStore()->getBaseUrl())];
     }
 }

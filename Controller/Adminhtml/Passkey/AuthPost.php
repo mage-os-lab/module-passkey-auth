@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Controller\Adminhtml\Passkey;
 
+use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\Auth\Session;
 use Magento\Framework\App\Action\HttpPostActionInterface;
+use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\JsonFactory;
-use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\DataObjectFactory;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\TwoFactorAuth\Api\TfaInterface;
 use Magento\TwoFactorAuth\Api\TfaSessionInterface;
 use Magento\TwoFactorAuth\Controller\Adminhtml\AbstractAction;
 use Magento\TwoFactorAuth\Model\AlertInterface;
-use MageOS\PasskeyAuth\Api\AdminTfa\AuthenticateInterface;
-use MageOS\PasskeyAuth\Model\AdminTfa\Engine;
 
+/**
+ * JSON endpoint: without `credential` returns request options; with it verifies the assertion and grants 2FA.
+ */
 class AuthPost extends AbstractAction implements HttpPostActionInterface
 {
     public function __construct(
@@ -23,59 +27,46 @@ class AuthPost extends AbstractAction implements HttpPostActionInterface
         private readonly Session $session,
         private readonly JsonFactory $jsonFactory,
         private readonly TfaSessionInterface $tfaSession,
-        private readonly AuthenticateInterface $authenticate,
+        private readonly TfaInterface $tfa,
+        private readonly Engine $engine,
         private readonly DataObjectFactory $dataObjectFactory,
         private readonly AlertInterface $alert
     ) {
         parent::__construct($context);
     }
 
-    public function execute(): ResultInterface
+    public function execute(): Json
     {
         $result = $this->jsonFactory->create();
         $user = $this->session->getUser();
-        if ($user === null) {
-            return $result->setData([
-                'success' => false,
-                'message' => __('Session expired. Please sign in again.'),
-            ]);
-        }
+        $request = $this->getRequest();
 
         try {
-            $providerCode = $this->getRequest()->getParam('provider', Engine::PROVIDER_CODE_ALL);
-            $credentialJson = $this->getRequest()->getParam('credential');
-
-            if ($credentialJson) {
-                // Phase 2: Verify assertion
-                $request = $this->dataObjectFactory->create(['data' => [
-                    'challenge_token' => $this->getRequest()->getParam('challenge_token'),
-                    'credential' => $credentialJson,
-                ]]);
-
-                $this->authenticate->verifyAssertion($user, $request);
-                $this->tfaSession->grantAccess();
-
-                return $result->setData([
-                    'success' => true,
-                    'redirect_url' => $this->getUrl('adminhtml/dashboard'),
-                ]);
+            if (!$request->getParam('credential')) {
+                return $result->setData($this->engine->getAuthenticationOptions($user));
             }
 
-            // Phase 1: Get authentication options
-            $authData = $this->authenticate->getAuthenticationData($user, $providerCode);
+            $this->engine->verify($user, $this->dataObjectFactory->create(['data' => [
+                'challenge_token' => (string) $request->getParam('challenge_token'),
+                'credential' => (string) $request->getParam('credential'),
+            ]]));
+            $this->tfaSession->grantAccess();
 
-            return $result->setData($authData);
-        } catch (\Exception $e) {
+            return $result->setData(['success' => true]);
+        } catch (\Throwable $e) {
             $this->alert->event(
                 'MageOS_PasskeyAuth',
-                'Passkey authentication failed for admin user ' . $user->getUserName()
-                    . ': ' . $e->getMessage(),
-                AlertInterface::LEVEL_WARNING
+                'Passkey authentication failed',
+                AlertInterface::LEVEL_WARNING,
+                $user->getUserName(),
+                $e->getMessage()
             );
 
             return $result->setData([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof LocalizedException
+                    ? $e->getMessage()
+                    : __('Passkey verification failed. Please try again.'),
             ]);
         }
     }
@@ -83,6 +74,9 @@ class AuthPost extends AbstractAction implements HttpPostActionInterface
     protected function _isAllowed(): bool
     {
         $user = $this->session->getUser();
-        return $user !== null;
+
+        return $user !== null
+            && $this->tfa->getProviderIsAllowed((int) $user->getId(), Engine::CODE)
+            && $this->tfa->getProvider(Engine::CODE)->isActive((int) $user->getId());
     }
 }

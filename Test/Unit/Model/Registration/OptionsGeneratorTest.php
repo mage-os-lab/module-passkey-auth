@@ -9,27 +9,25 @@ use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\Registration\OptionsGenerator;
 use MageOS\PasskeyAuth\Model\UserHandleGenerator;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksChallengeManagerTrait;
+use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksSerializerFactoryTrait;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Webauthn\PublicKeyCredentialUserEntity;
 
 class OptionsGeneratorTest extends TestCase
 {
     use MocksConfigTrait;
     use MocksCredentialRepositoryTrait;
-    use MocksChallengeManagerTrait;
-    use MocksSerializerFactoryTrait;
 
     private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
     private UserHandleGenerator&MockObject $userHandleGeneratorMock;
-    private Json&MockObject $jsonMock;
+    private Ceremony&MockObject $ceremonyMock;
     private RateLimiter&MockObject $rateLimiterMock;
     private OptionsGenerator $optionsGenerator;
 
@@ -37,12 +35,10 @@ class OptionsGeneratorTest extends TestCase
     {
         $this->createConfigMock();
         $this->createCredentialRepositoryMock();
-        $this->createChallengeManagerMock();
-        $this->createSerializerFactoryMock();
 
         $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
         $this->userHandleGeneratorMock = $this->createMock(UserHandleGenerator::class);
-        $this->jsonMock = $this->createMock(Json::class);
+        $this->ceremonyMock = $this->createMock(Ceremony::class);
         $this->rateLimiterMock = $this->createMock(RateLimiter::class);
 
         $this->optionsGenerator = new OptionsGenerator(
@@ -50,9 +46,8 @@ class OptionsGeneratorTest extends TestCase
             $this->customerRepositoryMock,
             $this->credentialRepositoryMock,
             $this->userHandleGeneratorMock,
-            $this->challengeManagerMock,
-            $this->serializerFactoryMock,
-            $this->jsonMock,
+            $this->ceremonyMock,
+            new Json(),
             $this->rateLimiterMock
         );
     }
@@ -68,37 +63,22 @@ class OptionsGeneratorTest extends TestCase
             ->willReturn($customer);
     }
 
-    private function configureDefaultHappyPath(int $customerId): void
+    private function configureHappyPath(int $customerId, int $existingCount = 0, array $existing = []): void
     {
         $this->configureEnabled(true);
         $this->configureMaxCredentials(10);
-        $this->configureCountByCustomerId($customerId, 0);
-        $this->configureGetByCustomerId($customerId, []);
+        $this->configureCountByCustomerId($customerId, $existingCount);
+        $this->configureGetByCustomerId($customerId, $existing);
         $this->configureCustomer($customerId);
         $this->userHandleGeneratorMock->method('getOrGenerate')
             ->with($customerId)
-            ->willReturn('dXNlci1oYW5kbGU=');
-
-        $this->configMock->method('getRpName')->willReturn('Test Store');
-        $this->configMock->method('getRpId')->willReturn('example.com');
-        $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
-        $this->configMock->method('getUserVerification')->willReturn('preferred');
-        $this->configMock->method('getAttestationConveyance')->willReturn('none');
-        $this->configMock->method('getCeremonyTimeout')->willReturn(60000);
-
-        $this->serializerMock->method('serialize')->willReturn('{"serialized":"options"}');
-        $this->configureCreateChallenge('challenge-token-abc');
-
-        $this->jsonMock->method('unserialize')
-            ->with('{"serialized":"options"}')
-            ->willReturn(['serialized' => 'options']);
-        $this->jsonMock->method('serialize')
-            ->willReturn('{"serialized":"options","challengeToken":"challenge-token-abc"}');
+            ->willReturn('user-handle-bytes');
     }
 
     public function testGenerateThrowsWhenDisabled(): void
     {
         $this->configureEnabled(false);
+        $this->ceremonyMock->expects($this->never())->method('createRegistrationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
@@ -109,9 +89,11 @@ class OptionsGeneratorTest extends TestCase
     public function testGenerateThrowsWhenRateLimited(): void
     {
         $this->configureEnabled(true);
-        $this->rateLimiterMock->method('checkOptionsRate')
+        $this->rateLimiterMock->expects($this->once())
+            ->method('checkOptionsRate')
             ->with('reg_42')
             ->willThrowException(new LocalizedException(__('Too many passkey requests. Please try again later.')));
+        $this->ceremonyMock->expects($this->never())->method('createRegistrationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Too many passkey requests. Please try again later.');
@@ -124,6 +106,7 @@ class OptionsGeneratorTest extends TestCase
         $this->configureEnabled(true);
         $this->configureMaxCredentials(10);
         $this->configureCountByCustomerId(42, 10);
+        $this->ceremonyMock->expects($this->never())->method('createRegistrationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Maximum number of passkeys (10) reached.');
@@ -133,44 +116,45 @@ class OptionsGeneratorTest extends TestCase
 
     public function testGenerateSucceedsUnderMaxCredentials(): void
     {
+        $this->configureHappyPath(42, 9);
+        $this->ceremonyMock->expects($this->once())
+            ->method('createRegistrationOptions')
+            ->willReturn(['challenge' => 'abc', 'challengeToken' => 'token123']);
+
+        $result = $this->optionsGenerator->generate(42);
+
+        $this->assertSame('{"challenge":"abc","challengeToken":"token123"}', $result);
+    }
+
+    public function testGeneratePassesUserEntityAndChallengeContext(): void
+    {
         $customerId = 42;
-        $this->configureEnabled(true);
-        $this->configureMaxCredentials(10);
-        $this->configureCountByCustomerId($customerId, 9);
-        $this->configureGetByCustomerId($customerId, []);
-        $this->configureCustomer($customerId);
-        $this->userHandleGeneratorMock->method('getOrGenerate')->willReturn('dXNlci1oYW5kbGU=');
-        $this->configMock->method('getRpName')->willReturn('Test Store');
-        $this->configMock->method('getRpId')->willReturn('example.com');
-        $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
-        $this->configMock->method('getUserVerification')->willReturn('preferred');
-        $this->configMock->method('getAttestationConveyance')->willReturn('none');
-        $this->configMock->method('getCeremonyTimeout')->willReturn(60000);
+        $this->configureHappyPath($customerId);
 
-        $this->serializerMock->method('serialize')->willReturn('{"options":"data"}');
-        $this->configureCreateChallenge('token123');
-        $this->jsonMock->method('unserialize')->willReturn(['options' => 'data']);
-        $this->jsonMock->method('serialize')->willReturn('{"options":"data","challengeToken":"token123"}');
+        $this->userHandleGeneratorMock->expects($this->once())
+            ->method('getOrGenerate')
+            ->with($customerId);
 
-        $result = $this->optionsGenerator->generate($customerId);
+        $this->ceremonyMock->expects($this->once())
+            ->method('createRegistrationOptions')
+            ->with(
+                $this->callback(function (PublicKeyCredentialUserEntity $user) {
+                    return $user->name === 'test@example.com'
+                        && $user->id === 'user-handle-bytes'
+                        && $user->displayName === 'John Doe';
+                }),
+                [],
+                ChallengeManager::TYPE_REGISTRATION,
+                $customerId
+            )
+            ->willReturn(['challengeToken' => 'challenge-token-abc']);
 
-        $this->assertSame('{"options":"data","challengeToken":"token123"}', $result);
+        $this->optionsGenerator->generate($customerId);
     }
 
     public function testGenerateExcludesExistingCredentials(): void
     {
         $customerId = 42;
-        $this->configureEnabled(true);
-        $this->configureMaxCredentials(10);
-        $this->configureCountByCustomerId($customerId, 2);
-        $this->configureCustomer($customerId);
-        $this->userHandleGeneratorMock->method('getOrGenerate')->willReturn('dXNlci1oYW5kbGU=');
-        $this->configMock->method('getRpName')->willReturn('Test Store');
-        $this->configMock->method('getRpId')->willReturn('example.com');
-        $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
-        $this->configMock->method('getUserVerification')->willReturn('preferred');
-        $this->configMock->method('getAttestationConveyance')->willReturn('none');
-        $this->configMock->method('getCeremonyTimeout')->willReturn(60000);
 
         $cred1 = $this->createMock(CredentialInterface::class);
         $cred1->method('getCredentialId')->willReturn(base64_encode('cred-id-1'));
@@ -180,97 +164,41 @@ class OptionsGeneratorTest extends TestCase
         $cred2->method('getCredentialId')->willReturn(base64_encode('cred-id-2'));
         $cred2->method('getTransportsArray')->willReturn(['internal']);
 
-        $this->configureGetByCustomerId($customerId, [$cred1, $cred2]);
+        $this->configureHappyPath($customerId, 2, [$cred1, $cred2]);
 
-        $capturedOptions = null;
-        $this->serializerMock->method('serialize')
-            ->willReturnCallback(function ($object) use (&$capturedOptions) {
-                $capturedOptions = $object;
-                return '{"serialized":"with-excludes"}';
+        $capturedExclude = null;
+        $this->ceremonyMock->expects($this->once())
+            ->method('createRegistrationOptions')
+            ->willReturnCallback(function ($user, array $exclude) use (&$capturedExclude) {
+                $capturedExclude = $exclude;
+                return ['challengeToken' => 'token-xyz'];
             });
 
-        $this->configureCreateChallenge('token-xyz');
-        $this->jsonMock->method('unserialize')->willReturn(['serialized' => 'with-excludes']);
-        $this->jsonMock->method('serialize')->willReturn('{"serialized":"with-excludes","challengeToken":"token-xyz"}');
-
         $this->optionsGenerator->generate($customerId);
 
-        $this->assertNotNull($capturedOptions);
-        $excludeCredentials = $capturedOptions->excludeCredentials;
-        $this->assertCount(2, $excludeCredentials);
-        $this->assertSame('cred-id-1', $excludeCredentials[0]->id);
-        $this->assertSame(['usb', 'nfc'], $excludeCredentials[0]->transports);
-        $this->assertSame('cred-id-2', $excludeCredentials[1]->id);
-        $this->assertSame(['internal'], $excludeCredentials[1]->transports);
-    }
-
-    public function testGenerateCreatesChallengeWithCustomerId(): void
-    {
-        $customerId = 42;
-        $this->configureDefaultHappyPath($customerId);
-
-        $this->challengeManagerMock->expects($this->once())
-            ->method('create')
-            ->with(
-                ChallengeManager::TYPE_REGISTRATION,
-                $this->isType('string'),
-                $customerId
-            )
-            ->willReturn('challenge-token-abc');
-
-        $this->optionsGenerator->generate($customerId);
+        $this->assertNotNull($capturedExclude);
+        $this->assertCount(2, $capturedExclude);
+        $this->assertSame('public-key', $capturedExclude[0]->type);
+        $this->assertSame('cred-id-1', $capturedExclude[0]->id);
+        $this->assertSame(['usb', 'nfc'], $capturedExclude[0]->transports);
+        $this->assertSame('cred-id-2', $capturedExclude[1]->id);
+        $this->assertSame(['internal'], $capturedExclude[1]->transports);
     }
 
     public function testGenerateReturnsJsonWithChallengeToken(): void
     {
-        $customerId = 42;
-        $this->configureEnabled(true);
-        $this->configureMaxCredentials(10);
-        $this->configureCountByCustomerId($customerId, 0);
-        $this->configureGetByCustomerId($customerId, []);
-        $this->configureCustomer($customerId);
-        $this->userHandleGeneratorMock->method('getOrGenerate')->willReturn('dXNlci1oYW5kbGU=');
-        $this->configMock->method('getRpName')->willReturn('Test Store');
-        $this->configMock->method('getRpId')->willReturn('example.com');
-        $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
-        $this->configMock->method('getUserVerification')->willReturn('preferred');
-        $this->configMock->method('getAttestationConveyance')->willReturn('none');
-        $this->configMock->method('getCeremonyTimeout')->willReturn(60000);
+        $this->configureHappyPath(42);
 
-        $this->serializerMock->method('serialize')->willReturn('{"rp":"entity"}');
-        $this->configureCreateChallenge('my-challenge-token');
+        $this->ceremonyMock->expects($this->once())
+            ->method('createRegistrationOptions')
+            ->willReturn([
+                'rp' => ['id' => 'example.com', 'name' => 'Test Store'],
+                'challengeToken' => 'my-challenge-token',
+            ]);
 
-        $this->jsonMock->method('unserialize')
-            ->with('{"rp":"entity"}')
-            ->willReturn(['rp' => 'entity']);
+        $decoded = json_decode($this->optionsGenerator->generate(42), true);
 
-        $capturedArray = null;
-        $this->jsonMock->method('serialize')
-            ->willReturnCallback(function (array $data) use (&$capturedArray) {
-                $capturedArray = $data;
-                return json_encode($data);
-            });
-
-        $result = $this->optionsGenerator->generate($customerId);
-
-        $this->assertNotNull($capturedArray);
-        $this->assertArrayHasKey('challengeToken', $capturedArray);
-        $this->assertSame('my-challenge-token', $capturedArray['challengeToken']);
-
-        $decoded = json_decode($result, true);
         $this->assertSame('my-challenge-token', $decoded['challengeToken']);
-    }
-
-    public function testGenerateCallsUserHandleGenerator(): void
-    {
-        $customerId = 42;
-        $this->configureDefaultHappyPath($customerId);
-
-        $this->userHandleGeneratorMock->expects($this->once())
-            ->method('getOrGenerate')
-            ->with($customerId)
-            ->willReturn('dXNlci1oYW5kbGU=');
-
-        $this->optionsGenerator->generate($customerId);
+        $this->assertSame(['id' => 'example.com', 'name' => 'Test Store'], $decoded['rp']);
     }
 }

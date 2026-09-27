@@ -12,25 +12,24 @@ use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
 class CeremonyStepManagerProvider
 {
     public function __construct(
-        private readonly WebAuthnConfigInterface $config,
         private readonly AttestationStatementSupportManager $attestationStatementSupportManager
     ) {
     }
 
-    public function getCreationCeremony(): CeremonyStepManager
+    public function getCreationCeremony(WebAuthnConfigInterface $config): CeremonyStepManager
     {
-        return $this->buildFactory()->creationCeremony();
+        return $this->buildFactory($config)->creationCeremony();
     }
 
-    public function getRequestCeremony(): CeremonyStepManager
+    public function getRequestCeremony(WebAuthnConfigInterface $config): CeremonyStepManager
     {
-        return $this->buildFactory()->requestCeremony();
+        return $this->buildFactory($config)->requestCeremony();
     }
 
-    private function buildFactory(): CeremonyStepManagerFactory
+    private function buildFactory(WebAuthnConfigInterface $config): CeremonyStepManagerFactory
     {
         $factory = new CeremonyStepManagerFactory();
-        $factory->setAllowedOrigins($this->config->getAllowedOrigins());
+        $factory->setAllowedOrigins($config->getAllowedOrigins());
         $factory->setAttestationStatementSupportManager($this->attestationStatementSupportManager);
         return $factory;
     }

@@ -5,12 +5,21 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Model\AdminTfa;
 
 use MageOS\PasskeyAuth\Api\WebAuthnConfigInterface;
-use Magento\Framework\Exception\LocalizedException;
+use MageOS\PasskeyAuth\Model\WebAuthn\BaseUrlParserTrait;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
+use Webauthn\AuthenticatorSelectionCriteria;
+use Webauthn\PublicKeyCredentialCreationOptions;
 
+/**
+ * WebAuthn relying-party settings for admin 2FA: scoped to the admin URL, user verification required.
+ */
 class AdminTfaConfig implements WebAuthnConfigInterface
 {
+    use BaseUrlParserTrait;
+
+    private const CEREMONY_TIMEOUT = 60000;
+
     public function __construct(
         private readonly StoreManagerInterface $storeManager
     ) {
@@ -18,41 +27,42 @@ class AdminTfaConfig implements WebAuthnConfigInterface
 
     public function getRpId(): string
     {
-        $parsed = parse_url($this->getAdminBaseUrl());
-        if (!isset($parsed['host'])) {
-            throw new LocalizedException(__('Could not determine admin domain from base URL.'));
-        }
-        return $parsed['host'];
+        return $this->parseRpId($this->getAdminBaseUrl());
     }
 
     public function getRpName(): string
     {
-        return $this->storeManager->getStore(Store::ADMIN_CODE)->getName();
+        return (string) $this->storeManager->getStore(Store::ADMIN_CODE)->getName();
     }
 
     public function getAllowedOrigins(): array
     {
-        $parsed = parse_url($this->getAdminBaseUrl());
-        $origin = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? '');
-        if (isset($parsed['port'])) {
-            $origin .= ':' . $parsed['port'];
-        }
-        return [$origin];
+        return [$this->parseOrigin($this->getAdminBaseUrl())];
     }
 
     public function getUserVerification(): string
     {
-        return 'required';
+        return AuthenticatorSelectionCriteria::USER_VERIFICATION_REQUIREMENT_REQUIRED;
     }
 
-    public function getAuthenticatorAttachment(string $policy): ?string
+    public function getAuthenticatorAttachment(): ?string
     {
-        return $policy === 'hardware' ? 'cross-platform' : null;
+        return null;
     }
 
-    public function getAttestation(string $policy): string
+    public function getAttestationConveyance(): string
     {
-        return $policy === 'hardware' ? 'direct' : 'none';
+        return PublicKeyCredentialCreationOptions::ATTESTATION_CONVEYANCE_PREFERENCE_NONE;
+    }
+
+    public function getResidentKeyRequirement(): string
+    {
+        return AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_DISCOURAGED;
+    }
+
+    public function getCeremonyTimeout(): int
+    {
+        return self::CEREMONY_TIMEOUT;
     }
 
     private function getAdminBaseUrl(): string
