@@ -19,7 +19,8 @@ class CredentialManagement implements CredentialManagementInterface
 {
     public function __construct(
         private readonly CredentialRepositoryInterface $credentialRepository,
-        private readonly EventManager $eventManager
+        private readonly EventManager $eventManager,
+        private readonly CustomerSignOut $customerSignOut
     ) {
     }
 
@@ -33,6 +34,8 @@ class CredentialManagement implements CredentialManagementInterface
         $credential = $this->credentialRepository->getById($entityId);
         $this->assertOwnership($credential, $customerId);
         $this->revokeCredential($credential);
+        // Like a password change: sessions it may have started elsewhere end, this one stays
+        $this->customerSignOut->endOtherSessions($customerId);
 
         return true;
     }

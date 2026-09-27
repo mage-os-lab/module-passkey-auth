@@ -34,9 +34,8 @@ define([
                 verifyUrl: this.options.verifyUrl,
                 selectors: this.options.emailSelectors,
                 onError: function (error) {
-                    // 429: too many failed attempts, so tell the customer to wait
                     this._showMessage(
-                        error && error.status === 429
+                        passkeyCore.hasCustomerMessage(error)
                             ? error.message
                             : $t('Passkey sign-in didn\'t complete. Please try again.'),
                         'error'

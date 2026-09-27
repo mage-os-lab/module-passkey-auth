@@ -24,6 +24,9 @@ interface CredentialManagementInterface
     public function listCredentials(int $customerId): array;
 
     /**
+     * Delete one of the customer's own passkeys, then end the customer's other storefront sessions, as core does
+     * when a customer changes their password. The current session and API tokens are kept.
+     *
      * @param int $customerId
      * @param int $entityId
      * @return bool
@@ -33,7 +36,8 @@ interface CredentialManagementInterface
     public function deleteCredential(int $customerId, int $entityId): bool;
 
     /**
-     * Delete a credential without an ownership check (admin revocation).
+     * Delete a credential without an ownership check (admin revocation). Does not sign the customer out: the
+     * admin controllers do that once per customer with Model\CustomerSignOut::signOutEverywhere().
      *
      * @param CredentialInterface $credential
      * @return void

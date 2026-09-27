@@ -39,10 +39,11 @@ accounts and admin two-factor authentication. Key properties relied on:
   account with one passkey. An unknown credential and a failed verification
   return the same error. The storefront and GraphQL use one generic message
   for every sign-in failure except the failed sign-in limit; REST also
-  reports challenge errors (such as an expired challenge). Neither says
-  anything about the account. Descriptor
-  details (ID length, transports) of real credentials vary by authenticator
-  and are not disguised.
+  reports challenge errors (such as an expired challenge). None of these
+  says anything about the account. Only someone holding a valid passkey
+  learns that its account is locked or unconfirmed (see Account checks).
+  Descriptor details (ID length, transports) of real credentials vary by
+  authenticator and are not disguised.
 - **Wrong-account sign-in**: Because the decoy is never empty, a passkey
   sign-in started for an email without passkeys cannot be answered by an
   unrelated passkey saved on the device.
@@ -68,6 +69,17 @@ accounts and admin two-factor authentication. Key properties relied on:
   above zero, an assertion whose counter does not increase (possible cloned
   authenticator) is rejected. Authenticators that always report zero are
   not checked.
+- **Account checks**: After the assertion is verified, sign-in is refused
+  for a locked account, an account awaiting email confirmation, and a
+  customer group excluded from the website, as for password sign-in. Failed
+  passkey attempts never count toward the password lockout, since credential
+  IDs are public and anyone could otherwise lock a customer out. An existing
+  lock is honoured.
+- **Sign-out on removal**: Sessions and tokens are not tied to a passkey, so
+  removal signs out the customer. An admin revoke ends all their storefront
+  sessions and revokes all their API tokens. A customer deleting their own
+  passkey ends their other storefront sessions and keeps API tokens, as a
+  password change does.
 - **Change visibility**: Adding or removing a passkey triggers a customer
   notification email (configurable).
 

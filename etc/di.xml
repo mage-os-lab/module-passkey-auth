@@ -51,6 +51,13 @@
     <preference for="MageOS\PasskeyAuth\Api\CustomerPasskeyManagementInterface"
                 type="MageOS\PasskeyAuth\Model\CustomerPasskeyManagement"/>
 
+    <!-- Only needed when a passkey is deleted; building it starts a session and loads the token services -->
+    <type name="MageOS\PasskeyAuth\Model\CredentialManagement">
+        <arguments>
+            <argument name="customerSignOut" xsi:type="object">MageOS\PasskeyAuth\Model\CustomerSignOut\Proxy</argument>
+        </arguments>
+    </type>
+
     <!-- WebAuthn: accept every attestation format webauthn-lib can parse -->
     <type name="MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory">
         <arguments>

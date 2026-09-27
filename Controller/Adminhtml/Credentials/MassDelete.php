@@ -10,6 +10,7 @@ namespace MageOS\PasskeyAuth\Controller\Adminhtml\Credentials;
 
 use MageOS\PasskeyAuth\Api\CredentialManagementInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
+use MageOS\PasskeyAuth\Model\CustomerSignOut;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
@@ -29,7 +30,8 @@ class MassDelete extends Action implements HttpPostActionInterface
         private readonly CollectionFactory $collectionFactory,
         private readonly CredentialManagementInterface $credentialManagement,
         private readonly CredentialInterfaceFactory $credentialFactory,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly CustomerSignOut $customerSignOut
     ) {
         parent::__construct($context);
     }
@@ -49,12 +51,13 @@ class MassDelete extends Action implements HttpPostActionInterface
         }
 
         $revoked = 0;
+        $customerIds = [];
         foreach ($collection as $row) {
             try {
-                $this->credentialManagement->revokeCredential(
-                    $this->credentialFactory->create(['data' => $row->getData()])
-                );
+                $credential = $this->credentialFactory->create(['data' => $row->getData()]);
+                $this->credentialManagement->revokeCredential($credential);
                 $revoked++;
+                $customerIds[$credential->getCustomerId()] = true;
             } catch (\Exception $e) {
                 $this->logger->error('Admin passkey mass revoke failed for credential', [
                     'exception' => $e->getMessage(),
@@ -69,6 +72,20 @@ class MassDelete extends Action implements HttpPostActionInterface
             );
         } else {
             $this->messageManager->addErrorMessage(__('No passkeys were revoked.'));
+        }
+
+        // Once per customer, however many of their passkeys were selected
+        $notSignedOut = 0;
+        foreach (array_keys($customerIds) as $customerId) {
+            if (!$this->customerSignOut->signOutEverywhere($customerId)) {
+                $notSignedOut++;
+            }
+        }
+        if ($notSignedOut > 0) {
+            $this->messageManager->addWarningMessage(__(
+                '%1 customer(s) could not be signed out of their sessions and apps. See the error log.',
+                $notSignedOut
+            ));
         }
 
         return $resultRedirect;

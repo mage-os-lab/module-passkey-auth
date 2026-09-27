@@ -19,7 +19,10 @@ use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\Result\Json;
+use Magento\Framework\Exception\AuthenticationException;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\State\UserLockedException;
+use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadataFactory;
 use Magento\Framework\Stdlib\CookieManagerInterface;
@@ -54,6 +57,15 @@ class Verify implements HttpPostActionInterface
                 'errors' => true,
                 'message' => $e->getMessage(),
             ]);
+        } catch (UserLockedException) {
+            // The wording password sign-in (LoginPost) shows for a locked account
+            return $this->refused($resultJson, __(
+                'The account sign-in was incorrect or your account is disabled temporarily. '
+                . 'Please wait and try again later.'
+            ));
+        } catch (AuthenticationException $e) {
+            // Account not confirmed, or its group is excluded from this website
+            return $this->refused($resultJson, $e->getMessage());
         } catch (LocalizedException $e) {
             // Already logged by the verifier. Generic, so it does not tell whether the passkey exists
             return $this->failure($resultJson);
@@ -111,6 +123,17 @@ class Verify implements HttpPostActionInterface
             $this->logger->error('Passkey sign-in redirect error', ['exception' => $e->getMessage()]);
             return $this->customerUrl->getAccountUrl();
         }
+    }
+
+    /**
+     * The account was refused after its passkey was verified, so only the passkey holder learns why.
+     */
+    private function refused(Json $resultJson, Phrase|string $message): Json
+    {
+        return $resultJson->setHttpResponseCode(403)->setData([
+            'errors' => true,
+            'message' => $message,
+        ]);
     }
 
     private function failure(Json $resultJson): Json

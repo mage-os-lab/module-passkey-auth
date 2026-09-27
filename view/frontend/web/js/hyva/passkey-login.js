@@ -30,10 +30,9 @@ window.addEventListener('alpine:init', () => {
                     optionsUrl: this.optionsUrl,
                     verifyUrl: this.verifyUrl,
                     onError: (error) => {
-                        // 429: too many failed attempts, so tell the customer to wait
-                        this.message = error && error.status === 429
+                        this.message = passkeyCore.hasCustomerMessage(error)
                             ? error.message
-                            : 'Passkey sign-in didn\'t complete. Please try again.';
+                            : passkeyCore.t('Passkey sign-in didn\'t complete. Please try again.');
                         this.messageType = 'error';
                     }
                 });
@@ -58,17 +57,17 @@ window.addEventListener('alpine:init', () => {
                 const options = await passkeyCore.postJson(
                     this.optionsUrl,
                     {email: this.getEmail()},
-                    'Unable to sign in with passkey. Please use your password.'
+                    passkeyCore.t('Unable to sign in with passkey. Please use your password.')
                 );
                 const result = await this.performAssertion(options);
                 const reply = await passkeyCore.postJson(
                     this.verifyUrl,
                     result,
-                    'Passkey verification failed. Please try again.'
+                    passkeyCore.t('Passkey verification failed. Please try again.')
                 );
                 passkeyCore.completeSignIn(reply);
             } catch (error) {
-                this.message = error.message || 'Passkey sign-in failed.';
+                this.message = error.message || passkeyCore.t('Passkey sign-in failed.');
                 this.messageType = 'error';
                 this.loading = false;
                 passkeyCore.restartConditional();
@@ -87,9 +86,9 @@ window.addEventListener('alpine:init', () => {
                 };
             } catch (err) {
                 if (err.name === 'NotAllowedError') {
-                    throw new Error('Passkey sign-in was cancelled, or no passkey for this account was found on this device.');
+                    throw new Error(passkeyCore.t('Passkey sign-in was cancelled, or no passkey for this account was found on this device.'));
                 }
-                throw new Error('Unable to sign in with passkey. Please use your password.');
+                throw new Error(passkeyCore.t('Unable to sign in with passkey. Please use your password.'));
             }
         }
     }));

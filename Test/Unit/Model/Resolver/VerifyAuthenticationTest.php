@@ -12,10 +12,14 @@ use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\Resolver\VerifyAuthentication;
+use Magento\Framework\Exception\AuthenticationException;
+use Magento\Framework\Exception\EmailNotConfirmedException;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\State\UserLockedException;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Exception\GraphQlAuthenticationException;
 use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -72,6 +76,43 @@ class VerifyAuthenticationTest extends TestCase
 
         $this->expectException(GraphQlAuthenticationException::class);
         $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
+
+        $this->resolve();
+    }
+
+    public function testShowsUnconfirmedAccountMessage(): void
+    {
+        $this->verifier->method('verify')->willThrowException(
+            new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.'))
+        );
+
+        $this->expectException(GraphQlAuthenticationException::class);
+        $this->expectExceptionMessage('This account isn\'t confirmed. Verify and try again.');
+
+        $this->resolve();
+    }
+
+    /**
+     * @return array<string, array{AuthenticationException}>
+     */
+    public static function refusedAccountProvider(): array
+    {
+        return [
+            'locked' => [new UserLockedException(__('The account is locked.'))],
+            'group excluded' => [new AuthenticationException(__('This website is excluded from customer\'s group.'))],
+        ];
+    }
+
+    #[DataProvider('refusedAccountProvider')]
+    public function testShowsCoreMessageForRefusedAccount(AuthenticationException $exception): void
+    {
+        $this->verifier->method('verify')->willThrowException($exception);
+
+        $this->expectException(GraphQlAuthenticationException::class);
+        $this->expectExceptionMessage(
+            'The account sign-in was incorrect or your account is disabled temporarily. '
+            . 'Please wait and try again later.'
+        );
 
         $this->resolve();
     }

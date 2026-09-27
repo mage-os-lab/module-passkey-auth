@@ -43,14 +43,14 @@ window.addEventListener('alpine:init', () => {
             }
             if (!passkeyCore.isAvailable()) {
                 this.message = window.isSecureContext
-                    ? 'Your browser does not support passkeys.'
-                    : 'Passkeys require a secure (HTTPS) connection.';
+                    ? passkeyCore.t('Your browser does not support passkeys.')
+                    : passkeyCore.t('Passkeys require a secure (HTTPS) connection.');
                 this.messageType = 'error';
                 return;
             }
 
             const answer = prompt(
-                'Give this passkey a name so you can recognize it later:',
+                passkeyCore.t('Give this passkey a name so you can recognize it later:'),
                 passkeyCore.suggestName()
             );
             if (answer === null) {
@@ -59,8 +59,8 @@ window.addEventListener('alpine:init', () => {
             const friendlyName = answer.trim() || null;
             if (friendlyName && (friendlyName.length > 255 || /[<>&]/.test(friendlyName))) {
                 this.message = friendlyName.length > 255
-                    ? 'Passkey name must be 255 characters or fewer.'
-                    : 'Passkey names can\'t contain <, > or &.';
+                    ? passkeyCore.t('Passkey name must be 255 characters or fewer.')
+                    : passkeyCore.t('Passkey names can\'t contain <, > or &.');
                 this.messageType = 'error';
                 return;
             }
@@ -69,7 +69,7 @@ window.addEventListener('alpine:init', () => {
             this.busy = true;
 
             try {
-                const options = await passkeyCore.postJson(this.registrationOptionsUrl, {}, 'Registration failed.');
+                const options = await passkeyCore.postJson(this.registrationOptionsUrl, {}, passkeyCore.t('Registration failed.'));
                 const challengeToken = options.challengeToken;
                 const creationOptions = passkeyCore.prepareCreationOptions(options);
                 const credential = await navigator.credentials.create(creationOptions);
@@ -79,19 +79,19 @@ window.addEventListener('alpine:init', () => {
                     challengeToken: challengeToken,
                     credential: serialized,
                     friendlyName: friendlyName
-                }, 'Registration failed.');
+                }, passkeyCore.t('Registration failed.'));
 
-                this.message = 'Passkey registered successfully.';
+                this.message = passkeyCore.t('Passkey registered successfully.');
                 this.messageType = 'success';
                 setTimeout(function () { window.location.reload(); }, 1000);
             } catch (err) {
                 this.busy = false;
                 if (err.name === 'NotAllowedError') {
-                    this.message = 'Passkey registration was cancelled.';
+                    this.message = passkeyCore.t('Passkey registration was cancelled.');
                 } else if (err.name === 'InvalidStateError') {
-                    this.message = 'This device already has a passkey for your account. Try signing in with it instead.';
+                    this.message = passkeyCore.t('This device already has a passkey for your account. Try signing in with it instead.');
                 } else {
-                    this.message = err.message || 'Registration failed.';
+                    this.message = err.message || passkeyCore.t('Registration failed.');
                 }
                 this.messageType = 'error';
             }
@@ -158,13 +158,13 @@ window.addEventListener('alpine:init', () => {
                     this.$refs.nameDisplay.textContent = this.friendlyName;
                 }
             } catch (e) {
-                this.$dispatch('passkey-message', {text: 'Failed to rename passkey.', type: 'error'});
+                this.$dispatch('passkey-message', {text: passkeyCore.t('Failed to rename passkey.'), type: 'error'});
             }
         },
 
         async deleteRow() {
-            const name = this.friendlyName || 'this passkey';
-            if (!confirm('Delete "' + name + '"? You will no longer be able to sign in with it.')) {
+            const name = this.friendlyName || passkeyCore.t('this passkey');
+            if (!confirm(passkeyCore.t('Delete "%1"? You will no longer be able to sign in with it.', name))) {
                 return;
             }
 
@@ -193,10 +193,10 @@ window.addEventListener('alpine:init', () => {
                         this.$dispatch('passkey-deleted');
                         row.remove();
                     }, 300);
-                    this.$dispatch('passkey-message', {text: 'Passkey deleted.', type: 'success'});
+                    this.$dispatch('passkey-message', {text: passkeyCore.t('Passkey deleted.'), type: 'success'});
                 }
             } catch (e) {
-                this.$dispatch('passkey-message', {text: 'Failed to delete passkey.', type: 'error'});
+                this.$dispatch('passkey-message', {text: passkeyCore.t('Failed to delete passkey.'), type: 'error'});
             }
         }
     }));

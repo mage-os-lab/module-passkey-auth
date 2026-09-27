@@ -17,7 +17,22 @@
         // Re-issue the autofill challenge before the server's 5-minute TTL runs out
         CONDITIONAL_REFRESH_MS = 4 * 60000,
         conditional = null,
-        webauthnFieldSelectors = null;
+        webauthnFieldSelectors = null,
+        translations = null;
+
+    /**
+     * Phrases rendered by the Hyvä template hyva/scripts.phtml. Luma
+     * translates with mage/translate instead, so it has none.
+     */
+    function readTranslations() {
+        var el = document.getElementById('mageos-passkey-i18n');
+
+        try {
+            return el ? JSON.parse(el.textContent) || {} : {};
+        } catch (e) {
+            return {};
+        }
+    }
 
     /**
      * Add the "webauthn" autofill token. It must follow an autofill field
@@ -41,6 +56,25 @@
     }
 
     return {
+        /**
+         * Translate a message on Hyvä, where mage/translate isn't loaded.
+         * Falls back to the English text. %1, %2... are replaced by the
+         * extra arguments.
+         */
+        t: function (text) {
+            var args = arguments,
+                phrase;
+
+            if (translations === null) {
+                translations = readTranslations();
+            }
+            phrase = typeof translations[text] === 'string' ? translations[text] : text;
+
+            return phrase.replace(/%(\d+)/g, function (match, index) {
+                return args[index] !== undefined ? String(args[index]) : match;
+            });
+        },
+
         /**
          * Default selectors for the sign-in email field.
          */
@@ -98,6 +132,16 @@
                     return data;
                 });
             });
+        },
+
+        /**
+         * Whether a failed sign-in's server message should be shown as is:
+         * 429, too many failed attempts (the customer must wait), or 403, the
+         * passkey was verified but the account can't sign in (locked, not
+         * confirmed). Other failures get a generic message.
+         */
+        hasCustomerMessage: function (error) {
+            return !!error && (error.status === 429 || error.status === 403);
         },
 
         /**
@@ -314,7 +358,7 @@
          */
         suggestName: function () {
             var ua = navigator.userAgent,
-                browser = 'Browser',
+                browser = this.t('Browser'),
                 platform = '';
 
             if (/edg\//i.test(ua)) {
@@ -343,7 +387,7 @@
                 platform = 'Linux';
             }
 
-            return platform ? browser + ' on ' + platform : browser;
+            return platform ? this.t('%1 on %2', browser, platform) : browser;
         },
 
         /**

@@ -44,6 +44,16 @@ The browser found an existing passkey for this account on the device and won't m
 
 An admin used Login as Customer and tried to add a passkey. This is blocked on purpose, so an admin can't add a passkey of their own to a customer's account. See [Login as Customer](security.md#login-as-customer).
 
+## "The account sign-in was incorrect or your account is disabled temporarily"
+
+The passkey was accepted, but the account is locked after too many wrong passwords. It unlocks by itself after the **Lockout Time** set under **Stores > Configuration > Customers > Customer Configuration > Password Options**. To unlock it now, open the customer in the admin and click **Unlock** at the top of the page.
+
+Failed passkey sign-ins never lock an account. See [Locked and unconfirmed accounts](security.md#locked-and-unconfirmed-accounts).
+
+## "This account isn't confirmed. Verify and try again."
+
+The passkey was accepted, but the account still needs email confirmation, or the customer changed their email address and hasn't confirmed the new one. The customer clicks the link in the confirmation email. See [Locked and unconfirmed accounts](security.md#locked-and-unconfirmed-accounts).
+
 ## "Too many passkey requests" or "Too many failed passkey attempts"
 
 A rate limit was hit. Wait up to 15 minutes. On a shared IP address, such as an office network, several customers share the failed-sign-in limit. Flushing the cache resets all counters. See [Rate limits](security.md#rate-limits).

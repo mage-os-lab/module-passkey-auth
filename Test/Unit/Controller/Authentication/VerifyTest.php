@@ -20,12 +20,16 @@ use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Customer\Model\Url as CustomerUrl;
 use Magento\Framework\App\Request\Http as HttpRequest;
+use Magento\Framework\Exception\AuthenticationException;
+use Magento\Framework\Exception\EmailNotConfirmedException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\Exception\State\UserLockedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
 use Magento\Framework\Stdlib\Cookie\CookieMetadata;
 use Magento\Framework\Stdlib\Cookie\CookieMetadataFactory;
 use Magento\Framework\Stdlib\CookieManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -262,6 +266,45 @@ class VerifyTest extends TestCase
             'Too many failed passkey attempts. Please try again later.',
             (string) $this->capturedData['message']
         );
+    }
+
+    /**
+     * @return array<string, array{AuthenticationException, string}>
+     */
+    public static function refusedAccountProvider(): array
+    {
+        return [
+            // LoginPost's wording for a locked account
+            'locked' => [
+                new UserLockedException(__('The account is locked.')),
+                'The account sign-in was incorrect or your account is disabled temporarily. '
+                    . 'Please wait and try again later.',
+            ],
+            'not confirmed' => [
+                new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.')),
+                'This account isn\'t confirmed. Verify and try again.',
+            ],
+            'group excluded' => [
+                new AuthenticationException(__('This website is excluded from customer\'s group.')),
+                'This website is excluded from customer\'s group.',
+            ],
+        ];
+    }
+
+    #[DataProvider('refusedAccountProvider')]
+    public function testExecuteShowsRefusedAccountMessage(AuthenticationException $exception, string $message): void
+    {
+        $this->configureRequestBody(['challengeToken' => 'tok', 'credential' => ['id' => 'r1']]);
+        $this->jsonMock->method('serialize')->willReturn('{"id":"r1"}');
+        $this->verifierMock->method('verify')->willThrowException($exception);
+        $this->mockCustomerSession()->expects($this->never())->method('setCustomerDataAsLoggedIn');
+        $this->mockLogger()->expects($this->never())->method('error');
+
+        $this->controller()->execute();
+
+        $this->assertSame(403, $this->capturedHttpCode);
+        $this->assertTrue($this->capturedData['errors']);
+        $this->assertSame($message, (string) $this->capturedData['message']);
     }
 
     public function testExecuteFailsWhenCustomerCannotBeLoaded(): void

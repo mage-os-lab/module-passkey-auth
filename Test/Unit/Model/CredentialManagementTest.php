@@ -11,10 +11,12 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\CredentialManagement;
+use MageOS\PasskeyAuth\Model\CustomerSignOut;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\AuthorizationException;
 use Magento\Framework\Exception\LocalizedException;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -23,20 +25,41 @@ class CredentialManagementTest extends TestCase
     use MocksCredentialRepositoryTrait;
 
     private EventManager&Stub $eventManagerMock;
+    private CustomerSignOut&Stub $customerSignOut;
     private ?CredentialManagement $credentialManagement = null;
 
     protected function setUp(): void
     {
         $this->createCredentialRepositoryStub();
         $this->eventManagerMock = $this->createStub(EventManager::class);
+        $this->customerSignOut = $this->createStub(CustomerSignOut::class);
     }
 
     private function credentialManagement(): CredentialManagement
     {
         return $this->credentialManagement ??= new CredentialManagement(
             $this->credentialRepositoryMock,
-            $this->eventManagerMock
+            $this->eventManagerMock,
+            $this->customerSignOut
         );
+    }
+
+    private function mockCustomerSignOut(): CustomerSignOut&MockObject
+    {
+        $mock = $this->createMock(CustomerSignOut::class);
+        $this->customerSignOut = $mock;
+
+        return $mock;
+    }
+
+    private function ownedCredential(int $customerId, int $entityId): CredentialInterface&Stub
+    {
+        $credential = $this->createStub(CredentialInterface::class);
+        $credential->method('getCustomerId')->willReturn($customerId);
+        $credential->method('getEntityId')->willReturn($entityId);
+        $this->credentialRepositoryMock->method('getById')->willReturn($credential);
+
+        return $credential;
     }
 
     public function testListCredentialsDelegatesToRepository(): void
@@ -105,6 +128,51 @@ class CredentialManagementTest extends TestCase
         $this->expectException(AuthorizationException::class);
 
         $this->credentialManagement()->deleteCredential($customerId, $entityId);
+    }
+
+    public function testDeleteCredentialEndsOtherSessionsOnly(): void
+    {
+        $this->ownedCredential(10, 55);
+        $signOut = $this->mockCustomerSignOut();
+        $signOut->expects($this->once())->method('endOtherSessions')->with(10)->willReturn(true);
+        // Same as a password change: API tokens are kept
+        $signOut->expects($this->never())->method('signOutEverywhere');
+
+        $this->assertTrue($this->credentialManagement()->deleteCredential(10, 55));
+    }
+
+    public function testDeleteCredentialSucceedsWhenSessionsCannotBeEnded(): void
+    {
+        $this->mockCredentialRepository()->expects($this->once())->method('delete');
+        $this->ownedCredential(10, 55);
+        // Logged by CustomerSignOut; the passkey is already gone
+        $this->mockCustomerSignOut()->expects($this->once())->method('endOtherSessions')->willReturn(false);
+
+        $this->assertTrue($this->credentialManagement()->deleteCredential(10, 55));
+    }
+
+    public function testDeleteCredentialOfOtherCustomerSignsNobodyOut(): void
+    {
+        $this->ownedCredential(99, 55);
+        $signOut = $this->mockCustomerSignOut();
+        $signOut->expects($this->never())->method('endOtherSessions');
+        $signOut->expects($this->never())->method('signOutEverywhere');
+
+        $this->expectException(AuthorizationException::class);
+
+        $this->credentialManagement()->deleteCredential(10, 55);
+    }
+
+    public function testRevokeCredentialLeavesSignOutToCaller(): void
+    {
+        $credential = $this->createStub(CredentialInterface::class);
+        $credential->method('getCustomerId')->willReturn(10);
+        $this->mockCredentialRepository()->expects($this->once())->method('delete')->with($credential);
+        $signOut = $this->mockCustomerSignOut();
+        $signOut->expects($this->never())->method('endOtherSessions');
+        $signOut->expects($this->never())->method('signOutEverywhere');
+
+        $this->credentialManagement()->revokeCredential($credential);
     }
 
     public function testRenameCredentialSuccess(): void
