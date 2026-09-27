@@ -17,10 +17,21 @@ window.addEventListener('alpine:init', () => {
             this.available = passkeyCore.isAvailable();
             this.optionsUrl = this.$el.dataset.optionsUrl;
             this.verifyUrl = this.$el.dataset.verifyUrl;
+
+            if (this.available) {
+                passkeyCore.startConditional({
+                    optionsUrl: this.optionsUrl,
+                    verifyUrl: this.verifyUrl,
+                    onError: () => {
+                        this.message = 'Passkey sign-in didn\'t complete. Please try again.';
+                        this.messageType = 'error';
+                    }
+                });
+            }
         },
 
         getEmail() {
-            const field = document.querySelector('input#email, input[name="login[username]"]');
+            const field = document.querySelector(passkeyCore.EMAIL_SELECTORS);
             return field ? field.value : '';
         },
 
@@ -29,15 +40,24 @@ window.addEventListener('alpine:init', () => {
             this.messageType = '';
             this.loading = true;
 
+            // Only one WebAuthn request may be active: hand off from the
+            // pending autofill (conditional) request to the modal ceremony.
+            passkeyCore.abortConditional();
+
             try {
-                const options = await this.fetchOptions(this.getEmail());
+                const options = await passkeyCore.postJson(
+                    this.optionsUrl,
+                    {email: this.getEmail()},
+                    'Unable to sign in with passkey. Please use your password.'
+                );
                 const result = await this.performAssertion(options);
-                await this.verifyAssertion(result.challengeToken, result.credential);
+                await passkeyCore.postJson(this.verifyUrl, result, 'Passkey verification failed. Please try again.');
                 window.location.reload();
             } catch (error) {
                 this.message = error.message || 'Passkey sign-in failed.';
                 this.messageType = 'error';
                 this.loading = false;
+                passkeyCore.restartConditional();
             }
         },
 

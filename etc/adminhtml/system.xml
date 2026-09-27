@@ -32,6 +32,48 @@
                         <field id="enabled">1</field>
                     </depends>
                 </field>
+
+                <field id="notify_credential_changes" translate="label comment" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Email Customer When Passkeys Change</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Send an account-security notification email when a passkey is added to or removed from a customer account.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="notification_email_identity" translate="label" type="select" sortOrder="50"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Passkey Notification Email Sender</label>
+                    <source_model>Magento\Config\Model\Config\Source\Email\Identity</source_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                        <field id="notify_credential_changes">1</field>
+                    </depends>
+                </field>
+
+                <field id="added_email_template" translate="label comment" type="select" sortOrder="60"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Passkey Added Email Template</label>
+                    <source_model>Magento\Config\Model\Config\Source\Email\Template</source_model>
+                    <comment>Email template chosen based on theme fallback when "Default" option is selected.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                        <field id="notify_credential_changes">1</field>
+                    </depends>
+                </field>
+
+                <field id="removed_email_template" translate="label comment" type="select" sortOrder="70"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Passkey Removed Email Template</label>
+                    <source_model>Magento\Config\Model\Config\Source\Email\Template</source_model>
+                    <comment>Email template chosen based on theme fallback when "Default" option is selected.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                        <field id="notify_credential_changes">1</field>
+                    </depends>
+                </field>
             </group>
         </section>
     </system>

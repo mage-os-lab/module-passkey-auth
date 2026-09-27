@@ -5,5 +5,8 @@
         <route id="tfa" frontName="tfa">
             <module name="MageOS_PasskeyAuth" before="Magento_TwoFactorAuth" />
         </route>
+        <route id="mageos_passkey" frontName="mageos_passkey">
+            <module name="MageOS_PasskeyAuth"/>
+        </route>
     </router>
 </config>

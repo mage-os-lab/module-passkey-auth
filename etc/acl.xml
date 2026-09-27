@@ -4,6 +4,12 @@
     <acl>
         <resources>
             <resource id="Magento_Backend::admin">
+                <resource id="Magento_Customer::customer">
+                    <resource id="MageOS_PasskeyAuth::credentials" title="Customer Passkeys" sortOrder="50">
+                        <resource id="MageOS_PasskeyAuth::credentials_delete" title="Revoke Customer Passkeys"
+                                  sortOrder="10"/>
+                    </resource>
+                </resource>
                 <resource id="Magento_Backend::stores">
                     <resource id="Magento_Backend::stores_settings">
                         <resource id="Magento_Config::config">

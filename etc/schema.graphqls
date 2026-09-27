@@ -1,0 +1,69 @@
+# MageOS_PasskeyAuth GraphQL schema
+#
+# Mirrors the REST surface: WebAuthn ceremony options are exchanged as JSON
+# strings (options_json) exactly as produced for navigator.credentials.create()
+# and navigator.credentials.get(); responses are posted back serialized.
+
+type Query {
+    customerPasskeys: [CustomerPasskey]
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\CustomerPasskeys")
+    @doc(description: "List the passkeys registered on the current customer account.")
+    @cache(cacheable: false)
+}
+
+type Mutation {
+    createPasskeyRegistrationOptions: PasskeyCeremonyOptions
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\CreateRegistrationOptions")
+    @doc(description: "Start passkey registration for the logged-in customer. Returns WebAuthn creation options (JSON) including a single-use challenge_token.")
+
+    verifyPasskeyRegistration(input: VerifyPasskeyRegistrationInput!): CustomerPasskey
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\VerifyRegistration")
+    @doc(description: "Complete passkey registration for the logged-in customer with the serialized attestation response.")
+
+    createPasskeyAuthenticationOptions(email: String): PasskeyCeremonyOptions
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\CreateAuthenticationOptions")
+    @doc(description: "Start passkey authentication. Email is optional; when omitted, discoverable credentials are used. Returns WebAuthn request options (JSON) including a single-use challenge_token.")
+
+    verifyPasskeyAuthentication(input: VerifyPasskeyAuthenticationInput!): PasskeyAuthenticationResult
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\VerifyAuthentication")
+    @doc(description: "Complete passkey authentication with the serialized assertion response. Returns a customer token usable as the Authorization bearer token.")
+
+    renameCustomerPasskey(passkeyId: Int!, name: String!): CustomerPasskey
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\RenamePasskey")
+    @doc(description: "Rename one of the logged-in customer's passkeys.")
+
+    deleteCustomerPasskey(passkeyId: Int!): DeleteCustomerPasskeyOutput
+    @resolver(class: "MageOS\\PasskeyAuth\\Model\\Resolver\\DeletePasskey")
+    @doc(description: "Delete one of the logged-in customer's passkeys.")
+}
+
+type PasskeyCeremonyOptions @doc(description: "WebAuthn ceremony options produced by the server.") {
+    options_json: String! @doc(description: "JSON-encoded WebAuthn options, including the challengeToken field.")
+}
+
+input VerifyPasskeyRegistrationInput {
+    challenge_token: String! @doc(description: "The challengeToken returned by createPasskeyRegistrationOptions.")
+    attestation_response: String! @doc(description: "JSON-serialized PublicKeyCredential from navigator.credentials.create().")
+    name: String @doc(description: "Optional friendly name for the new passkey.")
+}
+
+input VerifyPasskeyAuthenticationInput {
+    challenge_token: String! @doc(description: "The challengeToken returned by createPasskeyAuthenticationOptions.")
+    assertion_response: String! @doc(description: "JSON-serialized PublicKeyCredential from navigator.credentials.get().")
+}
+
+type PasskeyAuthenticationResult {
+    customer_token: String! @doc(description: "Customer token; send as 'Authorization: Bearer' on subsequent requests.")
+}
+
+type CustomerPasskey @doc(description: "A WebAuthn credential registered on a customer account.") {
+    id: Int! @doc(description: "Credential entity ID.")
+    name: String @doc(description: "Customer-assigned friendly name.")
+    transports: [String] @doc(description: "Authenticator transports reported at registration.")
+    created_at: String @doc(description: "Creation timestamp (UTC).")
+    last_used_at: String @doc(description: "Last successful authentication timestamp (UTC).")
+}
+
+type DeleteCustomerPasskeyOutput {
+    success: Boolean!
+}

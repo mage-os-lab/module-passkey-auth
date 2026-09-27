@@ -1,0 +1,19 @@
+<!--@subject {{trans "A passkey was removed from your %store_name account" store_name=$store_name}} @-->
+<!--@vars {
+"var customer_name":"Customer Name",
+"var passkey_name":"Passkey Name",
+"var store_name":"Store Name"
+} @-->
+{{template config_path="design/email/header_template"}}
+
+<p class="greeting">{{trans "Hi %name," name=$customer_name}}</p>
+<p>{{trans 'The passkey "%passkey_name" was removed from your %store_name account.' passkey_name=$passkey_name store_name=$store_name}}</p>
+<p>{{trans "It can no longer be used to sign in."}}</p>
+<p>
+    {{trans "If you did not remove this passkey, please change your password immediately and contact us, as someone else may have access to your account."}}
+</p>
+<p>
+    {{trans 'You can review the passkeys on your account at any time under <a href="%url">Sign-In &amp; Security</a>.' url="$this.getUrl($store,'passkey/account')" |raw}}
+</p>
+
+{{template config_path="design/email/footer_template"}}

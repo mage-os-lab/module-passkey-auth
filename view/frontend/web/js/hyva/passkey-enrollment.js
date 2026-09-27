@@ -7,14 +7,15 @@ window.addEventListener('alpine:init', () => {
 
             if (data.passkey
                 && data.passkey.show_enrollment_prompt
-                && !sessionStorage.getItem('passkey_enrollment_dismissed')
+                && passkeyCore.isAvailable()
+                && !passkeyCore.isEnrollmentSnoozed()
             ) {
                 this.visible = true;
             }
         },
 
         dismiss() {
-            sessionStorage.setItem('passkey_enrollment_dismissed', '1');
+            passkeyCore.recordEnrollmentDismissal();
             this.visible = false;
         }
     }));
