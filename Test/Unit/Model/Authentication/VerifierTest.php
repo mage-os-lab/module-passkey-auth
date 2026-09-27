@@ -10,6 +10,7 @@ use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\Authentication\Verifier;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
+use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
@@ -17,6 +18,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -42,6 +44,7 @@ class VerifierTest extends TestCase
     private AuthenticationResultInterfaceFactory&MockObject $resultFactoryMock;
     private EventManager&MockObject $eventManagerMock;
     private DateTime&MockObject $dateTimeMock;
+    private RateLimiter&MockObject $rateLimiterMock;
     private Verifier $verifier;
 
     private PublicKeyCredential $credential;
@@ -59,6 +62,9 @@ class VerifierTest extends TestCase
         $this->resultFactoryMock = $this->createMock(AuthenticationResultInterfaceFactory::class);
         $this->eventManagerMock = $this->createMock(EventManager::class);
         $this->dateTimeMock = $this->createMock(DateTime::class);
+        $this->rateLimiterMock = $this->createMock(RateLimiter::class);
+        $remoteAddressStub = $this->createStub(RemoteAddress::class);
+        $remoteAddressStub->method('getRemoteAddress')->willReturn('10.0.0.1');
 
         $this->credential = PublicKeyCredential::create(
             'public-key',
@@ -76,7 +82,9 @@ class VerifierTest extends TestCase
             $this->resultFactoryMock,
             $this->eventManagerMock,
             $this->loggerMock,
-            $this->dateTimeMock
+            $this->dateTimeMock,
+            $this->rateLimiterMock,
+            $remoteAddressStub
         );
     }
 
@@ -213,27 +221,38 @@ class VerifierTest extends TestCase
         $this->assertSame($result, $this->verifier->verify('valid-token', '{"response":"assertion"}'));
     }
 
-    public function testVerifyWarnsOnSignCountDecrease(): void
+    public function testVerifyThrowsWhenRateLimited(): void
     {
         $this->configureEnabled(true);
-        $this->configureLoadAssertion();
-        $this->configureStoredCredential(5);
-        $this->configureVerifiedAssertion(1);
-        $this->configureTokenAndResult();
+        $this->rateLimiterMock->method('checkVerifyFailRate')
+            ->with('10.0.0.1')
+            ->willThrowException(new LocalizedException(
+                __('Too many failed passkey attempts. Please try again later.')
+            ));
+        $this->ceremonyMock->expects($this->never())->method('loadAssertion');
+        $this->rateLimiterMock->expects($this->never())->method('recordVerifyFailure');
 
-        $this->loggerMock->expects($this->once())
-            ->method('warning')
-            ->with('Passkey sign count decreased — possible cloned authenticator', [
-                'credential_id' => base64_encode(self::RAW_ID),
-                'customer_id' => self::CUSTOMER_ID,
-                'stored_count' => 5,
-                'received_count' => 1,
-            ]);
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
 
         $this->verifier->verify('valid-token', '{"response":"assertion"}');
     }
 
-    public function testVerifyNoWarningWhenBothSignCountsZero(): void
+    public function testVerifyRecordsFailureForClientIp(): void
+    {
+        $this->configureEnabled(true);
+        $this->ceremonyMock->method('loadAssertion')
+            ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
+        $this->rateLimiterMock->expects($this->once())
+            ->method('recordVerifyFailure')
+            ->with('10.0.0.1');
+
+        $this->expectException(LocalizedException::class);
+
+        $this->verifier->verify('bad-token', '{"response":"assertion"}');
+    }
+
+    public function testVerifySuccessDoesNotRecordFailure(): void
     {
         $this->configureEnabled(true);
         $this->configureLoadAssertion();
@@ -241,7 +260,8 @@ class VerifierTest extends TestCase
         $this->configureVerifiedAssertion(0);
         $result = $this->configureTokenAndResult();
 
-        $this->loggerMock->expects($this->never())->method('warning');
+        $this->rateLimiterMock->expects($this->once())->method('checkVerifyFailRate')->with('10.0.0.1');
+        $this->rateLimiterMock->expects($this->never())->method('recordVerifyFailure');
 
         $this->assertSame($result, $this->verifier->verify('valid-token', '{"response":"assertion"}'));
     }

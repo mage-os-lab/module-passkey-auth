@@ -61,6 +61,24 @@ class ConfigTest extends TestCase
         $this->config->getAllowedOrigins();
     }
 
+    public function testIsEnabledReadsCurrentStoreScope(): void
+    {
+        $this->expectStoreScopedFlag(Config::XML_PATH_ENABLED);
+        $this->assertTrue($this->config->isEnabled());
+    }
+
+    public function testIsPromptAfterLoginEnabledReadsCurrentStoreScope(): void
+    {
+        $this->expectStoreScopedFlag(Config::XML_PATH_PROMPT_AFTER_LOGIN);
+        $this->assertTrue($this->config->isPromptAfterLoginEnabled());
+    }
+
+    public function testIsPromptOnRegistrationEnabledReadsCurrentStoreScope(): void
+    {
+        $this->expectStoreScopedFlag(Config::XML_PATH_PROMPT_ON_REGISTRATION);
+        $this->assertTrue($this->config->isPromptOnRegistrationEnabled());
+    }
+
     public function testIsCredentialNotificationEnabledReadsFlag(): void
     {
         $this->scopeConfig->method('isSetFlag')
@@ -86,5 +104,13 @@ class ConfigTest extends TestCase
             'custom_template_42',
             $this->config->getEmailTemplate(Config::XML_PATH_REMOVED_EMAIL_TEMPLATE, 3)
         );
+    }
+
+    private function expectStoreScopedFlag(string $path): void
+    {
+        $this->scopeConfig->expects($this->once())
+            ->method('isSetFlag')
+            ->with($path, ScopeInterface::SCOPE_STORE)
+            ->willReturn(true);
     }
 }

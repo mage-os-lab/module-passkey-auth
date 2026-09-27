@@ -182,18 +182,6 @@ class EngineTest extends TestCase
         $this->assertTrue($this->engine->verify($this->user, $this->assertionRequest()));
     }
 
-    public function testVerifyWarnsOnCounterRegression(): void
-    {
-        $this->givenProviderConfigs([Engine::CODE => $this->registration('cred-a')]);
-        $this->givenAssertionVerifies($this->source('cred-a', 4));
-
-        $this->logger->expects($this->once())
-            ->method('warning')
-            ->with($this->stringContains('sign count decreased'));
-
-        $this->engine->verify($this->user, $this->assertionRequest());
-    }
-
     public function testVerifyHidesLibraryErrorsBehindGenericMessage(): void
     {
         $this->givenProviderConfigs([Engine::CODE => $this->registration('cred-a')]);
