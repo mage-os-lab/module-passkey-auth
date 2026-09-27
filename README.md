@@ -46,13 +46,21 @@ composer require mage-os/module-passkey-auth
 bin/magento setup:upgrade
 ```
 
+Customer passkeys are disabled by default. Turn them on under **Enable Passkey Authentication** (see below), or run:
+
+```bash
+bin/magento config:set customer/passkey/enabled 1
+```
+
+The admin passkey 2FA provider doesn't depend on this setting; it's managed with the other 2FA providers.
+
 ## Configuration
 
 Navigate to **Stores > Configuration > Customers > Customer Configuration > Passkey Authentication**.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| **Enable Passkey Authentication** | Master on/off switch | Yes |
+| **Enable Passkey Authentication** | Master on/off switch for the storefront, REST and GraphQL features | No |
 | **Prompt After Password Login** | Show enrollment banner on account pages after password sign-in | Yes |
 | **Prompt After Account Creation** | Show enrollment banner on account pages after registration | No |
 | **Email Customer When Passkeys Change** | Send a security notification when a passkey is added/removed | Yes |
