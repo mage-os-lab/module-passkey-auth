@@ -12,13 +12,20 @@
         - customer_id (int)
         - credential (CredentialInterface)
 
+    passkey_registration_failure
+        - customer_id (int)
+        - reason (string)
+
     passkey_authentication_success
         - customer_id (int)
         - credential (CredentialInterface)
+      REST, SOAP and GraphQL sign-ins then also dispatch core customer_login (etc/<area>/events.xml);
+      storefront sign-in dispatches it through the customer session.
 
     passkey_authentication_failure
         - credential_id (string, base64)
-        - reason (string)
+        - reason (string; "credential_not_found" also covers a credential of another website
+          when customer accounts are shared per website)
 
     passkey_credential_remove_after
         - customer_id (int)

@@ -38,6 +38,32 @@ class RateLimiterTest extends TestCase
         $this->rateLimiter->checkOptionsRate('test@example.com');
     }
 
+    public function testCacheKeysUseSha256(): void
+    {
+        $this->cache->expects($this->exactly(2))
+            ->method('load')
+            ->with('passkey_options_' . hash('sha256', 'test@example.com'))
+            ->willReturn(false);
+        $this->cache->expects($this->once())
+            ->method('save')
+            ->with('1', 'passkey_options_' . hash('sha256', 'test@example.com'), [], 60);
+
+        $this->rateLimiter->checkOptionsRate('test@example.com');
+    }
+
+    public function testVerifyFailureKeyUsesSha256(): void
+    {
+        $this->cache->expects($this->once())
+            ->method('load')
+            ->with('passkey_verify_fail_' . hash('sha256', '127.0.0.1'))
+            ->willReturn(false);
+        $this->cache->expects($this->once())
+            ->method('save')
+            ->with('1', 'passkey_verify_fail_' . hash('sha256', '127.0.0.1'), [], 900);
+
+        $this->rateLimiter->recordVerifyFailure('127.0.0.1');
+    }
+
     public function testCheckOptionsRateUnderLimit(): void
     {
         $this->cache->expects($this->exactly(2))

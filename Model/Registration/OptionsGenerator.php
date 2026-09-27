@@ -30,7 +30,8 @@ class OptionsGenerator implements RegistrationOptionsInterface
         private readonly UserHandleGenerator $userHandleGenerator,
         private readonly Ceremony $ceremony,
         private readonly Json $json,
-        private readonly RateLimiter $rateLimiter
+        private readonly RateLimiter $rateLimiter,
+        private readonly AdminImpersonationGuard $adminImpersonationGuard
     ) {
     }
 
@@ -40,6 +41,7 @@ class OptionsGenerator implements RegistrationOptionsInterface
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
 
+        $this->adminImpersonationGuard->assertNotImpersonated();
         $this->rateLimiter->checkOptionsRate('reg_' . $customerId);
 
         $maxCredentials = $this->config->getMaxCredentials();

@@ -26,6 +26,13 @@
     <preference for="MageOS\PasskeyAuth\Api\RegistrationVerifierInterface"
                 type="MageOS\PasskeyAuth\Model\Registration\Verifier"/>
 
+    <!-- Only read when registering; the session must not start for other web API and GraphQL requests -->
+    <type name="MageOS\PasskeyAuth\Model\Registration\AdminImpersonationGuard">
+        <arguments>
+            <argument name="customerSession" xsi:type="object">Magento\Customer\Model\Session\Proxy</argument>
+        </arguments>
+    </type>
+
     <!-- Authentication services -->
     <preference for="MageOS\PasskeyAuth\Api\AuthenticationOptionsInterface"
                 type="MageOS\PasskeyAuth\Model\Authentication\OptionsGenerator"/>

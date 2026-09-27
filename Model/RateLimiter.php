@@ -30,20 +30,20 @@ class RateLimiter
 
     public function checkOptionsRate(string $identifier): void
     {
-        $key = 'passkey_options_' . md5($identifier);
+        $key = 'passkey_options_' . hash('sha256', $identifier);
         $this->checkOnly($key, self::OPTIONS_LIMIT, __('Too many passkey requests. Please try again later.'));
         $this->increment($key, self::OPTIONS_WINDOW);
     }
 
     public function checkVerifyFailRate(string $ip): void
     {
-        $key = 'passkey_verify_fail_' . md5($ip);
+        $key = 'passkey_verify_fail_' . hash('sha256', $ip);
         $this->checkOnly($key, self::VERIFY_FAIL_LIMIT, __('Too many failed passkey attempts. Please try again later.'));
     }
 
     public function recordVerifyFailure(string $ip): void
     {
-        $key = 'passkey_verify_fail_' . md5($ip);
+        $key = 'passkey_verify_fail_' . hash('sha256', $ip);
         $this->increment($key, self::VERIFY_FAIL_WINDOW);
     }
 

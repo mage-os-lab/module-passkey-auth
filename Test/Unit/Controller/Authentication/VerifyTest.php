@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\Test\Unit\Controller\Authentication;
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Controller\Authentication\Verify;
+use MageOS\PasskeyAuth\Model\Authentication\PostLoginRedirect;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
@@ -37,6 +38,7 @@ class VerifyTest extends TestCase
     private JsonSerializer&Stub $jsonMock;
     private CookieManagerInterface&Stub $cookieManagerMock;
     private CookieMetadataFactory&Stub $cookieMetadataFactoryMock;
+    private PostLoginRedirect&Stub $postLoginRedirectStub;
     private ?Verify $controller = null;
 
     protected function setUp(): void
@@ -52,6 +54,8 @@ class VerifyTest extends TestCase
         $this->jsonMock = $this->createStub(JsonSerializer::class);
         $this->cookieManagerMock = $this->createStub(CookieManagerInterface::class);
         $this->cookieMetadataFactoryMock = $this->createStub(CookieMetadataFactory::class);
+        $this->postLoginRedirectStub = $this->createStub(PostLoginRedirect::class);
+        $this->postLoginRedirectStub->method('getUrl')->willReturn('https://example.com/checkout/');
     }
 
     private function controller(): Verify
@@ -65,7 +69,8 @@ class VerifyTest extends TestCase
             $this->jsonMock,
             $this->cookieManagerMock,
             $this->cookieMetadataFactoryMock,
-            $this->loggerMock
+            $this->loggerMock,
+            $this->postLoginRedirectStub
         );
     }
 
@@ -125,6 +130,7 @@ class VerifyTest extends TestCase
         $this->assertNull($this->capturedHttpCode);
         $this->assertFalse($this->capturedData['errors']);
         $this->assertEquals('Login successful.', (string) $this->capturedData['message']);
+        $this->assertSame('https://example.com/checkout/', $this->capturedData['redirect_url']);
     }
 
     public function testExecuteSuccessClearsCookie(): void
@@ -217,8 +223,9 @@ class VerifyTest extends TestCase
             ->willThrowException(new LocalizedException(__('Challenge expired.')));
 
         $this->mockLogger()->expects($this->once())
-            ->method('error')
-            ->with('Passkey authentication verify error', ['exception' => 'Challenge expired.']);
+            ->method('warning')
+            ->with('Passkey authentication verify rejected', ['reason' => 'Challenge expired.']);
+        $this->mockLogger()->expects($this->never())->method('error');
 
         $result = $this->controller()->execute();
 
@@ -256,6 +263,23 @@ class VerifyTest extends TestCase
             'Passkey verification failed. Please try again.',
             (string) $this->capturedData['message']
         );
+    }
+
+    public function testExecuteHandlesErrorsThatAreNotExceptions(): void
+    {
+        $this->configureRequestBody(['challengeToken' => 'tok', 'credential' => []]);
+        $this->jsonMock->method('serialize')->willReturn('[]');
+        $this->verifierMock->method('verify')->willThrowException(new \TypeError('Unexpected type'));
+
+        $this->mockLogger()->expects($this->once())
+            ->method('error')
+            ->with('Passkey authentication verify error', ['exception' => 'Unexpected type']);
+
+        $this->controller()->execute();
+
+        $this->assertSame(400, $this->capturedHttpCode);
+        $this->assertTrue($this->capturedData['errors']);
+        $this->assertArrayNotHasKey('redirect_url', $this->capturedData);
     }
 
     public function testValidateForCsrfNotImplemented(): void

@@ -15,6 +15,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -120,7 +121,19 @@ class OptionsTest extends TestCase
         $this->assertEquals('Passkey authentication is not enabled.', (string) $this->capturedData['message']);
     }
 
-    public function testExecuteGenericException(): void
+    /**
+     * @return array<string, array{\Throwable}>
+     */
+    public static function unexpectedErrorProvider(): array
+    {
+        return [
+            'exception' => [new \RuntimeException('Something broke')],
+            'error' => [new \TypeError('Something broke')],
+        ];
+    }
+
+    #[DataProvider('unexpectedErrorProvider')]
+    public function testExecuteGenericException(\Throwable $error): void
     {
         $bodyJson = '{"email":"user@example.com"}';
         $this->requestMock->method('getContent')->willReturn($bodyJson);
@@ -130,7 +143,7 @@ class OptionsTest extends TestCase
             ->willReturn(['email' => 'user@example.com']);
 
         $this->authOptionsMock->method('generate')
-            ->willThrowException(new \RuntimeException('Something broke'));
+            ->willThrowException($error);
 
         $this->mockLogger()->expects($this->once())
             ->method('error')

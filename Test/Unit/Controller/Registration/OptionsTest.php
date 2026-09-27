@@ -19,6 +19,7 @@ use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -48,7 +49,6 @@ class OptionsTest extends TestCase
     private function controller(): Options
     {
         return $this->controller ??= new Options(
-            $this->requestMock,
             $this->jsonFactoryMock,
             $this->customerSessionMock,
             $this->registrationOptionsMock,
@@ -101,12 +101,24 @@ class OptionsTest extends TestCase
         $this->assertSame('Too many credentials.', (string) $this->capturedData['message']);
     }
 
-    public function testExecuteGenericException(): void
+    /**
+     * @return array<string, array{\Throwable}>
+     */
+    public static function unexpectedErrorProvider(): array
+    {
+        return [
+            'exception' => [new \RuntimeException('Unexpected failure')],
+            'error' => [new \TypeError('Unexpected failure')],
+        ];
+    }
+
+    #[DataProvider('unexpectedErrorProvider')]
+    public function testExecuteGenericException(\Throwable $error): void
     {
         $this->configureLoggedIn(42);
 
         $this->registrationOptionsMock->method('generate')
-            ->willThrowException(new \RuntimeException('Unexpected failure'));
+            ->willThrowException($error);
 
         $this->mockLogger()->expects($this->once())
             ->method('error')

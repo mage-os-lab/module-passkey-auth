@@ -104,7 +104,7 @@ class CredentialRepositoryTest extends TestCase
         $resource = $this->mockResource();
         $resource->expects($this->once())
             ->method('load')
-            ->with($model, 'abc123', 'credential_id')
+            ->with($model, hash('sha256', 'abc123'), 'credential_id_hash')
             ->willReturnCallback(function (CredentialModel $m) {
                 $m->setData('entity_id', 10);
                 $m->setData('credential_id', 'abc123');
@@ -124,6 +124,23 @@ class CredentialRepositoryTest extends TestCase
         $this->expectException(NoSuchEntityException::class);
         $this->expectExceptionMessage('Passkey credential not found.');
         $this->repository()->getByCredentialId('nonexistent');
+    }
+
+    public function testGetByCredentialIdRejectsCaseInsensitiveMatch(): void
+    {
+        $model = $this->createCredentialModel();
+        $this->credentialModelFactory->method('create')->willReturn($model);
+
+        // The row MySQL returned differs from the requested ID only by case
+        $this->resource->method('load')->willReturnCallback(function (CredentialModel $m) {
+            $m->setData('entity_id', 10);
+            $m->setData('credential_id', 'ABC123');
+            return $this->resource;
+        });
+
+        $this->expectException(NoSuchEntityException::class);
+        $this->expectExceptionMessage('Passkey credential not found.');
+        $this->repository()->getByCredentialId('abc123');
     }
 
     public function testGetByCustomerIdWithResults(): void

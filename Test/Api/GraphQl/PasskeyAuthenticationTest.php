@@ -13,10 +13,13 @@ use Magento\TestFramework\TestCase\GraphQlAbstract;
 /**
  * Runs in the dev/tests/api-functional harness.
  *
- * @magentoConfigFixture default_store customer/passkey/enabled 1
+ * The harness reads magentoConfigFixture from test methods only, so each test declares it.
  */
 class PasskeyAuthenticationTest extends GraphQlAbstract
 {
+    /**
+     * @magentoConfigFixture default_store customer/passkey/enabled 1
+     */
     public function testGuestCanCreateAuthenticationOptions(): void
     {
         $mutation = <<<'MUTATION'
@@ -37,6 +40,9 @@ MUTATION;
         $this->assertTrue(empty($options['allowCredentials']), 'Guests must not receive credential lists.');
     }
 
+    /**
+     * @magentoConfigFixture default_store customer/passkey/enabled 1
+     */
     public function testCustomerPasskeysRequiresAuthorization(): void
     {
         $this->expectExceptionMessage('The current customer isn\'t authorized.');
@@ -44,6 +50,9 @@ MUTATION;
         $this->graphQlQuery('{ customerPasskeys { id name } }');
     }
 
+    /**
+     * @magentoConfigFixture default_store customer/passkey/enabled 1
+     */
     public function testVerifyAuthenticationRejectsGarbageInput(): void
     {
         $mutation = <<<'MUTATION'

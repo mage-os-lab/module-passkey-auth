@@ -21,6 +21,7 @@ use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -145,7 +146,19 @@ class VerifyTest extends TestCase
         $this->assertSame('Challenge expired.', (string) $this->capturedData['message']);
     }
 
-    public function testExecuteGenericException(): void
+    /**
+     * @return array<string, array{\Throwable}>
+     */
+    public static function unexpectedErrorProvider(): array
+    {
+        return [
+            'exception' => [new \RuntimeException('Something broke')],
+            'error' => [new \TypeError('Something broke')],
+        ];
+    }
+
+    #[DataProvider('unexpectedErrorProvider')]
+    public function testExecuteGenericException(\Throwable $error): void
     {
         $this->configureLoggedIn(42);
 
@@ -161,7 +174,7 @@ class VerifyTest extends TestCase
             ->willReturn('[]');
 
         $this->registrationVerifierMock->method('verify')
-            ->willThrowException(new \RuntimeException('Something broke'));
+            ->willThrowException($error);
 
         $this->mockLogger()->expects($this->once())
             ->method('error')

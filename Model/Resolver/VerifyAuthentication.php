@@ -38,7 +38,7 @@ class VerifyAuthentication implements ResolverInterface
         try {
             $result = $this->authenticationVerifier->verify($challengeToken, $assertionResponse);
         } catch (LocalizedException $e) {
-            $this->logger->error('GraphQL passkey authentication failed', ['exception' => $e->getMessage()]);
+            $this->logger->warning('GraphQL passkey authentication failed', ['reason' => $e->getMessage()]);
             // Deliberately generic: do not leak whether the credential exists.
             throw new GraphQlAuthenticationException(
                 __('Passkey verification failed. Please try again.'),

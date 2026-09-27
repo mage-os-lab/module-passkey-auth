@@ -19,6 +19,7 @@ use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -117,7 +118,19 @@ class RenameTest extends TestCase
         $this->assertEquals('Passkey name cannot be empty.', (string) $this->capturedData['message']);
     }
 
-    public function testExecuteGenericException(): void
+    /**
+     * @return array<string, array{\Throwable}>
+     */
+    public static function unexpectedErrorProvider(): array
+    {
+        return [
+            'exception' => [new \RuntimeException('DB error')],
+            'error' => [new \TypeError('DB error')],
+        ];
+    }
+
+    #[DataProvider('unexpectedErrorProvider')]
+    public function testExecuteGenericException(\Throwable $error): void
     {
         $this->configureLoggedIn(10);
 
@@ -128,7 +141,7 @@ class RenameTest extends TestCase
             ->willReturn(['entity_id' => 55, 'friendly_name' => 'Test']);
 
         $this->credentialManagementMock->method('renameCredential')
-            ->willThrowException(new \RuntimeException('DB error'));
+            ->willThrowException($error);
 
         $this->mockLogger()->expects($this->once())
             ->method('error')

@@ -17,6 +17,7 @@ use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -106,14 +107,26 @@ class DeleteTest extends TestCase
         $this->assertEquals('Credential not found.', (string) $this->capturedData['message']);
     }
 
-    public function testExecuteGenericException(): void
+    /**
+     * @return array<string, array{\Throwable}>
+     */
+    public static function unexpectedErrorProvider(): array
+    {
+        return [
+            'exception' => [new \RuntimeException('DB error')],
+            'error' => [new \TypeError('DB error')],
+        ];
+    }
+
+    #[DataProvider('unexpectedErrorProvider')]
+    public function testExecuteGenericException(\Throwable $error): void
     {
         $this->configureLoggedIn(10);
 
         $this->configureEntityIdParam('55');
 
         $this->credentialManagementMock->method('deleteCredential')
-            ->willThrowException(new \RuntimeException('DB error'));
+            ->willThrowException($error);
 
         $this->mockLogger()->expects($this->once())
             ->method('error')

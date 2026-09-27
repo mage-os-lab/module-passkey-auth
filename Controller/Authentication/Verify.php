@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Controller\Authentication;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
+use MageOS\PasskeyAuth\Model\Authentication\PostLoginRedirect;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Action\HttpPostActionInterface;
@@ -32,7 +33,8 @@ class Verify implements HttpPostActionInterface
         private readonly JsonSerializer $json,
         private readonly CookieManagerInterface $cookieManager,
         private readonly CookieMetadataFactory $cookieMetadataFactory,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly PostLoginRedirect $postLoginRedirect
     ) {
     }
 
@@ -67,14 +69,15 @@ class Verify implements HttpPostActionInterface
             return $resultJson->setData([
                 'errors' => false,
                 'message' => __('Login successful.'),
+                'redirect_url' => $this->postLoginRedirect->getUrl(),
             ]);
         } catch (LocalizedException $e) {
-            $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
+            $this->logger->warning('Passkey authentication verify rejected', ['reason' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,
                 'message' => __('Passkey verification failed. Please try again.'),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

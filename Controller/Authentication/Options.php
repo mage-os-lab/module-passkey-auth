@@ -51,7 +51,7 @@ class Options implements HttpPostActionInterface
                 'errors' => true,
                 'message' => $e->getMessage(),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Passkey authentication options error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

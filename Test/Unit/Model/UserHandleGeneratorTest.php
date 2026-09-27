@@ -30,37 +30,102 @@ class UserHandleGeneratorTest extends TestCase
         $this->generator = new UserHandleGenerator($this->collectionFactory);
     }
 
-    public function testGetOrGenerateReturnsExistingHandle(): void
+    public function testGetOrGenerateReturnsDecodedExistingHandle(): void
     {
-        $existingHandle = 'dGVzdC11c2VyLWhhbmRsZQ==';
-
-        $item = new DataObject(['id' => 1, 'user_handle' => $existingHandle]);
-        $this->collection->method('getFirstItem')->willReturn($item);
+        $rawHandle = random_bytes(32);
+        $this->configureStoredHandles([base64_encode($rawHandle)]);
 
         $result = $this->generator->getOrGenerate(42);
 
-        $this->assertSame($existingHandle, $result);
+        $this->assertSame($rawHandle, $result);
     }
 
-    public function testGetOrGenerateCreatesNewHandle(): void
+    public function testGetOrGenerateDoesNotGrowHandleAcrossRegistrations(): void
     {
-        $item = new DataObject();
-        $this->collection->method('getFirstItem')->willReturn($item);
+        $stored = [];
+        $this->collection->method('getIterator')->willReturnCallback(
+            function () use (&$stored) {
+                return new \ArrayIterator(array_map(
+                    fn (string $handle) => new DataObject(['user_handle' => $handle]),
+                    $stored
+                ));
+            }
+        );
 
-        $result = $this->generator->getOrGenerate(42);
+        $first = $this->generator->getOrGenerate(42);
+        // What Registration\Verifier stores for the new credential
+        $stored[] = base64_encode($first);
+        $second = $this->generator->getOrGenerate(42);
 
-        $this->assertSame(44, strlen($result));
+        $this->assertSame($first, $second);
+        $this->assertSame(32, strlen($second));
     }
 
-    public function testGetOrGenerateNewHandleIsBase64(): void
+    public function testGetOrGenerateUsesOldestRow(): void
     {
-        $item = new DataObject();
-        $this->collection->method('getFirstItem')->willReturn($item);
+        $orderedBy = null;
+        $this->collection->method('setOrder')->willReturnCallback(
+            function (string $field, string $direction) use (&$orderedBy) {
+                $orderedBy = [$field, $direction];
+                return $this->collection;
+            }
+        );
+        $this->configureStoredHandles([base64_encode('oldest-handle'), base64_encode('newer-handle')]);
 
         $result = $this->generator->getOrGenerate(42);
 
-        $decoded = base64_decode($result, true);
-        $this->assertNotFalse($decoded, 'Return value must be valid base64');
-        $this->assertSame(32, strlen($decoded), 'Decoded value must be 32 bytes');
+        $this->assertSame(['entity_id', 'ASC'], $orderedBy);
+        $this->assertSame('oldest-handle', $result);
+    }
+
+    public function testGetOrGenerateSkipsDriftedHandles(): void
+    {
+        // Pre-fix rows: each stored handle is base64 of the previous one, so they grow 44 -> 60 -> 80 bytes
+        $drifted = base64_encode(base64_encode(base64_encode(random_bytes(32))));
+        $valid = base64_encode(random_bytes(32));
+        $this->configureStoredHandles([base64_encode($drifted), 'not base64!', '', base64_encode($valid)]);
+
+        $result = $this->generator->getOrGenerate(42);
+
+        $this->assertSame(80, strlen($drifted));
+        $this->assertSame($valid, $result);
+    }
+
+    public function testGetOrGenerateAcceptsSixtyFourByteHandle(): void
+    {
+        $handle = str_repeat('h', 64);
+        $this->configureStoredHandles([base64_encode($handle)]);
+
+        $this->assertSame($handle, $this->generator->getOrGenerate(42));
+    }
+
+    public function testGetOrGenerateCreatesNewHandleWhenNoneStored(): void
+    {
+        $this->configureStoredHandles([]);
+
+        $result = $this->generator->getOrGenerate(42);
+
+        $this->assertSame(32, strlen($result));
+    }
+
+    public function testGetOrGenerateCreatesNewHandleWhenAllStoredAreUnusable(): void
+    {
+        $this->configureStoredHandles([base64_encode(str_repeat('x', 65))]);
+
+        $result = $this->generator->getOrGenerate(42);
+
+        $this->assertSame(32, strlen($result));
+    }
+
+    /**
+     * @param string[] $storedHandles user_handle column values, oldest first
+     */
+    private function configureStoredHandles(array $storedHandles): void
+    {
+        $items = array_map(
+            fn (string $handle) => new DataObject(['user_handle' => $handle]),
+            $storedHandles
+        );
+        $this->collection->method('getIterator')->willReturn(new \ArrayIterator($items));
     }
 }

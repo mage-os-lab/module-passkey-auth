@@ -42,8 +42,9 @@ class CredentialRepository implements CredentialRepositoryInterface
     public function getByCredentialId(string $credentialId): CredentialInterface
     {
         $model = $this->credentialFactory->create();
-        $this->resource->load($model, $credentialId, 'credential_id');
-        if (!$model->getId()) {
+        $this->resource->load($model, $this->hashCredentialId($credentialId), 'credential_id_hash');
+        // The hash column is indexed; credential_id itself is compared case-insensitively by MySQL
+        if (!$model->getId() || (string) $model->getData('credential_id') !== $credentialId) {
             throw new NoSuchEntityException(__('Passkey credential not found.'));
         }
         return $this->toDTO($model);
@@ -76,7 +77,7 @@ class CredentialRepository implements CredentialRepositoryInterface
 
         $model->setData('customer_id', $credential->getCustomerId());
         $model->setData('credential_id', $credential->getCredentialId());
-        $model->setData('credential_id_hash', hash('sha256', $credential->getCredentialId()));
+        $model->setData('credential_id_hash', $this->hashCredentialId($credential->getCredentialId()));
         $model->setData('public_key', $credential->getPublicKey());
         $model->setData('user_handle', $credential->getUserHandle());
         $model->setData('sign_count', $credential->getSignCount());
@@ -144,6 +145,11 @@ class CredentialRepository implements CredentialRepositoryInterface
         if ($credential->getSignCount() < 0) {
             throw new CouldNotSaveException(__('Sign count cannot be negative.'));
         }
+    }
+
+    private function hashCredentialId(string $credentialId): string
+    {
+        return hash('sha256', $credentialId);
     }
 
     private function toDTO(Credential $model): CredentialInterface
