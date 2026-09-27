@@ -10,4 +10,7 @@
     <action name="passkey/registration/verify">
         <section name="passkey"/>
     </action>
+    <action name="passkey/account/delete">
+        <section name="passkey"/>
+    </action>
 </config>

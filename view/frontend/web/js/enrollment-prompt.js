@@ -2,7 +2,7 @@ define([
     'jquery',
     'Magento_Customer/js/customer-data',
     'MageOS_PasskeyAuth/js/passkey-core',
-    'jquery/ui'
+    'jquery-ui-modules/widget'
 ], function ($, customerData, passkeyCore) {
     'use strict';
 

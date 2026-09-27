@@ -25,7 +25,10 @@ class EnrollmentPrompt extends Template
 
     protected function _toHtml(): string
     {
-        if (!$this->config->isEnabled() || !$this->config->isPromptAfterLoginEnabled()) {
+        // Which prompt applies is decided per session by the passkey customer-data section
+        if (!$this->config->isEnabled()
+            || (!$this->config->isPromptAfterLoginEnabled() && !$this->config->isPromptOnRegistrationEnabled())
+        ) {
             return '';
         }
         return parent::_toHtml();

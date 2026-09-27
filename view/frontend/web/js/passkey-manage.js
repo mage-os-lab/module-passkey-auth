@@ -4,7 +4,7 @@ define([
     'mage/translate',
     'Magento_Ui/js/modal/confirm',
     'Magento_Ui/js/modal/prompt',
-    'jquery/ui'
+    'jquery-ui-modules/widget'
 ], function ($, passkeyCore, $t, confirm, prompt) {
     'use strict';
 
@@ -21,6 +21,35 @@ define([
             this.element.find('#passkey-add-btn').on('click', this._onRegister.bind(this));
             this.element.on('click', '.action.delete', this._onDelete.bind(this));
             this.element.on('click', '.action.rename', this._onRename.bind(this));
+            this.element.on('click', '.action.cancel-rename', function (e) {
+                this._endRename($(e.currentTarget).closest('tr'));
+            }.bind(this));
+        },
+
+        /**
+         * Mirror the server-side rule so a bad name is caught before the
+         * browser creates a credential that could then not be saved.
+         *
+         * @returns {String|null} error message
+         */
+        _validateName: function (name) {
+            if (name.length > 255) {
+                return $t('Passkey name must be 255 characters or fewer.');
+            }
+            if (/[<>&]/.test(name)) {
+                return $t('Passkey names can\'t contain <, > or &.');
+            }
+
+            return null;
+        },
+
+        /**
+         * Server message from a failed $.ajax call, or the fallback.
+         */
+        _errorMessage: function (err, fallback) {
+            return (err && err.responseJSON && err.responseJSON.message)
+                || (err && err.message)
+                || fallback;
         },
 
         _onRegister: function () {
@@ -37,16 +66,19 @@ define([
             }
 
             prompt({
-                title: $t('Register a Passkey'),
+                title: $t('Add a Passkey'),
                 content: $t('Give this passkey a name so you can recognize it later:'),
                 value: passkeyCore.suggestName(),
                 actions: {
                     confirm: function (friendlyName) {
-                        self._doRegistration(friendlyName || null);
-                    },
-                    cancel: function () {
-                        // User cancelled naming — proceed without name
-                        self._doRegistration(null);
+                        var name = $.trim(friendlyName || ''),
+                            error = self._validateName(name);
+
+                        if (error) {
+                            self._showMessage(error, 'error');
+                            return;
+                        }
+                        self._doRegistration(name || null);
                     }
                 }
             });
@@ -101,7 +133,7 @@ define([
                         'error'
                     );
                 } else {
-                    self._showMessage(err.message || err.responseJSON?.message || $t('Registration failed.'), 'error');
+                    self._showMessage(self._errorMessage(err, $t('Registration failed.')), 'error');
                 }
                 $addButton.prop('disabled', false).attr('aria-busy', 'false');
             });
@@ -114,7 +146,21 @@ define([
             var name = $.trim($row.find('.name-display').text()) || $t('this passkey');
 
             confirm({
+                title: $t('Delete Passkey'),
                 content: $t('Delete "%1"? You will no longer be able to sign in with it.').replace('%1', name),
+                buttons: [{
+                    text: $t('Cancel'),
+                    class: 'action-secondary action-dismiss',
+                    click: function (event) {
+                        this.closeModal(event);
+                    }
+                }, {
+                    text: $t('Delete'),
+                    class: 'action-primary action-accept',
+                    click: function (event) {
+                        this.closeModal(event, true);
+                    }
+                }],
                 actions: {
                     confirm: function () {
                         $.ajax({
@@ -126,11 +172,19 @@ define([
                             if (result.errors) {
                                 self._showMessage(result.message, 'error');
                             } else {
-                                $row.fadeOut(300, function () { $row.remove(); });
+                                $row.fadeOut(300, function () {
+                                    var $wrapper = $row.closest('.table-wrapper');
+
+                                    $row.remove();
+                                    if (!$wrapper.find('tbody tr').length) {
+                                        $wrapper.remove();
+                                        self.element.find('.passkey-empty').show();
+                                    }
+                                });
                                 self._showMessage($t('Passkey deleted.'), 'success');
                             }
-                        }).catch(function () {
-                            self._showMessage($t('Failed to delete passkey.'), 'error');
+                        }).catch(function (err) {
+                            self._showMessage(self._errorMessage(err, $t('Failed to delete passkey.')), 'error');
                         });
                     }
                 }
@@ -138,61 +192,85 @@ define([
         },
 
         _onRename: function (e) {
-            var self = this;
             var $row = $(e.currentTarget).closest('tr');
-            var $nameCell = $row.find('.passkey-name');
-            var $display = $nameCell.find('.name-display');
-            var $edit = $nameCell.find('.name-edit');
-            var entityId = $row.data('entity-id');
 
-            if ($edit.is(':visible')) {
-                // Save
-                var newName = $edit.val().trim();
-                if (!newName) {
-                    $edit.hide();
-                    $display.show();
+            if ($row.hasClass('renaming')) {
+                this._saveRename($row);
+            } else {
+                this._startRename($row);
+            }
+        },
+
+        _startRename: function ($row) {
+            var self = this;
+            var $display = $row.find('.name-display');
+            var $edit = $row.find('.name-edit');
+
+            this._clearMessage();
+            $row.addClass('renaming');
+            $row.find('.action.rename span').text($t('Save'));
+            $row.find('.action.cancel-rename').show();
+            $display.hide();
+            $edit.show().trigger('focus').trigger('select');
+
+            $edit.off('keydown.passkeyRename').on('keydown.passkeyRename', function (evt) {
+                if (evt.key === 'Enter') {
+                    evt.preventDefault();
+                    self._saveRename($row);
+                } else if (evt.key === 'Escape') {
+                    self._endRename($row);
+                }
+            });
+        },
+
+        /**
+         * Leave edit mode, keeping (or restoring) the displayed name.
+         */
+        _endRename: function ($row) {
+            var $display = $row.find('.name-display');
+            var $edit = $row.find('.name-edit');
+            var saved = $edit.data('saved');
+
+            $row.removeClass('renaming');
+            $row.find('.action.rename span').text($t('Rename'));
+            $row.find('.action.cancel-rename').hide();
+            $edit.off('keydown.passkeyRename').hide().val(saved !== undefined ? saved : $edit.prop('defaultValue'));
+            $display.show();
+        },
+
+        _saveRename: function ($row) {
+            var self = this;
+            var $edit = $row.find('.name-edit');
+            var newName = $.trim($edit.val());
+            var error = newName ? this._validateName(newName) : $t('Passkey name cannot be empty.');
+
+            if (error) {
+                this._showMessage(error, 'error');
+                $edit.trigger('focus');
+                return;
+            }
+
+            $.ajax({
+                url: this.options.renameUrl,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    entity_id: $row.data('entity-id'),
+                    friendly_name: newName
+                }),
+                dataType: 'json'
+            }).then(function (result) {
+                if (result.errors) {
+                    self._showMessage(result.message, 'error');
                     return;
                 }
-
-                $.ajax({
-                    url: self.options.renameUrl,
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        entity_id: entityId,
-                        friendly_name: newName
-                    }),
-                    dataType: 'json'
-                }).then(function (result) {
-                    if (result.errors) {
-                        self._showMessage(result.message, 'error');
-                    } else {
-                        $display.text(result.friendly_name || newName);
-                    }
-                    $edit.hide();
-                    $display.show();
-                }).catch(function () {
-                    self._showMessage($t('Failed to rename passkey.'), 'error');
-                    $edit.hide();
-                    $display.show();
-                });
-            } else {
-                // Enter edit mode
-                $display.hide();
-                $edit.show().focus().select();
-
-                $edit.off('keydown.passkeyRename').on('keydown.passkeyRename', function (evt) {
-                    if (evt.key === 'Enter') {
-                        evt.preventDefault();
-                        $edit.off('keydown.passkeyRename');
-                        $(e.currentTarget).trigger('click');
-                    } else if (evt.key === 'Escape') {
-                        $edit.off('keydown.passkeyRename');
-                        $edit.hide();
-                        $display.show();
-                    }
-                });
-            }
+                $row.find('.name-display').text(result.friendly_name || newName);
+                $edit.data('saved', result.friendly_name || newName);
+                self._endRename($row);
+                self._showMessage($t('Passkey renamed.'), 'success');
+            }).catch(function (err) {
+                self._showMessage(self._errorMessage(err, $t('Failed to rename passkey.')), 'error');
+            });
         },
 
         _showMessage: function (text, type) {

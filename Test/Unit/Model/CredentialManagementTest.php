@@ -168,7 +168,7 @@ class CredentialManagementTest extends TestCase
     public function testValidateFriendlyNameWithXssChars(): void
     {
         $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage('Passkey name contains invalid characters.');
+        $this->expectExceptionMessage('Passkey names can\'t contain <, > or &.');
 
         $this->credentialManagement->validateFriendlyName('My <script>Key');
     }

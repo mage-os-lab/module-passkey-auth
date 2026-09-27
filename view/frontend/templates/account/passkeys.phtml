@@ -4,61 +4,61 @@
 $credentials = $block->getCredentials();
 ?>
 <div class="passkey-management" id="passkey-management">
-    <?php if (empty($credentials)): ?>
-        <div class="message info">
-            <div>
-                <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
-            </div>
+    <div class="message info empty passkey-empty"<?= $credentials ? ' style="display:none;"' : '' ?>>
+        <div>
+            <?= $escaper->escapeHtml(__('You have no passkeys registered. Passkeys let you sign in quickly and securely using your device biometrics or a security key.')) ?>
         </div>
-        <div class="passkey-add-action">
-            <button type="button" class="action primary add-passkey" id="passkey-add-btn">
-                <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
-            </button>
-        </div>
-    <?php else: ?>
-        <table class="data table passkey-list">
-            <thead>
-                <tr>
-                    <th><?= $escaper->escapeHtml(__('Name')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Created')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Last Used')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Actions')) ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($credentials as $credential): ?>
-                    <tr data-entity-id="<?= $escaper->escapeHtmlAttr((string) $credential->getEntityId()) ?>">
-                        <td class="passkey-name" data-th="<?= $escaper->escapeHtmlAttr(__('Name')) ?>">
-                            <span class="name-display"><?= $escaper->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?></span>
-                            <input type="text" class="name-edit" style="display:none;"
-                                   value="<?= $escaper->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
-                                   aria-label="<?= $escaper->escapeHtmlAttr(__('Passkey name')) ?>"
-                                   maxlength="255"/>
-                        </td>
-                        <td data-th="<?= $escaper->escapeHtmlAttr(__('Created')) ?>">
-                            <?= $escaper->escapeHtml($block->getCreatedLabel($credential)) ?>
-                        </td>
-                        <td data-th="<?= $escaper->escapeHtmlAttr(__('Last Used')) ?>">
-                            <?= $escaper->escapeHtml($block->getLastUsedLabel($credential)) ?>
-                        </td>
-                        <td class="passkey-actions" data-th="<?= $escaper->escapeHtmlAttr(__('Actions')) ?>">
-                            <button type="button" class="action rename" title="<?= $escaper->escapeHtmlAttr(__('Rename')) ?>">
-                                <?= $escaper->escapeHtml(__('Rename')) ?>
-                            </button>
-                            <button type="button" class="action delete" title="<?= $escaper->escapeHtmlAttr(__('Delete')) ?>">
-                                <?= $escaper->escapeHtml(__('Delete')) ?>
-                            </button>
-                        </td>
+    </div>
+    <?php if ($credentials): ?>
+        <div class="table-wrapper passkeys">
+            <table class="data table passkey-list">
+                <caption class="table-caption"><?= $escaper->escapeHtml(__('Passkeys')) ?></caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="col name"><?= $escaper->escapeHtml(__('Name')) ?></th>
+                        <th scope="col" class="col created"><?= $escaper->escapeHtml(__('Created')) ?></th>
+                        <th scope="col" class="col last-used"><?= $escaper->escapeHtml(__('Last Used')) ?></th>
+                        <th scope="col" class="col passkey-actions"><?= $escaper->escapeHtml(__('Actions')) ?></th>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        <div class="passkey-add-action">
-            <button type="button" class="action primary add-passkey" id="passkey-add-btn">
-                <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
-            </button>
+                </thead>
+                <tbody>
+                    <?php foreach ($credentials as $credential): ?>
+                        <tr data-entity-id="<?= $escaper->escapeHtmlAttr((string) $credential->getEntityId()) ?>">
+                            <td class="col name passkey-name" data-th="<?= $escaper->escapeHtmlAttr(__('Name')) ?>">
+                                <span class="name-display"><?= $escaper->escapeHtml($credential->getFriendlyName() ?: __('Passkey')) ?></span>
+                                <input type="text" class="name-edit" style="display:none;"
+                                       value="<?= $escaper->escapeHtmlAttr($credential->getFriendlyName() ?? '') ?>"
+                                       aria-label="<?= $escaper->escapeHtmlAttr(__('Passkey name')) ?>"
+                                       maxlength="255"/>
+                            </td>
+                            <td class="col created" data-th="<?= $escaper->escapeHtmlAttr(__('Created')) ?>">
+                                <?= $escaper->escapeHtml($block->getCreatedLabel($credential)) ?>
+                            </td>
+                            <td class="col last-used" data-th="<?= $escaper->escapeHtmlAttr(__('Last Used')) ?>">
+                                <?= $escaper->escapeHtml($block->getLastUsedLabel($credential)) ?>
+                            </td>
+                            <td class="col passkey-actions" data-th="<?= $escaper->escapeHtmlAttr(__('Actions')) ?>">
+                                <button type="button" class="action rename">
+                                    <span><?= $escaper->escapeHtml(__('Rename')) ?></span>
+                                </button>
+                                <button type="button" class="action cancel-rename" style="display:none;">
+                                    <span><?= $escaper->escapeHtml(__('Cancel')) ?></span>
+                                </button>
+                                <button type="button" class="action delete">
+                                    <span><?= $escaper->escapeHtml(__('Delete')) ?></span>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     <?php endif; ?>
+    <div class="passkey-add-action">
+        <button type="button" class="action primary add-passkey" id="passkey-add-btn">
+            <span><?= $escaper->escapeHtml(__('Add a Passkey')) ?></span>
+        </button>
+    </div>
 
     <div class="message" id="passkey-manage-message" style="display:none;" role="alert">
         <div></div>

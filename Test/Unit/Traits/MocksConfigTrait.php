@@ -31,4 +31,9 @@ trait MocksConfigTrait
     {
         $this->configMock->method('isPromptAfterLoginEnabled')->willReturn($enabled);
     }
+
+    private function configurePromptOnRegistration(bool $enabled): void
+    {
+        $this->configMock->method('isPromptOnRegistrationEnabled')->willReturn($enabled);
+    }
 }

@@ -4,6 +4,8 @@
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="customer_account"/>
     <body>
+        <!-- The enrollment banner only links back to this page -->
+        <referenceBlock name="passkey.enrollment.prompt" remove="true"/>
         <referenceContainer name="content">
             <block class="MageOS\PasskeyAuth\Block\Account\Passkeys"
                    name="customer.account.passkeys"

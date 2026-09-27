@@ -18,7 +18,7 @@
                    name="passkey.enrollment.prompt"
                    template="MageOS_PasskeyAuth::enrollment-prompt.phtml"
                    ifconfig="customer/passkey/enabled"
-                   after="-"/>
+                   before="-"/>
         </referenceContainer>
     </body>
 </page>

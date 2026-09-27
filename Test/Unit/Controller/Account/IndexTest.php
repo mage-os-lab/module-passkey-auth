@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Test\Unit\Controller\Account;
 
 use MageOS\PasskeyAuth\Controller\Account\Index;
+use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
+use Magento\Framework\Controller\Result\Forward;
+use Magento\Framework\Controller\Result\ForwardFactory;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\Result\RedirectFactory;
 use Magento\Framework\View\Page\Config as PageConfig;
@@ -17,27 +20,46 @@ use PHPUnit\Framework\TestCase;
 
 class IndexTest extends TestCase
 {
+    use MocksConfigTrait;
     use MocksCustomerSessionTrait;
 
     private PageFactory&MockObject $pageFactoryMock;
     private RedirectFactory&MockObject $redirectFactoryMock;
+    private ForwardFactory&MockObject $forwardFactoryMock;
     private Index $controller;
 
     protected function setUp(): void
     {
         $this->pageFactoryMock = $this->createMock(PageFactory::class);
         $this->redirectFactoryMock = $this->createMock(RedirectFactory::class);
+        $this->forwardFactoryMock = $this->createMock(ForwardFactory::class);
         $this->createCustomerSessionMock();
+        $this->createConfigMock();
 
         $this->controller = new Index(
             $this->pageFactoryMock,
             $this->redirectFactoryMock,
-            $this->customerSessionMock
+            $this->customerSessionMock,
+            $this->configMock,
+            $this->forwardFactoryMock
         );
+    }
+
+    public function testExecuteForwardsToNoRouteWhenDisabled(): void
+    {
+        $this->configureEnabled(false);
+
+        $forwardMock = $this->createMock(Forward::class);
+        $forwardMock->expects($this->once())->method('forward')->with('noroute')->willReturnSelf();
+        $this->forwardFactoryMock->method('create')->willReturn($forwardMock);
+        $this->pageFactoryMock->expects($this->never())->method('create');
+
+        $this->assertSame($forwardMock, $this->controller->execute());
     }
 
     public function testExecuteNotLoggedIn(): void
     {
+        $this->configureEnabled(true);
         $this->configureNotLoggedIn();
 
         $redirectMock = $this->createMock(Redirect::class);
@@ -56,6 +78,7 @@ class IndexTest extends TestCase
 
     public function testExecuteLoggedIn(): void
     {
+        $this->configureEnabled(true);
         $this->configureLoggedIn(42);
 
         $titleMock = $this->createMock(Title::class);
