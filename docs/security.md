@@ -52,15 +52,15 @@ The checks run only after the passkey response is verified, so only someone hold
 
 A failed passkey sign-in never counts toward the password lockout. The sign-in options reply contains credential IDs, so anyone could send bad responses for a customer's passkey and lock them out. The module only honours a lock that is already there. A successful passkey sign-in resets the count of wrong passwords, as a successful password sign-in does.
 
-The customer sees the reason:
+The customer sees the message Magento shows for a password sign-in, the same on the storefront (HTTP 403), REST (HTTP 401), and GraphQL:
 
-| Case | Storefront (HTTP 403) | GraphQL | REST (HTTP 401) |
-|---|---|---|---|
-| Locked | "The account sign-in was incorrect or your account is disabled temporarily. Please wait and try again later." | Same as the storefront | "The account is locked." |
-| Not confirmed | "This account isn't confirmed. Verify and try again." | Same as the storefront | Same as the storefront |
-| Group excluded from the website | "This website is excluded from customer's group." | Same as for a locked account | "This website is excluded from customer's group." |
+| Case | Message |
+|---|---|
+| Locked | "The account sign-in was incorrect or your account is disabled temporarily. Please wait and try again later." |
+| Not confirmed | "This account isn't confirmed. Verify and try again." |
+| Group excluded from the website | Same as for a locked account |
 
-The storefront and GraphQL messages match what Magento shows for a password sign-in.
+The log has the specific reason (see [Logging](#logging)).
 
 Admin two-factor sign-in is not affected. Magento_TwoFactorAuth handles admin accounts.
 
@@ -101,7 +101,7 @@ A customer can only list, rename, or delete their own passkeys. The customer ID 
 
 A storefront session or an API token isn't tied to the passkey that started it. So when a passkey is removed, the module signs out the customer, not the passkey:
 
-- **Admin revoke**, of one passkey or several: ends all of the customer's storefront sessions and revokes all their REST and GraphQL tokens. Use this for a lost or stolen device. With several passkeys selected, each customer is signed out once.
+- **Admin revoke**, of one passkey or several: ends all of the customer's storefront sessions and revokes all their REST and GraphQL tokens. Use this for a lost or stolen device.
 - **Customer delete**, from My Account, REST, or GraphQL: ends the customer's other storefront sessions, as Magento does when a customer changes their password. The session they are using stays signed in. API tokens are kept, also as with a password change, so a REST or GraphQL delete doesn't revoke the token that made the call.
 
 If the sessions or tokens can't be cleared, the passkey is still removed. The error is logged, and after an admin revoke the admin sees a warning.
@@ -134,7 +134,7 @@ Routine rejections are logged as warnings with a `reason` in `var/log/system.log
 |---|---|
 | Passkey rejected at sign-in (unknown passkey, passkey of another website, bad signature, wrong origin, counter not increased) | Warning in `var/log/system.log`, plus the `passkey_authentication_failure` event |
 | Other rejected sign-ins (passkeys turned off, bad or expired challenge, malformed response, failed sign-in limit) | Warning in `var/log/system.log` |
-| Sign-in refused for a locked, unconfirmed, or excluded account | Warning in `var/log/system.log` |
+| Sign-in refused for a locked, unconfirmed, or excluded account | Warning in `var/log/system.log`, with the specific reason |
 | Failed registration (response failed verification, or the passkey could not be saved) | Warning in `var/log/system.log`, plus the `passkey_registration_failure` event when verification failed |
 | Unexpected error in a storefront passkey request | Error in `var/log/exception.log` |
 | Sign-in succeeded but the token, the passkey's counter, or the reset wrong-password count could not be saved | Error in `var/log/exception.log` |

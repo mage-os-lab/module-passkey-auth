@@ -46,7 +46,7 @@ An admin used Login as Customer and tried to add a passkey. This is blocked on p
 
 ## "The account sign-in was incorrect or your account is disabled temporarily"
 
-The passkey was accepted, but the account is locked after too many wrong passwords. It unlocks by itself after the **Lockout Time** set under **Stores > Configuration > Customers > Customer Configuration > Password Options**. To unlock it now, open the customer in the admin and click **Unlock** at the top of the page.
+The passkey was accepted, but the account is locked after too many wrong passwords, or the customer's group is excluded from this website (**Customers > Customer Groups**). The log in `var/log/system.log` says which. A locked account unlocks by itself after the **Lockout Time** set under **Stores > Configuration > Customers > Customer Configuration > Password Options**. To unlock it now, open the customer in the admin and click **Unlock** at the top of the page.
 
 Failed passkey sign-ins never lock an account. See [Locked and unconfirmed accounts](security.md#locked-and-unconfirmed-accounts).
 

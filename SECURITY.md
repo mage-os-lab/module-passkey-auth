@@ -69,17 +69,11 @@ accounts and admin two-factor authentication. Key properties relied on:
   above zero, an assertion whose counter does not increase (possible cloned
   authenticator) is rejected. Authenticators that always report zero are
   not checked.
-- **Account checks**: After the assertion is verified, sign-in is refused
-  for a locked account, an account awaiting email confirmation, and a
-  customer group excluded from the website, as for password sign-in. Failed
-  passkey attempts never count toward the password lockout, since credential
-  IDs are public and anyone could otherwise lock a customer out. An existing
-  lock is honoured.
-- **Sign-out on removal**: Sessions and tokens are not tied to a passkey, so
-  removal signs out the customer. An admin revoke ends all their storefront
-  sessions and revokes all their API tokens. A customer deleting their own
-  passkey ends their other storefront sessions and keeps API tokens, as a
-  password change does.
+- **Account checks**: Locked, unconfirmed, and excluded accounts are refused
+  as for password sign-in, and failed passkey attempts never lock an account.
+  See [Locked and unconfirmed accounts](https://github.com/mage-os-lab/module-passkey-auth/blob/main/docs/security.md#locked-and-unconfirmed-accounts).
+- **Sign-out on removal**: Removing a passkey signs the customer out. See
+  [Sessions and tokens after a passkey is removed](https://github.com/mage-os-lab/module-passkey-auth/blob/main/docs/security.md#sessions-and-tokens-after-a-passkey-is-removed).
 - **Change visibility**: Adding or removing a passkey triggers a customer
   notification email (configurable).
 

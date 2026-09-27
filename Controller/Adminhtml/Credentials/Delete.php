@@ -10,7 +10,6 @@ namespace MageOS\PasskeyAuth\Controller\Adminhtml\Credentials;
 
 use MageOS\PasskeyAuth\Api\CredentialManagementInterface;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
-use MageOS\PasskeyAuth\Model\CustomerSignOut;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
@@ -27,8 +26,7 @@ class Delete extends Action implements HttpPostActionInterface
         Context $context,
         private readonly CredentialRepositoryInterface $credentialRepository,
         private readonly CredentialManagementInterface $credentialManagement,
-        private readonly LoggerInterface $logger,
-        private readonly CustomerSignOut $customerSignOut
+        private readonly LoggerInterface $logger
     ) {
         parent::__construct($context);
     }
@@ -46,26 +44,23 @@ class Delete extends Action implements HttpPostActionInterface
         }
 
         try {
-            $credential = $this->credentialRepository->getById($entityId);
-            $this->credentialManagement->revokeCredential($credential);
+            $signedOut = $this->credentialManagement->revokeCredential(
+                $this->credentialRepository->getById($entityId)
+            );
             $this->messageManager->addSuccessMessage(__('The passkey has been revoked.'));
+            if (!$signedOut) {
+                $this->messageManager->addWarningMessage(
+                    __('The customer could not be signed out of their sessions and apps. See the error log.')
+                );
+            }
         } catch (NoSuchEntityException) {
             $this->messageManager->addErrorMessage(__('This passkey no longer exists.'));
-            return $resultRedirect;
         } catch (\Exception $e) {
             $this->logger->error('Admin passkey revoke failed', [
                 'exception' => $e->getMessage(),
                 'entity_id' => $entityId,
             ]);
             $this->messageManager->addErrorMessage(__('Unable to revoke the passkey. Please try again.'));
-            return $resultRedirect;
-        }
-
-        // A lost or stolen device may still hold a session or token from this passkey
-        if (!$this->customerSignOut->signOutEverywhere($credential->getCustomerId())) {
-            $this->messageManager->addWarningMessage(
-                __('The customer could not be signed out of their sessions and apps. See the error log.')
-            );
         }
 
         return $resultRedirect;

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!-- Translations for passkeyCore.t(), on Luma and Hyvä -->
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template"
+                   name="passkey.i18n"
+                   template="MageOS_PasskeyAuth::i18n.phtml"
+                   ifconfig="customer/passkey/enabled"/>
+        </referenceContainer>
+    </body>
+</page>

@@ -9,10 +9,9 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Test\Unit\Controller\Adminhtml\Credentials;
 
 use MageOS\PasskeyAuth\Api\CredentialManagementInterface;
-use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Controller\Adminhtml\Credentials\Delete;
-use MageOS\PasskeyAuth\Model\CustomerSignOut;
+use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\RequestInterface;
@@ -26,14 +25,12 @@ use PHPUnit\Framework\TestCase;
 
 class DeleteTest extends TestCase
 {
+    use MocksCredentialRepositoryTrait;
     use MocksLoggerTrait;
 
     private const ENTITY_ID = 55;
-    private const CUSTOMER_ID = 42;
 
-    private CredentialRepositoryInterface&Stub $credentialRepository;
     private CredentialManagementInterface&MockObject $credentialManagement;
-    private CustomerSignOut&MockObject $customerSignOut;
     private MessageManager&MockObject $messageManager;
     private CredentialInterface&Stub $credential;
     private ?Delete $controller = null;
@@ -41,11 +38,9 @@ class DeleteTest extends TestCase
     protected function setUp(): void
     {
         $this->createLoggerStub();
+        $this->createCredentialRepositoryStub();
         $this->credential = $this->createStub(CredentialInterface::class);
-        $this->credential->method('getCustomerId')->willReturn(self::CUSTOMER_ID);
-        $this->credentialRepository = $this->createStub(CredentialRepositoryInterface::class);
         $this->credentialManagement = $this->createMock(CredentialManagementInterface::class);
-        $this->customerSignOut = $this->createMock(CustomerSignOut::class);
         $this->messageManager = $this->createMock(MessageManager::class);
     }
 
@@ -64,23 +59,21 @@ class DeleteTest extends TestCase
 
             $this->controller = new Delete(
                 $context,
-                $this->credentialRepository,
+                $this->credentialRepositoryMock,
                 $this->credentialManagement,
-                $this->loggerMock,
-                $this->customerSignOut
+                $this->loggerMock
             );
         }
 
         return $this->controller;
     }
 
-    public function testRevokesPasskeyAndSignsCustomerOutEverywhere(): void
+    public function testRevokesPasskey(): void
     {
-        $this->credentialRepository->method('getById')->willReturn($this->credential);
-        $this->credentialManagement->expects($this->once())->method('revokeCredential')->with($this->credential);
-        $this->customerSignOut->expects($this->once())
-            ->method('signOutEverywhere')
-            ->with(self::CUSTOMER_ID)
+        $this->credentialRepositoryMock->method('getById')->willReturn($this->credential);
+        $this->credentialManagement->expects($this->once())
+            ->method('revokeCredential')
+            ->with($this->credential)
             ->willReturn(true);
         $this->messageManager->expects($this->once())
             ->method('addSuccessMessage')
@@ -92,9 +85,8 @@ class DeleteTest extends TestCase
 
     public function testWarnsWhenCustomerCannotBeSignedOut(): void
     {
-        $this->credentialRepository->method('getById')->willReturn($this->credential);
-        $this->credentialManagement->expects($this->once())->method('revokeCredential');
-        $this->customerSignOut->expects($this->once())->method('signOutEverywhere')->willReturn(false);
+        $this->credentialRepositoryMock->method('getById')->willReturn($this->credential);
+        $this->credentialManagement->expects($this->once())->method('revokeCredential')->willReturn(false);
         // The passkey is still revoked
         $this->messageManager->expects($this->once())
             ->method('addSuccessMessage')
@@ -106,13 +98,14 @@ class DeleteTest extends TestCase
         $this->controller()->execute();
     }
 
-    public function testDoesNotSignOutWhenRevokeFails(): void
+    public function testShowsErrorWhenRevokeFails(): void
     {
-        $this->credentialRepository->method('getById')->willReturn($this->credential);
+        $this->credentialRepositoryMock->method('getById')->willReturn($this->credential);
         $this->credentialManagement->expects($this->once())
             ->method('revokeCredential')
             ->willThrowException(new \RuntimeException('Deadlock'));
-        $this->customerSignOut->expects($this->never())->method('signOutEverywhere');
+        $this->messageManager->expects($this->never())->method('addSuccessMessage');
+        $this->messageManager->expects($this->never())->method('addWarningMessage');
         $this->messageManager->expects($this->once())
             ->method('addErrorMessage')
             ->with(__('Unable to revoke the passkey. Please try again.'));
@@ -120,12 +113,12 @@ class DeleteTest extends TestCase
         $this->controller()->execute();
     }
 
-    public function testDoesNotSignOutForMissingPasskey(): void
+    public function testShowsErrorForMissingPasskey(): void
     {
-        $this->credentialRepository->method('getById')
+        $this->credentialRepositoryMock->method('getById')
             ->willThrowException(new NoSuchEntityException(__('No such entity.')));
         $this->credentialManagement->expects($this->never())->method('revokeCredential');
-        $this->customerSignOut->expects($this->never())->method('signOutEverywhere');
+        $this->messageManager->expects($this->never())->method('addWarningMessage');
         $this->messageManager->expects($this->once())
             ->method('addErrorMessage')
             ->with(__('This passkey no longer exists.'));

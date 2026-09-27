@@ -80,40 +80,37 @@ class VerifyAuthenticationTest extends TestCase
         $this->resolve();
     }
 
-    public function testShowsUnconfirmedAccountMessage(): void
-    {
-        $this->verifier->method('verify')->willThrowException(
-            new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.'))
-        );
-
-        $this->expectException(GraphQlAuthenticationException::class);
-        $this->expectExceptionMessage('This account isn\'t confirmed. Verify and try again.');
-
-        $this->resolve();
-    }
-
     /**
      * @return array<string, array{AuthenticationException}>
      */
     public static function refusedAccountProvider(): array
     {
-        return [
-            'locked' => [new UserLockedException(__('The account is locked.'))],
-            'group excluded' => [new AuthenticationException(__('This website is excluded from customer\'s group.'))],
-        ];
-    }
-
-    #[DataProvider('refusedAccountProvider')]
-    public function testShowsCoreMessageForRefusedAccount(AuthenticationException $exception): void
-    {
-        $this->verifier->method('verify')->willThrowException($exception);
-
-        $this->expectException(GraphQlAuthenticationException::class);
-        $this->expectExceptionMessage(
+        $notAllowed = __(
             'The account sign-in was incorrect or your account is disabled temporarily. '
             . 'Please wait and try again later.'
         );
 
-        $this->resolve();
+        return [
+            'locked' => [new UserLockedException($notAllowed)],
+            'not confirmed' => [
+                new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.')),
+            ],
+            'group excluded' => [new AuthenticationException($notAllowed)],
+        ];
+    }
+
+    #[DataProvider('refusedAccountProvider')]
+    public function testShowsRefusedAccountMessage(AuthenticationException $exception): void
+    {
+        $this->verifier->method('verify')->willThrowException($exception);
+
+        try {
+            $this->resolve();
+            $this->fail('Expected GraphQlAuthenticationException');
+        } catch (GraphQlAuthenticationException $e) {
+            // The account guard's message is already customer-facing
+            $this->assertSame($exception->getMessage(), $e->getMessage());
+            $this->assertSame($exception, $e->getPrevious());
+        }
     }
 }

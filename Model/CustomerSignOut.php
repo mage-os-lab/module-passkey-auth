@@ -33,37 +33,28 @@ class CustomerSignOut
      */
     public function signOutEverywhere(int $customerId): bool
     {
-        $sessionsEnded = $this->clearSessions($customerId);
+        $sessionsEnded = $this->endOtherSessions($customerId);
 
         try {
             $this->customerTokenService->revokeCustomerAccessToken($customerId);
-            $tokensRevoked = true;
+            return $sessionsEnded;
         } catch (\Exception $e) {
             $this->logger->error('Failed to revoke customer API tokens after passkey revocation', [
                 'exception' => $e->getMessage(),
                 'customer_id' => $customerId,
             ]);
-            $tokensRevoked = false;
+            return false;
         }
-
-        return $sessionsEnded && $tokensRevoked;
     }
 
     /**
-     * As core does when a customer changes their own password: end their other storefront sessions. The session
-     * making the request stays signed in, and API tokens are kept.
+     * As core does when a customer changes their own password: end their other storefront sessions. Core's
+     * SessionCleaner ends every session started before now, except the one making the request. API tokens are
+     * kept.
      *
      * @return bool False when the sessions could not be ended
      */
     public function endOtherSessions(int $customerId): bool
-    {
-        return $this->clearSessions($customerId);
-    }
-
-    /**
-     * Core's SessionCleaner ends every session started before now, except the one making the request.
-     */
-    private function clearSessions(int $customerId): bool
     {
         try {
             $this->sessionCleaner->clearFor($customerId);

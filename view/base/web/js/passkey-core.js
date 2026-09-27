@@ -21,8 +21,8 @@
         translations = null;
 
     /**
-     * Phrases rendered by the Hyvä template hyva/scripts.phtml. Luma
-     * translates with mage/translate instead, so it has none.
+     * Translations rendered by templates/i18n.phtml on Luma and Hyvä. Only
+     * phrases that differ from English are sent, so the block may be absent.
      */
     function readTranslations() {
         var el = document.getElementById('mageos-passkey-i18n');
@@ -57,9 +57,10 @@
 
     return {
         /**
-         * Translate a message on Hyvä, where mage/translate isn't loaded.
+         * Translate a message without mage/translate, which Hyvä doesn't load.
          * Falls back to the English text. %1, %2... are replaced by the
-         * extra arguments.
+         * extra arguments. Read on first use, as the block can follow this
+         * script.
          */
         t: function (text) {
             var args = arguments,
@@ -135,13 +136,12 @@
         },
 
         /**
-         * Whether a failed sign-in's server message should be shown as is:
-         * 429, too many failed attempts (the customer must wait), or 403, the
-         * passkey was verified but the account can't sign in (locked, not
-         * confirmed). Other failures get a generic message.
+         * Whether a failed request's message came from our server, which
+         * only sends customer-safe text. postJson() sets status only on server
+         * replies, so browser errors (cancelled, network) get a generic message.
          */
         hasCustomerMessage: function (error) {
-            return !!error && (error.status === 429 || error.status === 403);
+            return !!error && error.status !== undefined;
         },
 
         /**

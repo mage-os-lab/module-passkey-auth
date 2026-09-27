@@ -163,14 +163,48 @@ class CredentialManagementTest extends TestCase
         $this->credentialManagement()->deleteCredential(10, 55);
     }
 
-    public function testRevokeCredentialLeavesSignOutToCaller(): void
+    public function testRevokeCredentialSignsCustomerOutEverywhere(): void
     {
         $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getCustomerId')->willReturn(10);
+        $credential->method('getEntityId')->willReturn(55);
+        $credential->method('getCredentialId')->willReturn('Y3JlZGVudGlhbC1pZA==');
         $this->mockCredentialRepository()->expects($this->once())->method('delete')->with($credential);
+        $eventManager = $this->createMock(EventManager::class);
+        $this->eventManagerMock = $eventManager;
+        $eventManager->expects($this->once())
+            ->method('dispatch')
+            ->with('passkey_credential_remove_after', [
+                'customer_id' => 10,
+                'entity_id' => 55,
+                'credential_id' => 'Y3JlZGVudGlhbC1pZA==',
+                'credential' => $credential,
+            ]);
         $signOut = $this->mockCustomerSignOut();
+        $signOut->expects($this->once())->method('signOutEverywhere')->with(10)->willReturn(true);
         $signOut->expects($this->never())->method('endOtherSessions');
-        $signOut->expects($this->never())->method('signOutEverywhere');
+
+        $this->assertTrue($this->credentialManagement()->revokeCredential($credential));
+    }
+
+    public function testRevokeCredentialReportsFailedSignOut(): void
+    {
+        $credential = $this->createStub(CredentialInterface::class);
+        $credential->method('getCustomerId')->willReturn(10);
+        // Logged by CustomerSignOut; the passkey is still deleted
+        $this->mockCredentialRepository()->expects($this->once())->method('delete')->with($credential);
+        $this->mockCustomerSignOut()->expects($this->once())->method('signOutEverywhere')->willReturn(false);
+
+        $this->assertFalse($this->credentialManagement()->revokeCredential($credential));
+    }
+
+    public function testRevokeCredentialDoesNotSignOutWhenDeleteFails(): void
+    {
+        $credential = $this->createStub(CredentialInterface::class);
+        $this->credentialRepositoryMock->method('delete')->willThrowException(new \RuntimeException('Deadlock'));
+        $this->mockCustomerSignOut()->expects($this->never())->method('signOutEverywhere');
+
+        $this->expectException(\RuntimeException::class);
 
         $this->credentialManagement()->revokeCredential($credential);
     }

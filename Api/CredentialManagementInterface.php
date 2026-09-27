@@ -36,13 +36,13 @@ interface CredentialManagementInterface
     public function deleteCredential(int $customerId, int $entityId): bool;
 
     /**
-     * Delete a credential without an ownership check (admin revocation). Does not sign the customer out: the
-     * admin controllers do that once per customer with Model\CustomerSignOut::signOutEverywhere().
+     * Delete a credential without an ownership check (admin revocation), then sign the customer out everywhere:
+     * end all their storefront sessions and revoke their API tokens, for a lost or stolen device.
      *
      * @param CredentialInterface $credential
-     * @return void
+     * @return bool False when the credential was deleted but the customer could not be signed out (logged)
      */
-    public function revokeCredential(CredentialInterface $credential): void;
+    public function revokeCredential(CredentialInterface $credential): bool;
 
     /**
      * @param int $customerId

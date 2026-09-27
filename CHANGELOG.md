@@ -19,13 +19,13 @@ All notable changes to this module are listed here. The format follows [Keep a C
 - **New methods on `@api` interfaces.** Custom implementations must add them.
   - `Api\Data\CredentialInterface` now extends `ExtensibleDataInterface` and has `getExtensionAttributes()` and `setExtensionAttributes()`.
   - `Api\CredentialRepositoryInterface::getList()`.
+- **`CredentialManagementInterface::revokeCredential()` returns `bool`** (was `void`), and now signs the customer out everywhere after deleting the passkey. It returns `false` when the passkey was deleted but signing out failed. Custom implementations must change the return type.
 - **Constructor changes in non-API classes.** If you extend these classes or configure their arguments in `di.xml`, update your code.
   - `Controller\Authentication\Verify`: drops `RateLimiter`, adds `PostLoginRedirect` and `Magento\Customer\Model\Url`.
   - `CustomerData\PasskeySection`: adds `AdminImpersonationGuard`.
   - `Controller\Registration\Options`: drops `RequestInterface`.
   - `Model\Authentication\Verifier`: adds `RateLimiter`, `RemoteAddress`, `Share`, `CustomerRepositoryInterface`, `StoreManagerInterface` and `AccountGuard`.
   - `Model\CredentialManagement`: adds `CustomerSignOut`.
-  - `Controller\Adminhtml\Credentials\Delete` and `MassDelete`: add `CustomerSignOut`.
   - `Model\CredentialRepository`: adds `CollectionProcessorInterface` and `CredentialSearchResultsInterfaceFactory`.
   - `Model\Registration\OptionsGenerator` and `Model\Registration\Verifier`: add `AdminImpersonationGuard`.
   - `Model\Resolver\CredentialFormatter`: new constructor with `CustomerPasskeyMapper`.
@@ -46,8 +46,8 @@ All notable changes to this module are listed here. The format follows [Keep a C
 - `Model\Exception\RateLimitExceededException`, a `LocalizedException` thrown by `Model\RateLimiter` when a limit is hit.
 - `Model\Registration\AdminImpersonationGuard::isImpersonated()`.
 - `passkeyCore.postJson()` errors carry the HTTP status as `status`.
-- `passkeyCore.hasCustomerMessage(error)`: whether a failed sign-in's server message should be shown (HTTP 429 or 403).
-- `passkeyCore.t()`, which translates Hyvä messages. It falls back to English.
+- `passkeyCore.hasCustomerMessage(error)`: whether a failed request's message came from the server, and so can be shown.
+- `passkeyCore.t()`, which translates messages without `mage/translate`. It falls back to English.
 - `Model\Authentication\AccountGuard` (account checks at sign-in) and `Model\CustomerSignOut` (sign-out after a passkey is removed).
 - REST, SOAP and GraphQL passkey sign-ins fire core `customer_login`, as password token requests do. The customer's last login time is updated.
 - The storefront verify endpoint returns `redirect_url`: the page a password sign-in would land on. The login page follows it instead of reloading. `passkeyCore.completeSignIn()` does this, and `startConditional`'s `onSuccess` now receives the verify reply. Checkout autofill still reloads the page.
@@ -75,7 +75,7 @@ All notable changes to this module are listed here. The format follows [Keep a C
 - Hyvä: the passkey components could miss Alpine's start and not load. They now register before Alpine starts.
 - Hyvä My Account > Passkeys: server errors are shown, the Add button is disabled while busy, the empty state returns after the last passkey is deleted, and Delete removes the whole row.
 - Admin two-factor failure messages were not picked up for translation.
-- Hyvä messages could not be translated. `hyva/scripts.phtml` now renders them with `__()`, and the Hyvä scripts read them through `passkeyCore.t()`. The suggested passkey name ("Chrome on Windows") is translated on Hyvä too.
+- Hyvä messages could not be translated. The new `i18n.phtml` template renders their translations with `__()`, and the Hyvä scripts read them through `passkeyCore.t()`. The suggested passkey name ("Chrome on Windows") is translated on Luma and Hyvä too.
 - Customers never saw "Too many failed passkey attempts. Please try again later." The storefront and GraphQL showed the generic failure instead. They now show it, and the storefront replies with HTTP 429. Luma and Hyvä show it for autofill sign-ins too. Other failures still show the generic message, except a refused account (see Security).
 
 ### Security
@@ -86,8 +86,8 @@ All notable changes to this module are listed here. The format follows [Keep a C
 - The sign-in options limit counts the email trimmed and lowercased, so changing the case of the email no longer gets a fresh counter.
 - The failed sign-in limit covers REST. (#11)
 - The passkey name and customer email are escaped in the admin revoke confirmation, and the passkey name in the Luma delete confirmation.
-- Passkey sign-in ignored Magento's account lockout and email confirmation. It now refuses a locked account, an account awaiting email confirmation (including a changed email), and a customer group excluded from the website, on the storefront, REST and GraphQL. The checks run after the passkey is verified and don't count toward the failed sign-in limit. The storefront replies with HTTP 403 and Magento's own message, and Luma and Hyvä show it for autofill sign-ins too. GraphQL uses `generateCustomerToken`'s messages. Failed passkey attempts never count toward the lockout, since anyone could otherwise lock a customer out. A successful passkey sign-in resets the wrong-password count, as a password sign-in does.
-- Removing a passkey left sessions and tokens from it signed in. An admin revoke now ends all of the customer's storefront sessions and revokes their REST and GraphQL tokens, once per customer for mass revoke. A customer deleting their own passkey (storefront, REST or GraphQL) ends their other storefront sessions and keeps API tokens, as a password change does. If signing out fails, the passkey is still removed, the error is logged, and the admin sees a warning.
+- Passkey sign-in ignored Magento's account lockout and email confirmation. It now refuses a locked account, an account awaiting email confirmation (including a changed email), and a customer group excluded from the website, on the storefront, REST and GraphQL. The checks run after the passkey is verified and don't count toward the failed sign-in limit. Every entry point shows the message a password sign-in shows: the confirmation message, or Magento's generic "disabled temporarily" message for a locked account or excluded group. The storefront replies with HTTP 403, and Luma and Hyvä show the message for autofill sign-ins too. Failed passkey attempts never count toward the lockout, since anyone could otherwise lock a customer out. A successful passkey sign-in resets the wrong-password count, as a password sign-in does.
+- Removing a passkey left sessions and tokens from it signed in. An admin revoke now ends all of the customer's storefront sessions and revokes their REST and GraphQL tokens. A customer deleting their own passkey (storefront, REST or GraphQL) ends their other storefront sessions and keeps API tokens, as a password change does. If signing out fails, the passkey is still removed, the error is logged, and the admin sees a warning.
 
 ## [1.0.0-beta3] - 2026-09-26
 

@@ -1,0 +1,57 @@
+<?php declare(strict_types=1);
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+/** @var \Magento\Framework\View\Element\Template $block */
+
+// Messages passkeyCore.t() translates, keyed by their English text. Luma's own scripts use mage/translate.
+$phrases = [
+    // passkey-core.js, on Luma and Hyvä: default passkey name, e.g. "Chrome on Windows"
+    'Browser' => __('Browser'),
+    '%1 on %2' => __('%1 on %2'),
+    // hyva/passkey-login.js
+    'Passkey sign-in didn\'t complete. Please try again.' => __('Passkey sign-in didn\'t complete. Please try again.'),
+    'Unable to sign in with passkey. Please use your password.'
+        => __('Unable to sign in with passkey. Please use your password.'),
+    'Passkey verification failed. Please try again.' => __('Passkey verification failed. Please try again.'),
+    'Passkey sign-in failed.' => __('Passkey sign-in failed.'),
+    'Passkey sign-in was cancelled, or no passkey for this account was found on this device.'
+        => __('Passkey sign-in was cancelled, or no passkey for this account was found on this device.'),
+    // hyva/passkey-manage.js
+    'Your browser does not support passkeys.' => __('Your browser does not support passkeys.'),
+    'Passkeys require a secure (HTTPS) connection.' => __('Passkeys require a secure (HTTPS) connection.'),
+    'Give this passkey a name so you can recognize it later:'
+        => __('Give this passkey a name so you can recognize it later:'),
+    'Passkey name must be 255 characters or fewer.' => __('Passkey name must be 255 characters or fewer.'),
+    'Passkey names can\'t contain <, > or &.' => __('Passkey names can\'t contain <, > or &.'),
+    'Registration failed.' => __('Registration failed.'),
+    'Passkey registered successfully.' => __('Passkey registered successfully.'),
+    'Passkey registration was cancelled.' => __('Passkey registration was cancelled.'),
+    'This device already has a passkey for your account. Try signing in with it instead.'
+        => __('This device already has a passkey for your account. Try signing in with it instead.'),
+    'Failed to rename passkey.' => __('Failed to rename passkey.'),
+    'this passkey' => __('this passkey'),
+    'Delete "%1"? You will no longer be able to sign in with it.'
+        => __('Delete "%1"? You will no longer be able to sign in with it.'),
+    'Passkey deleted.' => __('Passkey deleted.'),
+    'Failed to delete passkey.' => __('Failed to delete passkey.'),
+];
+
+// Only what differs from English: passkeyCore.t() falls back to the English text
+$translated = array_filter(
+    array_map('strval', $phrases),
+    static fn (string $text, string $english): bool => $text !== $english,
+    ARRAY_FILTER_USE_BOTH
+);
+if (!$translated) {
+    return;
+}
+
+// A JSON data block is never executed, so it needs no CSP nonce or hash. JSON_HEX_TAG keeps "</script>" out of it.
+$json = json_encode(
+    $translated,
+    JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+);
+?>
+<script type="application/json" id="mageos-passkey-i18n"><?= /* @noEscape */ $json ?></script>

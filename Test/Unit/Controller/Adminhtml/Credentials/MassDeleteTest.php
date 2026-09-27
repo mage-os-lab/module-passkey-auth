@@ -12,7 +12,6 @@ use MageOS\PasskeyAuth\Api\CredentialManagementInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
 use MageOS\PasskeyAuth\Controller\Adminhtml\Credentials\MassDelete;
-use MageOS\PasskeyAuth\Model\CustomerSignOut;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\Collection;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
@@ -33,7 +32,6 @@ class MassDeleteTest extends TestCase
     private Filter&Stub $filter;
     private CredentialInterfaceFactory&Stub $credentialFactory;
     private CredentialManagementInterface&MockObject $credentialManagement;
-    private CustomerSignOut&MockObject $customerSignOut;
     private MessageManager&MockObject $messageManager;
     private ?MassDelete $controller = null;
 
@@ -45,11 +43,9 @@ class MassDeleteTest extends TestCase
         $this->credentialFactory->method('create')->willReturnCallback(function (array $args) {
             $credential = $this->createStub(CredentialInterface::class);
             $credential->method('getEntityId')->willReturn($args['data']['entity_id']);
-            $credential->method('getCustomerId')->willReturn($args['data']['customer_id']);
             return $credential;
         });
         $this->credentialManagement = $this->createMock(CredentialManagementInterface::class);
-        $this->customerSignOut = $this->createMock(CustomerSignOut::class);
         $this->messageManager = $this->createMock(MessageManager::class);
     }
 
@@ -72,8 +68,7 @@ class MassDeleteTest extends TestCase
                 $collectionFactory,
                 $this->credentialManagement,
                 $this->credentialFactory,
-                $this->loggerMock,
-                $this->customerSignOut
+                $this->loggerMock
             );
         }
 
@@ -81,29 +76,24 @@ class MassDeleteTest extends TestCase
     }
 
     /**
-     * @param array<array{int, int}> $rows entity ID and customer ID of each selected passkey
+     * @param int[] $entityIds
      */
-    private function selectRows(array $rows): void
+    private function selectRows(array $entityIds): void
     {
-        $items = array_map(
-            fn (array $row) => new DataObject(['entity_id' => $row[0], 'customer_id' => $row[1]]),
-            $rows
-        );
+        $items = array_map(fn (int $entityId) => new DataObject(['entity_id' => $entityId]), $entityIds);
         $collection = $this->createStub(Collection::class);
         $collection->method('getIterator')->willReturn(new \ArrayIterator($items));
         $this->filter->method('getCollection')->willReturn($collection);
     }
 
-    public function testSignsEachCustomerOutOnce(): void
+    public function testRevokesEachSelectedPasskey(): void
     {
-        // Customer 7 has two of the selected passkeys
-        $this->selectRows([[1, 7], [2, 7], [3, 8]]);
-        $this->credentialManagement->expects($this->exactly(3))->method('revokeCredential');
-        $signedOut = [];
-        $this->customerSignOut->expects($this->exactly(2))
-            ->method('signOutEverywhere')
-            ->willReturnCallback(function (int $customerId) use (&$signedOut) {
-                $signedOut[] = $customerId;
+        $this->selectRows([1, 2, 3]);
+        $revoked = [];
+        $this->credentialManagement->expects($this->exactly(3))
+            ->method('revokeCredential')
+            ->willReturnCallback(function (CredentialInterface $credential) use (&$revoked) {
+                $revoked[] = $credential->getEntityId();
                 return true;
             });
         $this->messageManager->expects($this->once())
@@ -113,37 +103,34 @@ class MassDeleteTest extends TestCase
 
         $this->controller()->execute();
 
-        $this->assertSame([7, 8], $signedOut);
+        $this->assertSame([1, 2, 3], $revoked);
     }
 
-    public function testDoesNotSignOutCustomerWhosePasskeyWasNotRevoked(): void
+    public function testCountsOnlyRevokedPasskeys(): void
     {
-        $this->selectRows([[1, 7], [2, 8]]);
+        $this->selectRows([1, 2]);
         $this->credentialManagement->expects($this->exactly(2))->method('revokeCredential')->willReturnCallback(
             function (CredentialInterface $credential) {
                 if ($credential->getEntityId() === 1) {
                     throw new \RuntimeException('Deadlock');
                 }
+                return true;
             }
         );
-        $this->customerSignOut->expects($this->once())
-            ->method('signOutEverywhere')
-            ->with(8)
-            ->willReturn(true);
         $this->messageManager->expects($this->once())
             ->method('addSuccessMessage')
             ->with(__('A total of %1 passkey(s) have been revoked.', 1));
+        $this->messageManager->expects($this->never())->method('addWarningMessage');
 
         $this->controller()->execute();
     }
 
-    public function testWarnsAboutCustomersWhoCouldNotBeSignedOut(): void
+    public function testWarnsWhenCustomersCouldNotBeSignedOut(): void
     {
-        $this->selectRows([[1, 7], [2, 8], [3, 9]]);
-        $this->credentialManagement->expects($this->exactly(3))->method('revokeCredential');
-        $this->customerSignOut->expects($this->exactly(3))
-            ->method('signOutEverywhere')
-            ->willReturnCallback(fn (int $customerId) => $customerId === 8);
+        $this->selectRows([1, 2, 3]);
+        $this->credentialManagement->expects($this->exactly(3))
+            ->method('revokeCredential')
+            ->willReturnCallback(fn (CredentialInterface $credential) => $credential->getEntityId() === 2);
         // The passkeys are still revoked
         $this->messageManager->expects($this->once())
             ->method('addSuccessMessage')
@@ -151,7 +138,8 @@ class MassDeleteTest extends TestCase
         $this->messageManager->expects($this->once())
             ->method('addWarningMessage')
             ->with(__(
-                '%1 customer(s) could not be signed out of their sessions and apps. See the error log.',
+                'For %1 revoked passkey(s), the customer could not be signed out of their sessions and apps. '
+                . 'See the error log.',
                 2
             ));
 

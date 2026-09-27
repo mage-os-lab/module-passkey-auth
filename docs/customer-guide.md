@@ -87,5 +87,5 @@ If you didn't make the change, sign in, remove any passkey you don't recognize, 
 | Too many passkey requests. Please try again later. | Wait a minute and try again, or sign in with your password. |
 | Too many failed passkey attempts. Please try again later. | Wait 15 minutes and try again, or sign in with your password. |
 | Maximum number of passkeys (10) reached. | Delete a passkey you no longer use, then add the new one. |
-| The account sign-in was incorrect or your account is disabled temporarily. Please wait and try again later. | Your account is locked after too many wrong passwords. Wait and try again, or contact us. |
+| The account sign-in was incorrect or your account is disabled temporarily. Please wait and try again later. | Your account is locked, for example after too many wrong passwords. Wait and try again, or contact us. |
 | This account isn't confirmed. Verify and try again. | Click the link in the confirmation email we sent you, then sign in again. |

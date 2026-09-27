@@ -319,31 +319,22 @@ class VerifierTest extends TestCase
         $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
     }
 
-    public function testVerifyReusesCustomerLoadedForWebsiteCheck(): void
-    {
-        $this->configureEnabled(true);
-        $this->configureLoadAssertion();
-        $this->configureStoredCredential(0);
-        // Expects one getById call
-        $customer = $this->configureWebsites(customerWebsiteId: 2, currentWebsiteId: 2);
-        $this->mockAccountGuard()->expects($this->once())->method('assertCanSignIn')->with($customer);
-        $this->configureVerifiedAssertion(1);
-        $result = $this->configureTokenAndResult();
-
-        $this->assertSame($result, $this->verifier()->verify('valid-token', '{"response":"assertion"}'));
-    }
-
     /**
      * @return array<string, array{AuthenticationException}>
      */
     public static function refusedAccountProvider(): array
     {
+        $notAllowed = __(
+            'The account sign-in was incorrect or your account is disabled temporarily. '
+            . 'Please wait and try again later.'
+        );
+
         return [
-            'locked' => [new UserLockedException(__('The account is locked.'))],
+            'locked' => [new UserLockedException($notAllowed)],
             'not confirmed' => [
                 new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.')),
             ],
-            'group excluded' => [new AuthenticationException(__('This website is excluded from customer\'s group.'))],
+            'group excluded' => [new AuthenticationException($notAllowed)],
         ];
     }
 
@@ -366,12 +357,8 @@ class VerifierTest extends TestCase
         $this->mockTokenService()->expects($this->never())->method('createTokenForCustomer');
         $this->mockCredentialRepository()->expects($this->never())->method('save');
         $this->mockEventManager()->expects($this->never())->method('dispatch');
-        $this->mockLogger()->expects($this->once())
-            ->method('warning')
-            ->with('Passkey sign-in refused', [
-                'customer_id' => self::CUSTOMER_ID,
-                'reason' => $refusal->getMessage(),
-            ]);
+        // Logged once, by the account guard
+        $this->mockLogger()->expects($this->never())->method('warning');
 
         try {
             $this->verifier()->verify('valid-token', '{"response":"assertion"}');
@@ -679,23 +666,21 @@ class VerifierTest extends TestCase
         return $storedCredential;
     }
 
-    private function configureWebsites(int $customerWebsiteId, int $currentWebsiteId): CustomerInterface
+    private function configureWebsites(int $customerWebsiteId, int $currentWebsiteId): void
     {
         $this->shareConfigStub->method('isWebsiteScope')->willReturn(true);
 
         $customer = $this->createStub(CustomerInterface::class);
         $customer->method('getWebsiteId')->willReturn($customerWebsiteId);
+        // Loaded again for the account checks; CustomerRepository caches it per request
         $this->customerRepositoryStub = $this->createMock(CustomerRepositoryInterface::class);
-        $this->customerRepositoryStub->expects($this->once())
-            ->method('getById')
+        $this->customerRepositoryStub->method('getById')
             ->with(self::CUSTOMER_ID)
             ->willReturn($customer);
 
         $store = $this->createStub(StoreInterface::class);
         $store->method('getWebsiteId')->willReturn($currentWebsiteId);
         $this->storeManagerStub->method('getStore')->willReturn($store);
-
-        return $customer;
     }
 
     private function configureVerifiedAssertion(int $newCounter): PublicKeyCredentialSource

@@ -269,30 +269,26 @@ class VerifyTest extends TestCase
     }
 
     /**
-     * @return array<string, array{AuthenticationException, string}>
+     * @return array<string, array{AuthenticationException}>
      */
     public static function refusedAccountProvider(): array
     {
+        $notAllowed = __(
+            'The account sign-in was incorrect or your account is disabled temporarily. '
+            . 'Please wait and try again later.'
+        );
+
         return [
-            // LoginPost's wording for a locked account
-            'locked' => [
-                new UserLockedException(__('The account is locked.')),
-                'The account sign-in was incorrect or your account is disabled temporarily. '
-                    . 'Please wait and try again later.',
-            ],
+            'locked' => [new UserLockedException($notAllowed)],
             'not confirmed' => [
                 new EmailNotConfirmedException(__('This account isn\'t confirmed. Verify and try again.')),
-                'This account isn\'t confirmed. Verify and try again.',
             ],
-            'group excluded' => [
-                new AuthenticationException(__('This website is excluded from customer\'s group.')),
-                'This website is excluded from customer\'s group.',
-            ],
+            'group excluded' => [new AuthenticationException($notAllowed)],
         ];
     }
 
     #[DataProvider('refusedAccountProvider')]
-    public function testExecuteShowsRefusedAccountMessage(AuthenticationException $exception, string $message): void
+    public function testExecuteShowsRefusedAccountMessage(AuthenticationException $exception): void
     {
         $this->configureRequestBody(['challengeToken' => 'tok', 'credential' => ['id' => 'r1']]);
         $this->jsonMock->method('serialize')->willReturn('{"id":"r1"}');
@@ -304,7 +300,8 @@ class VerifyTest extends TestCase
 
         $this->assertSame(403, $this->capturedHttpCode);
         $this->assertTrue($this->capturedData['errors']);
-        $this->assertSame($message, (string) $this->capturedData['message']);
+        // The account guard's message is already customer-facing
+        $this->assertSame($exception->getMessage(), (string) $this->capturedData['message']);
     }
 
     public function testExecuteFailsWhenCustomerCannotBeLoaded(): void

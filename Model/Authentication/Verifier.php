@@ -21,7 +21,6 @@ use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Customer\Api\CustomerRepositoryInterface;
-use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Customer\Model\Config\Share;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\AuthenticationException;
@@ -97,10 +96,9 @@ class Verifier implements AuthenticationVerifierInterface
         $credentialIdBase64 = base64_encode($publicKeyCredential->rawId);
 
         $storedCredential = null;
-        $customer = null;
         try {
             $storedCredential = $this->credentialRepository->getByCredentialId($credentialIdBase64);
-            $customer = $this->assertCurrentWebsite($storedCredential);
+            $this->assertCurrentWebsite($storedCredential);
         } catch (NoSuchEntityException $e) {
             $this->logger->warning('Passkey assertion rejected: unknown credential', [
                 'credential_id' => $credentialIdBase64,
@@ -146,16 +144,7 @@ class Verifier implements AuthenticationVerifierInterface
         $customerId = $storedCredential->getCustomerId();
 
         // Only after the assertion is verified, so only the passkey holder learns the account's state
-        $customer ??= $this->customerRepository->getById($customerId);
-        try {
-            $this->accountGuard->assertCanSignIn($customer);
-        } catch (AuthenticationException $e) {
-            $this->logger->warning('Passkey sign-in refused', [
-                'customer_id' => $customerId,
-                'reason' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
+        $this->accountGuard->assertCanSignIn($this->customerRepository->getById($customerId));
 
         // Update sign count and last used — don't block auth on failure
         try {
@@ -221,20 +210,17 @@ class Verifier implements AuthenticationVerifierInterface
      * With per-website customer accounts, a passkey only signs in on its owner's website. The RP ID is the host,
      * so without this a discoverable passkey would work on every website sharing it.
      *
-     * @return CustomerInterface|null The owner, when it had to be loaded for the check
      * @throws NoSuchEntityException When the owner belongs to another website, handled like an unknown credential
      */
-    private function assertCurrentWebsite(CredentialInterface $credential): ?CustomerInterface
+    private function assertCurrentWebsite(CredentialInterface $credential): void
     {
         if (!$this->shareConfig->isWebsiteScope()) {
-            return null;
+            return;
         }
 
         $customer = $this->customerRepository->getById($credential->getCustomerId());
         if ((int) $customer->getWebsiteId() !== (int) $this->storeManager->getStore()->getWebsiteId()) {
             throw new NoSuchEntityException(__('Passkey credential belongs to another website.'));
         }
-
-        return $customer;
     }
 }
