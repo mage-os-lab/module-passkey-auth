@@ -8,6 +8,8 @@ Passwordless login for Magento 2 customer accounts using the WebAuthn/FIDO2 stan
 
 Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 
+**Documentation:** see the [manual](docs/README.md) for setup, customer and admin guides, the headless API, and troubleshooting.
+
 ## Key Features
 
 ### Passwordless Authentication
@@ -156,7 +158,8 @@ mutation { deleteCustomerPasskey(passkeyId: 1) { success } }
 | `passkey_credential_register_after` | `customer_id`, `credential` | New passkey registered |
 | `passkey_authentication_success` | `customer_id`, `credential` | Successful passkey login |
 | `passkey_authentication_failure` | `credential_id`, `reason` | Failed passkey login |
-| `passkey_credential_remove_after` | `customer_id`, `credential_id`, `friendly_name` | Passkey deleted |
+| `passkey_registration_failure` | `customer_id`, `reason` | Passkey registration failed validation |
+| `passkey_credential_remove_after` | `customer_id`, `credential_id`, `credential` | Passkey deleted |
 
 The bundled notification emails are implemented as observers on the register/remove events, so they fire for every entry point (storefront, REST, GraphQL, admin revocation).
 
@@ -208,8 +211,8 @@ Templates are in `view/frontend/templates/` and can be overridden via theme fall
 - **HTTPS required**: WebAuthn ceremonies are rejected by browsers on non-secure origins. The module detects non-secure contexts and displays a specific error message.
 - **Change notifications**: Customers are emailed whenever a passkey is added or removed, so silent credential planting is visible. See [SECURITY.md](SECURITY.md) for the disclosure policy.
 - **Single-use challenges**: Each challenge token is consumed on verification and cannot be reused.
-- **Rate limiting**: Options generation (10 requests/60s) and verification failures (5 failures/900s) are rate-limited per customer.
-- **Sign-count validation**: Detects cloned authenticators by tracking the signature counter.
+- **Rate limiting**: Options generation (10 requests/60s per email and IP, or per customer for registration) and failed sign-ins (5 per 15 minutes per IP) are rate-limited. See [How it works and security](docs/security.md#rate-limits).
+- **Sign-count validation**: Rejects sign-ins whose signature counter doesn't increase, a sign of a cloned authenticator.
 - **Anti-enumeration**: Authentication options for an email with no passkeys (or no account) carry a stable, secret-derived decoy credential descriptor instead of an empty list.
 - **Ownership enforcement**: All credential operations validate that the credential belongs to the requesting customer.
 
