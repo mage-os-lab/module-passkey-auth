@@ -44,7 +44,7 @@ window.addEventListener('alpine:init', () => {
         async fetchOptions(email) {
             const response = await fetch(this.optionsUrl, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                 body: JSON.stringify({email: email}),
                 credentials: 'same-origin'
             });
@@ -78,7 +78,7 @@ window.addEventListener('alpine:init', () => {
         async verifyAssertion(challengeToken, credential) {
             const response = await fetch(this.verifyUrl, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                 body: JSON.stringify({
                     challengeToken: challengeToken,
                     credential: credential
