@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Controller\Authentication;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
-use MageOS\PasskeyAuth\Model\RateLimiter;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Action\HttpPostActionInterface;
@@ -26,7 +25,6 @@ class Verify implements HttpPostActionInterface
         private readonly AuthenticationVerifierInterface $authenticationVerifier,
         private readonly CustomerRepositoryInterface $customerRepository,
         private readonly CustomerSession $customerSession,
-        private readonly RateLimiter $rateLimiter,
         private readonly JsonSerializer $json,
         private readonly CookieManagerInterface $cookieManager,
         private readonly CookieMetadataFactory $cookieMetadataFactory,
@@ -43,10 +41,6 @@ class Verify implements HttpPostActionInterface
             if (!is_array($body)) {
                 $body = [];
             }
-            $ip = $this->request->getClientIp() ?? 'unknown';
-
-            $this->rateLimiter->checkVerifyFailRate($ip);
-
             $challengeToken = isset($body['challengeToken']) && is_string($body['challengeToken'])
                 ? $body['challengeToken']
                 : '';
@@ -71,16 +65,12 @@ class Verify implements HttpPostActionInterface
                 'message' => __('Login successful.'),
             ]);
         } catch (LocalizedException $e) {
-            $ip = $this->request->getClientIp() ?? 'unknown';
-            $this->rateLimiter->recordVerifyFailure($ip);
             $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,
                 'message' => __('Passkey verification failed. Please try again.'),
             ]);
         } catch (\Exception $e) {
-            $ip = $this->request->getClientIp() ?? 'unknown';
-            $this->rateLimiter->recordVerifyFailure($ip);
             $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
             return $resultJson->setHttpResponseCode(400)->setData([
                 'errors' => true,

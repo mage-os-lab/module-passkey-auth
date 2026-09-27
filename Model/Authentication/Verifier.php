@@ -11,10 +11,12 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
+use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Psr\Log\LoggerInterface;
 
@@ -28,7 +30,9 @@ class Verifier implements AuthenticationVerifierInterface
         private readonly AuthenticationResultInterfaceFactory $resultFactory,
         private readonly EventManager $eventManager,
         private readonly LoggerInterface $logger,
-        private readonly DateTime $dateTime
+        private readonly DateTime $dateTime,
+        private readonly RateLimiter $rateLimiter,
+        private readonly RemoteAddress $remoteAddress
     ) {
     }
 
@@ -38,6 +42,25 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Passkey authentication is not enabled.'));
         }
 
+        // Counted here so every entry point (storefront, REST, GraphQL) shares one limit
+        $ip = $this->remoteAddress->getRemoteAddress() ?: 'unknown';
+        $this->rateLimiter->checkVerifyFailRate($ip);
+
+        try {
+            return $this->verifyAssertion($challengeToken, $assertionResponseJson);
+        } catch (\Exception $e) {
+            $this->rateLimiter->recordVerifyFailure($ip);
+            throw $e;
+        }
+    }
+
+    /**
+     * @throws LocalizedException
+     */
+    private function verifyAssertion(
+        string $challengeToken,
+        string $assertionResponseJson
+    ): AuthenticationResultInterface {
         [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
             $challengeToken,
             $assertionResponseJson,
@@ -61,6 +84,7 @@ class Verifier implements AuthenticationVerifierInterface
 
         $credentialSource = $this->ceremony->deserializeSource($storedCredential->getPublicKey());
 
+        // Also rejects a signature counter that did not increase (possible cloned authenticator)
         try {
             $updatedSource = $this->ceremony->verifyAssertion(
                 $publicKeyCredential,
@@ -81,19 +105,6 @@ class Verifier implements AuthenticationVerifierInterface
         }
 
         $customerId = $storedCredential->getCustomerId();
-
-        // Check for sign count decrease (possible cloned authenticator)
-        if ($updatedSource->counter > 0
-            && $storedCredential->getSignCount() > 0
-            && $updatedSource->counter <= $storedCredential->getSignCount()
-        ) {
-            $this->logger->warning('Passkey sign count decreased — possible cloned authenticator', [
-                'credential_id' => $credentialIdBase64,
-                'customer_id' => $customerId,
-                'stored_count' => $storedCredential->getSignCount(),
-                'received_count' => $updatedSource->counter,
-            ]);
-        }
 
         // Update sign count and last used — don't block auth on failure
         try {

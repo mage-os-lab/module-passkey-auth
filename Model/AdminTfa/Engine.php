@@ -126,6 +126,7 @@ class Engine implements EngineInterface
                 (string) $request->getData('credential'),
                 self::CHALLENGE_AUTHENTICATION
             );
+            // Also rejects a signature counter that did not increase (possible cloned authenticator)
             $source = $this->ceremony->verifyAssertion(
                 $credential,
                 $requestOptions,
@@ -133,15 +134,6 @@ class Engine implements EngineInterface
             );
         } catch (\Throwable $e) {
             throw $this->failure($e, $userId, __('Passkey verification failed. Please try again.'));
-        }
-
-        $storedCount = (int) ($registration['sign_count'] ?? 0);
-        if ($source->counter > 0 && $storedCount > 0 && $source->counter <= $storedCount) {
-            $this->logger->warning('Admin passkey sign count decreased — possible cloned authenticator', [
-                'admin_user_id' => $userId,
-                'stored_count' => $storedCount,
-                'received_count' => $source->counter,
-            ]);
         }
 
         $config['registration']['credential_source'] = $this->ceremony->serializeSource($source);

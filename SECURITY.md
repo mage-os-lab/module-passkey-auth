@@ -47,8 +47,9 @@ accounts and admin two-factor authentication. Key properties relied on:
 - **Ownership enforcement**: Credential list/rename/delete operations verify
   the credential belongs to the authenticated customer; admin revocation is
   gated by a dedicated ACL resource.
-- **Sign-count monitoring**: A decreasing signature counter (possible cloned
-  authenticator) is logged as a warning.
+- **Sign-count check**: An assertion whose signature counter does not
+  increase (possible cloned authenticator) is rejected, unless the
+  authenticator always reports zero.
 - **Change visibility**: Adding or removing a passkey triggers a customer
   notification email (configurable).
 

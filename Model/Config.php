@@ -36,7 +36,7 @@ class Config implements WebAuthnConfigInterface
 
     public function isEnabled(): bool
     {
-        return $this->scopeConfig->isSetFlag(self::XML_PATH_ENABLED);
+        return $this->scopeConfig->isSetFlag(self::XML_PATH_ENABLED, ScopeInterface::SCOPE_STORE);
     }
 
     public function getMaxCredentials(): int
@@ -71,12 +71,12 @@ class Config implements WebAuthnConfigInterface
 
     public function isPromptAfterLoginEnabled(): bool
     {
-        return $this->scopeConfig->isSetFlag(self::XML_PATH_PROMPT_AFTER_LOGIN);
+        return $this->scopeConfig->isSetFlag(self::XML_PATH_PROMPT_AFTER_LOGIN, ScopeInterface::SCOPE_STORE);
     }
 
     public function isPromptOnRegistrationEnabled(): bool
     {
-        return $this->scopeConfig->isSetFlag(self::XML_PATH_PROMPT_ON_REGISTRATION);
+        return $this->scopeConfig->isSetFlag(self::XML_PATH_PROMPT_ON_REGISTRATION, ScopeInterface::SCOPE_STORE);
     }
 
     public function isCredentialNotificationEnabled(?int $storeId = null): bool

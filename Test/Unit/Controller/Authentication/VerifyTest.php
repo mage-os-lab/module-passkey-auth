@@ -7,7 +7,6 @@ namespace MageOS\PasskeyAuth\Test\Unit\Controller\Authentication;
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Controller\Authentication\Verify;
-use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksJsonResultTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
@@ -31,7 +30,6 @@ class VerifyTest extends TestCase
     private RequestInterface&MockObject $requestMock;
     private AuthenticationVerifierInterface&MockObject $verifierMock;
     private CustomerRepositoryInterface&MockObject $customerRepositoryMock;
-    private RateLimiter&MockObject $rateLimiterMock;
     private JsonSerializer&MockObject $jsonMock;
     private CookieManagerInterface&MockObject $cookieManagerMock;
     private CookieMetadataFactory&MockObject $cookieMetadataFactoryMock;
@@ -44,12 +42,11 @@ class VerifyTest extends TestCase
         $this->createCustomerSessionMock();
 
         $this->requestMock = $this->getMockBuilder(RequestInterface::class)
-            ->addMethods(['getContent', 'getClientIp'])
+            ->addMethods(['getContent'])
             ->getMockForAbstractClass();
 
         $this->verifierMock = $this->createMock(AuthenticationVerifierInterface::class);
         $this->customerRepositoryMock = $this->createMock(CustomerRepositoryInterface::class);
-        $this->rateLimiterMock = $this->createMock(RateLimiter::class);
         $this->jsonMock = $this->createMock(JsonSerializer::class);
         $this->cookieManagerMock = $this->createMock(CookieManagerInterface::class);
         $this->cookieMetadataFactoryMock = $this->createMock(CookieMetadataFactory::class);
@@ -60,7 +57,6 @@ class VerifyTest extends TestCase
             $this->verifierMock,
             $this->customerRepositoryMock,
             $this->customerSessionMock,
-            $this->rateLimiterMock,
             $this->jsonMock,
             $this->cookieManagerMock,
             $this->cookieMetadataFactoryMock,
@@ -77,11 +73,6 @@ class VerifyTest extends TestCase
             ->willReturn($body);
     }
 
-    private function configureClientIp(string $ip = '127.0.0.1'): void
-    {
-        $this->requestMock->method('getClientIp')->willReturn($ip);
-    }
-
     private function createSuccessResult(int $customerId): AuthenticationResultInterface&MockObject
     {
         $result = $this->createMock(AuthenticationResultInterface::class);
@@ -89,37 +80,10 @@ class VerifyTest extends TestCase
         return $result;
     }
 
-    public function testExecuteRateLimited(): void
-    {
-        $body = ['challengeToken' => 'tok', 'credential' => ['id' => 'abc']];
-        $this->configureRequestBody($body);
-        $this->configureClientIp('10.0.0.1');
-
-        $this->rateLimiterMock->method('checkVerifyFailRate')
-            ->with('10.0.0.1')
-            ->willThrowException(new LocalizedException(
-                __('Too many failed passkey attempts. Please try again later.')
-            ));
-
-        $this->rateLimiterMock->expects($this->once())
-            ->method('recordVerifyFailure')
-            ->with('10.0.0.1');
-
-        $this->loggerMock->expects($this->once())
-            ->method('error');
-
-        $result = $this->controller->execute();
-
-        $this->assertSame($this->jsonResultMock, $result);
-        $this->assertSame(400, $this->capturedHttpCode);
-        $this->assertTrue($this->capturedData['errors']);
-    }
-
     public function testExecuteSuccess(): void
     {
         $body = ['challengeToken' => 'my-tok', 'credential' => ['id' => 'cred-1', 'response' => []]];
         $this->configureRequestBody($body);
-        $this->configureClientIp();
 
         $credentialJson = '{"id":"cred-1","response":[]}';
         $this->jsonMock->method('serialize')
@@ -158,7 +122,6 @@ class VerifyTest extends TestCase
     {
         $body = ['challengeToken' => 'tok-2', 'credential' => ['id' => 'c2']];
         $this->configureRequestBody($body);
-        $this->configureClientIp();
 
         $this->jsonMock->method('serialize')
             ->with(['id' => 'c2'])
@@ -198,7 +161,6 @@ class VerifyTest extends TestCase
     {
         $body = ['challengeToken' => 'tok-3', 'credential' => ['id' => 'c3']];
         $this->configureRequestBody($body);
-        $this->configureClientIp();
 
         $this->jsonMock->method('serialize')
             ->with(['id' => 'c3'])
@@ -231,7 +193,6 @@ class VerifyTest extends TestCase
     {
         $body = ['challengeToken' => 'tok-bad', 'credential' => ['id' => 'xx']];
         $this->configureRequestBody($body);
-        $this->configureClientIp('192.168.1.1');
 
         $this->jsonMock->method('serialize')
             ->with(['id' => 'xx'])
@@ -239,10 +200,6 @@ class VerifyTest extends TestCase
 
         $this->verifierMock->method('verify')
             ->willThrowException(new LocalizedException(__('Challenge expired.')));
-
-        $this->rateLimiterMock->expects($this->once())
-            ->method('recordVerifyFailure')
-            ->with('192.168.1.1');
 
         $this->loggerMock->expects($this->once())
             ->method('error')
@@ -263,7 +220,6 @@ class VerifyTest extends TestCase
     {
         $body = ['challengeToken' => 'tok-err', 'credential' => ['id' => 'yy']];
         $this->configureRequestBody($body);
-        $this->configureClientIp('10.10.10.10');
 
         $this->jsonMock->method('serialize')
             ->with(['id' => 'yy'])
@@ -271,10 +227,6 @@ class VerifyTest extends TestCase
 
         $this->verifierMock->method('verify')
             ->willThrowException(new \RuntimeException('Unexpected failure'));
-
-        $this->rateLimiterMock->expects($this->once())
-            ->method('recordVerifyFailure')
-            ->with('10.10.10.10');
 
         $this->loggerMock->expects($this->once())
             ->method('error')
