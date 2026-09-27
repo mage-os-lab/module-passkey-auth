@@ -1,9 +1,10 @@
 define([
     'jquery',
     'MageOS_PasskeyAuth/js/passkey-core',
+    'Magento_Customer/js/customer-data',
     'mage/translate',
-    'jquery/ui'
-], function ($, passkeyCore, $t) {
+    'jquery-ui-modules/widget'
+], function ($, passkeyCore, customerData, $t) {
     'use strict';
 
     $.widget('mageOS.passkeyLogin', {
@@ -29,8 +30,20 @@ define([
                 selectors: this.options.emailSelectors,
                 onError: function () {
                     this._showMessage($t('Passkey sign-in didn\'t complete. Please try again.'), 'error');
-                }.bind(this)
+                }.bind(this),
+                onSuccess: this._onSignedIn.bind(this)
             });
+        },
+
+        /**
+         * The ceremony runs over fetch(), which customer-data's ajaxComplete
+         * hook never sees: invalidate all sections so the header, minicart
+         * etc. reload for the signed-in customer.
+         */
+        _onSignedIn: function () {
+            this._showMessage($t('Signed in. One moment…'), 'success');
+            customerData.invalidate(['*']);
+            window.location.reload();
         },
 
         _onLogin: function () {
@@ -60,8 +73,7 @@ define([
                     );
                 })
                 .then(function () {
-                    self._showMessage($t('Signed in. One moment…'), 'success');
-                    window.location.reload();
+                    self._onSignedIn();
                 })
                 .catch(function (error) {
                     self._showMessage(error.message || $t('Passkey sign-in failed.'), 'error');
@@ -95,7 +107,7 @@ define([
                 })
                 .catch(function (err) {
                     if (err.name === 'NotAllowedError') {
-                        throw new Error($t('Passkey sign-in was cancelled.'));
+                        throw new Error($t('Passkey sign-in was cancelled, or no passkey for this account was found on this device.'));
                     }
                     throw new Error($t('Unable to sign in with passkey. Please use your password.'));
                 });

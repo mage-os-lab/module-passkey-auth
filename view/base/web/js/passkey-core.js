@@ -9,14 +9,29 @@
         ENROLLMENT_DISMISS_COUNT_KEY = 'passkey_enrollment_dismiss_count',
         ENROLLMENT_COOLDOWN_MS = 30 * 86400000,
         ENROLLMENT_MAX_DISMISSALS = 3,
+        // Re-issue the autofill challenge before the server's 5-minute TTL runs out
+        CONDITIONAL_REFRESH_MS = 4 * 60000,
         conditional = null,
         webauthnFieldSelectors = null;
 
+    /**
+     * Add the "webauthn" autofill token. It must follow an autofill field
+     * name, so "off"/"on" (as on Luma's login form when autocomplete is
+     * disabled) are replaced rather than prefixed.
+     */
     function markWebauthnField(el) {
-        var current = el.getAttribute('autocomplete') || 'username';
+        var tokens = (el.getAttribute('autocomplete') || '').split(/\s+/).filter(function (token) {
+                return token && token !== 'off' && token !== 'on' && token !== 'webauthn';
+            }),
+            value;
 
-        if (current.indexOf('webauthn') === -1) {
-            el.setAttribute('autocomplete', current + ' webauthn');
+        if (!tokens.length) {
+            tokens.push('username');
+        }
+        value = tokens.concat('webauthn').join(' ');
+
+        if (el.getAttribute('autocomplete') !== value) {
+            el.setAttribute('autocomplete', value);
         }
     }
 
@@ -99,7 +114,8 @@
          * navigator.credentials.get() lets the browser offer saved passkeys in
          * the email field's autofill dropdown. No-op when unsupported.
          *
-         * config: {optionsUrl, verifyUrl, selectors?, onError?}
+         * config: {optionsUrl, verifyUrl, selectors?, onError?, onSuccess?}
+         * onSuccess defaults to reloading the page.
          */
         startConditional: function (config) {
             var self = this;
@@ -123,9 +139,12 @@
          * ceremony: browsers allow only one active WebAuthn request.
          */
         abortConditional: function () {
-            if (conditional && conditional.controller) {
-                conditional.controller.abort();
-                conditional.controller = null;
+            if (conditional) {
+                clearTimeout(conditional.refreshTimer);
+                if (conditional.controller) {
+                    conditional.controller.abort();
+                    conditional.controller = null;
+                }
             }
         },
 
@@ -135,6 +154,7 @@
          */
         restartConditional: function () {
             var self = this,
+                picked = false,
                 controller;
 
             if (!conditional) {
@@ -147,6 +167,12 @@
             this.postJson(conditional.config.optionsUrl, {}).then(function (options) {
                 var request = self.prepareRequestOptions(options);
 
+                // The browser keeps the request open for as long as the page;
+                // swap in a fresh challenge before the server expires this one.
+                delete request.publicKey.timeout;
+                conditional.refreshTimer = setTimeout(function () {
+                    self.refreshConditional(controller);
+                }, CONDITIONAL_REFRESH_MS);
                 request.mediation = 'conditional';
                 request.signal = controller.signal;
 
@@ -154,6 +180,7 @@
                     if (!credential) {
                         throw new Error('cancelled');
                     }
+                    picked = true;
 
                     return self.postJson(conditional.config.verifyUrl, {
                         challengeToken: options.challengeToken,
@@ -161,25 +188,54 @@
                     });
                 });
             }).then(function () {
-                window.location.reload();
+                if (typeof conditional.config.onSuccess === 'function') {
+                    conditional.config.onSuccess();
+                } else {
+                    window.location.reload();
+                }
             }).catch(function (err) {
                 // Aborting is the expected path when the user signs in another
                 // way or we hand off to a modal ceremony.
-                if (err && err.name === 'AbortError') {
+                // Aborted, or superseded by a newer request that must not be
+                // cancelled by this one's late failure.
+                if ((err && err.name === 'AbortError') || controller !== conditional.controller) {
                     return;
                 }
 
-                // The user picked a passkey but verification failed (most often
-                // an expired challenge on a long-idle tab): surface it and
-                // re-arm so the autofill entry keeps working, with a cap.
+                // Only report failures after the user picked a passkey; the
+                // browser ending the request on its own is not something the
+                // user did. Re-arm so the autofill entry keeps working, with a cap.
+                if (picked && typeof conditional.config.onError === 'function') {
+                    conditional.config.onError(err);
+                }
                 if (conditional.restartsLeft > 0) {
                     conditional.restartsLeft--;
-                    if (typeof conditional.config.onError === 'function') {
-                        conditional.config.onError(err);
-                    }
                     self.restartConditional();
                 }
             });
+        },
+
+        /**
+         * Timer callback: re-arm with a fresh challenge. A hidden tab waits until
+         * it is shown again rather than polling the server in the background.
+         * Does not count against the failure restarts.
+         */
+        refreshConditional: function (controller) {
+            var self = this;
+
+            if (!conditional || controller !== conditional.controller) {
+                return;
+            }
+            if (document.hidden) {
+                document.addEventListener('visibilitychange', function onVisible() {
+                    if (!document.hidden) {
+                        document.removeEventListener('visibilitychange', onVisible);
+                        self.refreshConditional(controller);
+                    }
+                });
+                return;
+            }
+            this.restartConditional();
         },
 
         /**

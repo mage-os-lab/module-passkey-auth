@@ -59,13 +59,28 @@ class EnrollmentPromptTest extends TestCase
         $this->assertSame('', $block->toHtml());
     }
 
-    public function testToHtmlReturnsEmptyWhenPromptDisabled(): void
+    public function testToHtmlReturnsEmptyWhenBothPromptsDisabled(): void
     {
         $block = $this->createBlock();
         $this->configureEnabled(true);
         $this->configurePromptAfterLogin(false);
+        $this->configurePromptOnRegistration(false);
 
         $this->assertSame('', $block->toHtml());
+    }
+
+    public function testToHtmlRendersWhenOnlyRegistrationPromptEnabled(): void
+    {
+        $block = $this->createBlock();
+        $block->setTemplate('MageOS_PasskeyAuth::enrollment_prompt.phtml');
+        $this->configureEnabled(true);
+        $this->configurePromptAfterLogin(false);
+        $this->configurePromptOnRegistration(true);
+
+        $block->method('getTemplateFile')->willReturn('template.phtml');
+        $block->method('fetchView')->willReturn('<div>prompt</div>');
+
+        $this->assertSame('<div>prompt</div>', $block->toHtml());
     }
 
     public function testToHtmlRendersWhenEnabled(): void

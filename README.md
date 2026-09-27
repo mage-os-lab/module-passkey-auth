@@ -14,7 +14,7 @@ Built on [`web-auth/webauthn-lib`](https://github.com/web-auth/webauthn-lib) v5.
 - **One-tap login**: Customers authenticate with fingerprint, Face ID, Windows Hello, or a hardware security key
 - **Passkey autofill (conditional UI)**: Saved passkeys appear directly in the browser's email-field autofill dropdown on the login page and at checkout — no extra button to discover
 - **Token-based sessions**: Successful passkey authentication issues a standard Magento customer token
-- **Anti-enumeration**: Authentication options return a valid response even for non-existent emails, preventing account discovery
+- **Anti-enumeration**: Sign-in options for an email with no passkeys (or no account) carry a stable decoy credential, so they look like those of an account with a passkey
 
 ### Credential Management
 - **My Account page**: Customers add, rename, and delete passkeys from their account dashboard
@@ -178,7 +178,7 @@ Templates are in `view/frontend/templates/` and can be overridden via theme fall
 - **Single-use challenges**: Each challenge token is consumed on verification and cannot be reused.
 - **Rate limiting**: Options generation (10 requests/60s) and verification failures (5 failures/900s) are rate-limited per customer.
 - **Sign-count validation**: Detects cloned authenticators by tracking the signature counter.
-- **Anti-enumeration**: Authentication options return a valid (but unusable) response for non-existent email addresses.
+- **Anti-enumeration**: Authentication options for an email with no passkeys (or no account) carry a stable, secret-derived decoy credential descriptor instead of an empty list.
 - **Ownership enforcement**: All credential operations validate that the credential belongs to the requesting customer.
 
 ## Contributing

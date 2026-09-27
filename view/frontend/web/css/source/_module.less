@@ -72,7 +72,11 @@
     }
 
     .passkey-add-action {
-        margin-top: @indent__base;
+        margin: @indent__base 0 @indent__l;
+    }
+
+    .passkey-actions .action.cancel-rename {
+        margin-left: @indent__xs;
     }
 
     .name-edit {
@@ -93,9 +97,15 @@
     flex-wrap: wrap;
     gap: @indent__s;
 
-    .enrollment-message span {
-        color: @text__color__muted;
-        font-size: @font-size__s;
+    .enrollment-message {
+        strong {
+            display: block;
+        }
+
+        span {
+            color: @text__color__muted;
+            font-size: @font-size__s;
+        }
     }
 
     .enrollment-actions {

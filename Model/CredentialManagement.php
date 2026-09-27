@@ -66,7 +66,7 @@ class CredentialManagement implements CredentialManagementInterface
             throw new LocalizedException(__('Passkey name must be 255 characters or fewer.'));
         }
         if (preg_match('/[<>&]/', $friendlyName)) {
-            throw new LocalizedException(__('Passkey name contains invalid characters.'));
+            throw new LocalizedException(__('Passkey names can\'t contain <, > or &.'));
         }
     }
 

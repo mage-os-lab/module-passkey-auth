@@ -177,14 +177,24 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->never())
-            ->method('load');
         $this->resource->expects($this->once())
             ->method('save')
-            ->with($model);
+            ->with($model)
+            ->willReturnCallback(function (CredentialModel $m) {
+                $m->setData('entity_id', 9);
+                return $this->resource;
+            });
+        $this->resource->expects($this->once())
+            ->method('load')
+            ->with($model, 9)
+            ->willReturnCallback(function (CredentialModel $m) {
+                $m->setData('created_at', '2026-01-01 00:00:00');
+                return $this->resource;
+            });
 
         $result = $this->repository->save($credential);
         $this->assertSame($dto, $result);
+        $this->assertSame('2026-01-01 00:00:00', $model->getData('created_at'));
     }
 
     public function testSaveExistingCredential(): void

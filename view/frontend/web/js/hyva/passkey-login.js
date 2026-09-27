@@ -73,7 +73,7 @@ window.addEventListener('alpine:init', () => {
                 };
             } catch (err) {
                 if (err.name === 'NotAllowedError') {
-                    throw new Error('Passkey sign-in was cancelled.');
+                    throw new Error('Passkey sign-in was cancelled, or no passkey for this account was found on this device.');
                 }
                 throw new Error('Unable to sign in with passkey. Please use your password.');
             }

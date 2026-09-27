@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Test\Unit\CustomerData;
 
 use MageOS\PasskeyAuth\CustomerData\PasskeySection;
+use MageOS\PasskeyAuth\Model\Enrollment\NewAccountFlag;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class PasskeySectionTest extends TestCase
@@ -17,17 +19,20 @@ class PasskeySectionTest extends TestCase
     use MocksCustomerSessionTrait;
 
     private PasskeySection $section;
+    private NewAccountFlag&Stub $newAccountFlag;
 
     protected function setUp(): void
     {
         $this->createConfigMock();
         $this->createCustomerSessionMock();
         $this->createCredentialRepositoryMock();
+        $this->newAccountFlag = $this->createStub(NewAccountFlag::class);
 
         $this->section = new PasskeySection(
             $this->configMock,
             $this->customerSessionMock,
-            $this->credentialRepositoryMock
+            $this->credentialRepositoryMock,
+            $this->newAccountFlag
         );
     }
 
@@ -83,5 +88,29 @@ class PasskeySectionTest extends TestCase
         $result = $this->section->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => true], $result);
+    }
+
+    public function testNewAccountFollowsRegistrationSettingWhenDisabled(): void
+    {
+        $this->configureLoggedIn(42);
+        $this->configureEnabled(true);
+        $this->configurePromptAfterLogin(true);
+        $this->configurePromptOnRegistration(false);
+        $this->newAccountFlag->method('isSetFor')->willReturn(true);
+        $this->configureCountByCustomerId(42, 0);
+
+        $this->assertSame(['show_enrollment_prompt' => false], $this->section->getSectionData());
+    }
+
+    public function testNewAccountFollowsRegistrationSettingWhenEnabled(): void
+    {
+        $this->configureLoggedIn(42);
+        $this->configureEnabled(true);
+        $this->configurePromptAfterLogin(false);
+        $this->configurePromptOnRegistration(true);
+        $this->newAccountFlag->method('isSetFor')->willReturn(true);
+        $this->configureCountByCustomerId(42, 0);
+
+        $this->assertSame(['show_enrollment_prompt' => true], $this->section->getSectionData());
     }
 }

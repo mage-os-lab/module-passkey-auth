@@ -59,16 +59,18 @@ class OptionsGeneratorTest extends TestCase
     /**
      * @magentoConfigFixture current_store customer/passkey/enabled 1
      */
-    public function testUnknownEmailIsIndistinguishableFromNoPasskeys(): void
+    public function testUnknownEmailLooksLikeAccountWithPasskey(): void
     {
-        $options = $this->json->unserialize(
-            $this->optionsGenerator->generate('no-such-customer-' . uniqid() . '@example.com')
-        );
+        $email = 'no-such-customer-' . uniqid() . '@example.com';
+        $options = $this->json->unserialize($this->optionsGenerator->generate($email));
+        $again = $this->json->unserialize($this->optionsGenerator->generate($email));
 
-        // Anti-enumeration: response shape matches a customer without passkeys.
+        // Anti-enumeration: a stable decoy descriptor shaped like a real one.
         $this->assertArrayHasKey('challenge', $options);
         $this->assertArrayHasKey('challengeToken', $options);
-        $this->assertTrue(empty($options['allowCredentials']));
+        $this->assertCount(1, $options['allowCredentials']);
+        $this->assertSame('public-key', $options['allowCredentials'][0]['type']);
+        $this->assertSame($options['allowCredentials'], $again['allowCredentials']);
     }
 
     /**

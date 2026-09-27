@@ -30,10 +30,21 @@ window.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const friendlyName = prompt(
+            const answer = prompt(
                 'Give this passkey a name so you can recognize it later:',
                 passkeyCore.suggestName()
-            ) || null;
+            );
+            if (answer === null) {
+                return;
+            }
+            const friendlyName = answer.trim() || null;
+            if (friendlyName && (friendlyName.length > 255 || /[<>&]/.test(friendlyName))) {
+                this.message = friendlyName.length > 255
+                    ? 'Passkey name must be 255 characters or fewer.'
+                    : 'Passkey names can\'t contain <, > or &.';
+                this.messageType = 'error';
+                return;
+            }
             this.message = '';
             this.messageType = '';
 

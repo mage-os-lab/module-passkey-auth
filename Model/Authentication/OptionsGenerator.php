@@ -11,6 +11,7 @@ use MageOS\PasskeyAuth\Model\Config;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Customer\Api\CustomerRepositoryInterface;
+use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
@@ -28,7 +29,8 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         private readonly StoreManagerInterface $storeManager,
         private readonly Json $json,
         private readonly RateLimiter $rateLimiter,
-        private readonly RemoteAddress $remoteAddress
+        private readonly RemoteAddress $remoteAddress,
+        private readonly EncryptorInterface $encryptor
     ) {
     }
 
@@ -59,7 +61,11 @@ class OptionsGenerator implements AuthenticationOptionsInterface
                     );
                 }
             } catch (NoSuchEntityException) {
-                // Anti-enumeration: return valid-looking response with empty allowCredentials
+                // Handled below, indistinguishable from an account without passkeys
+            }
+
+            if (!$allowCredentials) {
+                $allowCredentials[] = $this->createDecoyDescriptor($email);
             }
         }
 
@@ -70,5 +76,19 @@ class OptionsGenerator implements AuthenticationOptionsInterface
         );
 
         return $this->json->serialize($optionsArray);
+    }
+
+    /**
+     * Anti-enumeration: an email with no passkeys (or no account) gets a stable, secret-derived
+     * descriptor, so its options look like those of an account with one passkey. It also stops the
+     * browser from offering an unrelated passkey saved on the device for this site.
+     */
+    private function createDecoyDescriptor(string $email): PublicKeyCredentialDescriptor
+    {
+        return PublicKeyCredentialDescriptor::create(
+            PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
+            (string) hex2bin($this->encryptor->hash('passkey-decoy|' . mb_strtolower(trim($email)))),
+            ['hybrid', 'internal']
+        );
     }
 }

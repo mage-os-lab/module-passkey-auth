@@ -32,9 +32,15 @@ accounts and admin two-factor authentication. Key properties relied on:
   server-side, bound to a ceremony type (and customer where applicable),
   consumed on first use, and expire after 5 minutes; expired rows are also
   swept by cron.
-- **Anti-enumeration**: Authentication options requests return a valid,
-  unusable response for unknown emails, and verification errors are
-  deliberately generic.
+- **Anti-enumeration**: Authentication options for an email with no
+  passkeys (or no account) carry one stable decoy credential descriptor
+  derived from the install's crypt key, so they have the same shape as an
+  account with one passkey, and verification errors are deliberately
+  generic. Descriptor details (ID length, transports) of real credentials
+  vary by authenticator and are not disguised.
+- **Wrong-account sign-in**: Because the decoy is never empty, a passkey
+  sign-in started for an email without passkeys cannot be answered by an
+  unrelated passkey saved on the device.
 - **Rate limiting**: Options generation and failed verifications are rate
   limited per identifier/IP across the storefront, REST, and GraphQL entry
   points. The cache-based counters are best-effort, not strictly atomic.

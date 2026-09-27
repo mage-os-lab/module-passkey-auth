@@ -168,14 +168,14 @@ class Ceremony
      *
      * @param PublicKeyCredential $credential From loadAssertion()
      * @param PublicKeyCredentialRequestOptions $requestOptions From loadAssertion()
-     * @param PublicKeyCredentialSource $storedSource
+     * @param PublicKeyCredentialSource|\Webauthn\CredentialRecord $storedSource From deserializeSource()
      * @return PublicKeyCredentialSource|\Webauthn\CredentialRecord The credential with updated counter
      * @throws \Throwable When webauthn-lib rejects the assertion
      */
     public function verifyAssertion(
         PublicKeyCredential $credential,
         PublicKeyCredentialRequestOptions $requestOptions,
-        PublicKeyCredentialSource $storedSource
+        $storedSource
     ) {
         /** @var AuthenticatorAssertionResponse $response */
         $response = $credential->response;
@@ -196,9 +196,22 @@ class Ceremony
         return $this->serializerFactory->get()->serialize($source, 'json');
     }
 
-    public function deserializeSource(string $json): PublicKeyCredentialSource
+    /**
+     * Restore a stored credential source.
+     *
+     * webauthn-lib 5.3 deprecates PublicKeyCredentialSource and denormalizes it to its parent CredentialRecord,
+     * so ask for CredentialRecord whenever the installed version has it.
+     *
+     * @param string $json From serializeSource()
+     * @return PublicKeyCredentialSource|\Webauthn\CredentialRecord
+     */
+    public function deserializeSource(string $json)
     {
-        return $this->serializerFactory->get()->deserialize($json, PublicKeyCredentialSource::class, 'json');
+        $type = class_exists(\Webauthn\CredentialRecord::class)
+            ? \Webauthn\CredentialRecord::class
+            : PublicKeyCredentialSource::class;
+
+        return $this->serializerFactory->get()->deserialize($json, $type, 'json');
     }
 
     private function deserializeCredential(string $json): PublicKeyCredential
