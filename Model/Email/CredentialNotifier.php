@@ -13,6 +13,7 @@ use Magento\Customer\Api\CustomerNameGenerationInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\App\Area;
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Mail\Template\TransportBuilder;
 use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -67,7 +68,7 @@ class CredentialNotifier
                 ->getTransport();
 
             $transport->sendMessage();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Failed to send passkey notification email', [
                 'exception' => $e->getMessage(),
                 'customer_id' => $customerId,
@@ -78,7 +79,7 @@ class CredentialNotifier
 
     /**
      * The customer's store, or for accounts created in the admin (store 0) their website's default store,
-     * as core AccountManagement does for customer emails.
+     * as core AccountManagement does for customer emails. The default store view when the website is gone.
      */
     private function getStoreId(CustomerInterface $customer): int
     {
@@ -89,7 +90,11 @@ class CredentialNotifier
 
         $websiteId = (int) $customer->getWebsiteId();
         if ($websiteId !== 0) {
-            $defaultStore = $this->storeManager->getWebsite($websiteId)->getDefaultStore();
+            try {
+                $defaultStore = $this->storeManager->getWebsite($websiteId)->getDefaultStore();
+            } catch (NoSuchEntityException) {
+                $defaultStore = null;
+            }
             if ($defaultStore && $defaultStore->getId()) {
                 return (int) $defaultStore->getId();
             }

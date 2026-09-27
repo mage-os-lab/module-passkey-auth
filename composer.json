@@ -16,10 +16,12 @@
         "magento/module-two-factor-auth": "*",
         "magento/module-ui": "*",
         "magento/module-user": "*",
+        "symfony/serializer": "^6.4 || ^7.0 || ^8.0",
+        "web-auth/cose-lib": "^4.2.3",
         "web-auth/webauthn-lib": "^5.2"
     },
     "require-dev": {
-        "phpunit/phpunit": "^9.5 || ^10.0 || ^11.0 || ^12.0"
+        "phpunit/phpunit": "^10.5 || ^11.0 || ^12.0"
     },
     "suggest": {
         "magento/module-graph-ql": "Enables the passkey GraphQL API for headless storefronts",

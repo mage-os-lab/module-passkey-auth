@@ -33,8 +33,14 @@ define([
                 optionsUrl: this.options.optionsUrl,
                 verifyUrl: this.options.verifyUrl,
                 selectors: this.options.emailSelectors,
-                onError: function () {
-                    this._showMessage($t('Passkey sign-in didn\'t complete. Please try again.'), 'error');
+                onError: function (error) {
+                    // 429: too many failed attempts, so tell the customer to wait
+                    this._showMessage(
+                        error && error.status === 429
+                            ? error.message
+                            : $t('Passkey sign-in didn\'t complete. Please try again.'),
+                        'error'
+                    );
                 }.bind(this),
                 onSuccess: this._onSignedIn.bind(this)
             });

@@ -83,4 +83,5 @@ If you didn't make the change, sign in, remove any passkey you don't recognize, 
 | Passkeys require a secure (HTTPS) connection. | Make sure the address bar shows `https://`. |
 | Your browser does not support passkeys. | Update your browser, or use a different one. |
 | Too many passkey requests. Please try again later. | Wait a minute and try again, or sign in with your password. |
+| Too many failed passkey attempts. Please try again later. | Wait 15 minutes and try again, or sign in with your password. |
 | Maximum number of passkeys (10) reached. | Delete a passkey you no longer use, then add the new one. |

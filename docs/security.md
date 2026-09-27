@@ -38,7 +38,7 @@ This also stops a browser from offering an unrelated passkey saved on the device
 
 Real passkeys differ between authenticators in ID length and transports. The module does not hide those differences.
 
-After a failed sign-in, the storefront and GraphQL show one message for every cause. REST shows the message of the check that failed, so challenge problems can differ, for example "Invalid or expired challenge token." or "Challenge has expired." An unknown passkey and a passkey that fails verification both give "Passkey verification failed. Please try again.", so no REST message tells whether an account exists.
+After a failed sign-in, the storefront and GraphQL show one message for every cause, except the failed sign-in limit (see [Rate limits](#rate-limits)). REST shows the message of the check that failed, so challenge problems can differ, for example "Invalid or expired challenge token." or "Challenge has expired." An unknown passkey and a passkey that fails verification both give "Passkey verification failed. Please try again.", so no REST message tells whether an account exists.
 
 ## Rate limits
 
@@ -51,6 +51,8 @@ Limits are counted in the Magento cache. They are best-effort: under heavy paral
 | Failed sign-ins | 5, then blocked until 15 minutes after the last failure | IP address | Storefront, REST, GraphQL |
 
 Flushing the cache resets the counters.
+
+When the failed sign-in limit is hit, the storefront, REST, and GraphQL all return "Too many failed passkey attempts. Please try again later." The storefront replies with HTTP 429. The message says nothing about the account.
 
 The failed sign-in limit is checked in the service layer, so the storefront, REST, and GraphQL share one counter per IP address. A headless frontend that calls REST or GraphQL from its own server sends every customer's sign-in from that server's IP, so all of them share one counter.
 
@@ -73,9 +75,9 @@ A customer can only list, rename, or delete their own passkeys. The customer ID 
 
 ## Login as Customer
 
-While an admin is signed in to the storefront as a customer with Magento's Login as Customer feature, passkey registration is refused. The admin can't add a passkey of their own to the customer's account.
+While an admin is signed in to the storefront as a customer with Magento's Login as Customer feature, passkey registration is refused and the enrollment banner is hidden. The admin can't add a passkey of their own to the customer's account.
 
-This check reads the storefront session. A customer token from the `generateCustomerTokenAsAdmin` GraphQL mutation looks the same as the customer's own token, so REST and GraphQL registration with such a token is not blocked. If notification emails are on, the customer still gets the "passkey added" email.
+Known limitation: this check reads the storefront session. A customer token from the `generateCustomerTokenAsAdmin` GraphQL mutation looks the same as the customer's own token, so REST and GraphQL registration with such a token is not blocked. If notification emails are on, the customer still gets the "passkey added" email.
 
 ## Cloned authenticators
 
@@ -98,7 +100,7 @@ Routine rejections are logged as warnings with a `reason` in `var/log/system.log
 | Event | Where |
 |---|---|
 | Passkey rejected at sign-in (unknown passkey, passkey of another website, bad signature, wrong origin, counter not increased) | Warning in `var/log/system.log`, plus the `passkey_authentication_failure` event |
-| Other rejected sign-ins (bad or expired challenge, malformed response, rate limit) | Warning in `var/log/system.log` for the storefront and GraphQL. REST returns the message to the caller and doesn't log it. |
+| Other rejected sign-ins (passkeys turned off, bad or expired challenge, malformed response, failed sign-in limit) | Warning in `var/log/system.log` |
 | Failed registration (response failed verification, or the passkey could not be saved) | Warning in `var/log/system.log`, plus the `passkey_registration_failure` event when verification failed |
 | Unexpected error in a storefront passkey request | Error in `var/log/exception.log` |
 | Sign-in succeeded but the token or the passkey's counter could not be saved | Error in `var/log/exception.log` |

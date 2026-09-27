@@ -10,8 +10,8 @@ namespace MageOS\PasskeyAuth\Test\Unit\Model\Resolver;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
 use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\Resolver\VerifyAuthentication;
-use MageOS\PasskeyAuth\Test\Unit\Traits\MocksLoggerTrait;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\GraphQl\Config\Element\Field;
 use Magento\Framework\GraphQl\Exception\GraphQlAuthenticationException;
@@ -21,8 +21,6 @@ use PHPUnit\Framework\TestCase;
 
 class VerifyAuthenticationTest extends TestCase
 {
-    use MocksLoggerTrait;
-
     private const INPUT = ['input' => ['challenge_token' => 'tok', 'assertion_response' => '{}']];
 
     private AuthenticationVerifierInterface&Stub $verifier;
@@ -30,13 +28,12 @@ class VerifyAuthenticationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->createLoggerStub();
         $this->verifier = $this->createStub(AuthenticationVerifierInterface::class);
     }
 
     private function resolve(): array
     {
-        $this->resolver ??= new VerifyAuthentication($this->verifier, $this->loggerMock);
+        $this->resolver ??= new VerifyAuthentication($this->verifier);
 
         return $this->resolver->resolve(
             $this->createStub(Field::class),
@@ -56,18 +53,25 @@ class VerifyAuthenticationTest extends TestCase
         $this->assertSame(['customer_token' => 'customer-token'], $this->resolve());
     }
 
-    public function testLogsRejectionAsWarningAndHidesReason(): void
+    public function testHidesRejectionReason(): void
     {
         $this->verifier->method('verify')
             ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
 
-        $this->mockLogger()->expects($this->once())
-            ->method('warning')
-            ->with('GraphQL passkey authentication failed', ['reason' => 'Invalid or expired challenge token.']);
-        $this->mockLogger()->expects($this->never())->method('error');
-
         $this->expectException(GraphQlAuthenticationException::class);
         $this->expectExceptionMessage('Passkey verification failed. Please try again.');
+
+        $this->resolve();
+    }
+
+    public function testShowsRateLimitMessage(): void
+    {
+        $this->verifier->method('verify')->willThrowException(
+            new RateLimitExceededException(__('Too many failed passkey attempts. Please try again later.'))
+        );
+
+        $this->expectException(GraphQlAuthenticationException::class);
+        $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
 
         $this->resolve();
     }

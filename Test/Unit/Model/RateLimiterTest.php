@@ -8,9 +8,9 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Test\Unit\Model;
 
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use Magento\Framework\App\CacheInterface;
-use Magento\Framework\Exception\LocalizedException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -83,7 +83,8 @@ class RateLimiterTest extends TestCase
             ->method('load')
             ->willReturn('10');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
+        $this->expectExceptionMessage('Too many passkey requests. Please try again later.');
         $this->rateLimiter->checkOptionsRate('test@example.com');
     }
 
@@ -111,7 +112,8 @@ class RateLimiterTest extends TestCase
             ->method('load')
             ->willReturn('5');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
+        $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
         $this->rateLimiter->checkVerifyFailRate('127.0.0.1');
     }
 

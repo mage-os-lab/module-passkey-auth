@@ -9,9 +9,12 @@ declare(strict_types=1);
 namespace MageOS\PasskeyAuth\Controller\Authentication;
 
 use MageOS\PasskeyAuth\Api\AuthenticationVerifierInterface;
+use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface;
 use MageOS\PasskeyAuth\Model\Authentication\PostLoginRedirect;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Model\Session as CustomerSession;
+use Magento\Customer\Model\Url as CustomerUrl;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
@@ -34,7 +37,8 @@ class Verify implements HttpPostActionInterface
         private readonly CookieManagerInterface $cookieManager,
         private readonly CookieMetadataFactory $cookieMetadataFactory,
         private readonly LoggerInterface $logger,
-        private readonly PostLoginRedirect $postLoginRedirect
+        private readonly PostLoginRedirect $postLoginRedirect,
+        private readonly CustomerUrl $customerUrl
     ) {
     }
 
@@ -43,20 +47,22 @@ class Verify implements HttpPostActionInterface
         $resultJson = $this->resultJsonFactory->create();
 
         try {
-            $body = $this->json->unserialize($this->request->getContent());
-            if (!is_array($body)) {
-                $body = [];
-            }
-            $challengeToken = isset($body['challengeToken']) && is_string($body['challengeToken'])
-                ? $body['challengeToken']
-                : '';
-            $credential = $body['credential'] ?? [];
+            $result = $this->verify();
+        } catch (RateLimitExceededException $e) {
+            // Says nothing about the account, so the customer is told to wait
+            return $resultJson->setHttpResponseCode(429)->setData([
+                'errors' => true,
+                'message' => $e->getMessage(),
+            ]);
+        } catch (LocalizedException $e) {
+            // Already logged by the verifier. Generic, so it does not tell whether the passkey exists
+            return $this->failure($resultJson);
+        } catch (\Throwable $e) {
+            $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
+            return $this->failure($resultJson);
+        }
 
-            $result = $this->authenticationVerifier->verify(
-                $challengeToken,
-                $this->json->serialize($credential)
-            );
-
+        try {
             $customer = $this->customerRepository->getById($result->getCustomerId());
             $this->customerSession->setCustomerDataAsLoggedIn($customer);
 
@@ -65,24 +71,53 @@ class Verify implements HttpPostActionInterface
                 $metadata->setPath('/');
                 $this->cookieManager->deleteCookie('mage-cache-sessid', $metadata);
             }
-
-            return $resultJson->setData([
-                'errors' => false,
-                'message' => __('Login successful.'),
-                'redirect_url' => $this->postLoginRedirect->getUrl(),
-            ]);
-        } catch (LocalizedException $e) {
-            $this->logger->warning('Passkey authentication verify rejected', ['reason' => $e->getMessage()]);
-            return $resultJson->setHttpResponseCode(400)->setData([
-                'errors' => true,
-                'message' => __('Passkey verification failed. Please try again.'),
-            ]);
         } catch (\Throwable $e) {
             $this->logger->error('Passkey authentication verify error', ['exception' => $e->getMessage()]);
-            return $resultJson->setHttpResponseCode(400)->setData([
-                'errors' => true,
-                'message' => __('Passkey verification failed. Please try again.'),
-            ]);
+            return $this->failure($resultJson);
         }
+
+        return $resultJson->setData([
+            'errors' => false,
+            'message' => __('Login successful.'),
+            'redirect_url' => $this->getRedirectUrl(),
+        ]);
+    }
+
+    /**
+     * @throws LocalizedException
+     */
+    private function verify(): AuthenticationResultInterface
+    {
+        $body = $this->json->unserialize($this->request->getContent());
+        if (!is_array($body)) {
+            $body = [];
+        }
+        $challengeToken = isset($body['challengeToken']) && is_string($body['challengeToken'])
+            ? $body['challengeToken']
+            : '';
+        $credential = $body['credential'] ?? [];
+
+        return $this->authenticationVerifier->verify($challengeToken, $this->json->serialize($credential));
+    }
+
+    /**
+     * The customer is signed in by now, so a failure here must not be reported as a failed sign-in.
+     */
+    private function getRedirectUrl(): string
+    {
+        try {
+            return $this->postLoginRedirect->getUrl();
+        } catch (\Throwable $e) {
+            $this->logger->error('Passkey sign-in redirect error', ['exception' => $e->getMessage()]);
+            return $this->customerUrl->getAccountUrl();
+        }
+    }
+
+    private function failure(Json $resultJson): Json
+    {
+        return $resultJson->setHttpResponseCode(400)->setData([
+            'errors' => true,
+            'message' => __('Passkey verification failed. Please try again.'),
+        ]);
     }
 }

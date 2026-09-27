@@ -70,7 +70,7 @@ Registered passkeys are kept across upgrades.
 
 ### Upgrading from a 1.0.0 beta
 
-Before 1.0, customer passkeys were on by default. They are now off by default. If your store already has customer passkeys and never saved **Enable Passkey Authentication**, `setup:upgrade` saves it as **Yes** so passkey sign-in keeps working. If you saved the setting yourself, at any scope, your value is kept.
+Before 1.0, customer passkeys were on by default. They are now off by default. If your store already has customer passkeys and never saved **Enable Passkey Authentication** in Default Config, `setup:upgrade` saves it as **Yes** in Default Config so passkey sign-in keeps working. If you saved it in Default Config yourself, your value is kept. Values saved for a website or store view are always kept.
 
 1.0 also changes the REST responses, the event data, and some PHP classes. Read the breaking changes in [CHANGELOG.md](../CHANGELOG.md) before you upgrade a store with custom code or a headless frontend.
 

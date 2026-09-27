@@ -49,7 +49,7 @@ class CredentialRepository implements CredentialRepositoryInterface
     {
         $model = $this->credentialFactory->create();
         $this->resource->load($model, $this->hashCredentialId($credentialId), 'credential_id_hash');
-        // The hash column is indexed; credential_id itself is compared case-insensitively by MySQL
+        // The SHA-256 lookup is already exact; comparing the stored ID as well is a defensive check
         if (!$model->getId() || (string) $model->getData('credential_id') !== $credentialId) {
             throw new NoSuchEntityException(__('Passkey credential not found.'));
         }

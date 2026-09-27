@@ -18,6 +18,8 @@ use Magento\Framework\Setup\Patch\DataPatchInterface;
  * Pre-release versions defaulted customer/passkey/enabled to 1; 1.0 defaults it to 0. A store that used passkeys
  * on those versions without ever saving the setting would silently lose passkey sign-in on upgrade, so save 1
  * for it. Fresh installs have no credentials and stay disabled.
+ *
+ * Only a value saved at default scope counts: a value saved for one website leaves the others on the old default.
  */
 class KeepPasskeysEnabledForExistingInstalls implements DataPatchInterface
 {
@@ -62,6 +64,8 @@ class KeepPasskeysEnabledForExistingInstalls implements DataPatchInterface
         $select = $connection->select()
             ->from($this->moduleDataSetup->getTable('core_config_data'), ['config_id'])
             ->where('path = ?', Config::XML_PATH_ENABLED)
+            ->where('scope = ?', ScopeConfigInterface::SCOPE_TYPE_DEFAULT)
+            ->where('scope_id = ?', 0)
             ->limit(1);
 
         return (bool) $connection->fetchOne($select);

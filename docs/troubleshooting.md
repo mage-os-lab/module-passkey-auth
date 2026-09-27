@@ -48,7 +48,7 @@ An admin used Login as Customer and tried to add a passkey. This is blocked on p
 
 A rate limit was hit. Wait up to 15 minutes. On a shared IP address, such as an office network, several customers share the failed-sign-in limit. Flushing the cache resets all counters. See [Rate limits](security.md#rate-limits).
 
-On the storefront and over GraphQL, a sign-in blocked by the failed-sign-in limit shows the generic "Passkey verification failed" message. The log shows "Too many failed passkey attempts" as the reason.
+The customer sees the message on the storefront, and REST and GraphQL return it. The log shows it as the `reason` too.
 
 ## Behind a load balancer or CDN, everyone hits the rate limit together
 

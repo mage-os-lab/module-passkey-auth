@@ -3,15 +3,9 @@
  * See LICENSE.txt for license details.
  */
 
-// Hyvä loads Alpine as a deferred module; register now if it is already
-// there, otherwise when it initialises.
-(function (register) {
-    if (window.Alpine) {
-        register();
-    } else {
-        window.addEventListener('alpine:init', register, {once: true});
-    }
-}(() => {
+// Hyvä starts Alpine deferred, after this script runs, so register
+// when Alpine initialises, before it walks the page.
+window.addEventListener('alpine:init', () => {
     Alpine.data('passkeyEnrollment', () => ({
         visible: false,
 
@@ -32,4 +26,4 @@
             this.visible = false;
         }
     }));
-}));
+}, {once: true});

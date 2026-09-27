@@ -3,15 +3,9 @@
  * See LICENSE.txt for license details.
  */
 
-// Hyvä loads Alpine as a deferred module; register now if it is already
-// there, otherwise when it initialises.
-(function (register) {
-    if (window.Alpine) {
-        register();
-    } else {
-        window.addEventListener('alpine:init', register, {once: true});
-    }
-}(() => {
+// Hyvä starts Alpine deferred, after this script runs, so register
+// when Alpine initialises, before it walks the page.
+window.addEventListener('alpine:init', () => {
     Alpine.data('passkeyLogin', () => ({
         available: false,
         loading: false,
@@ -35,8 +29,11 @@
                 passkeyCore.startConditional({
                     optionsUrl: this.optionsUrl,
                     verifyUrl: this.verifyUrl,
-                    onError: () => {
-                        this.message = 'Passkey sign-in didn\'t complete. Please try again.';
+                    onError: (error) => {
+                        // 429: too many failed attempts, so tell the customer to wait
+                        this.message = error && error.status === 429
+                            ? error.message
+                            : 'Passkey sign-in didn\'t complete. Please try again.';
                         this.messageType = 'error';
                     }
                 });
@@ -96,4 +93,4 @@
             }
         }
     }));
-}));
+}, {once: true});

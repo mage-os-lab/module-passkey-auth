@@ -38,8 +38,9 @@ accounts and admin two-factor authentication. Key properties relied on:
   derived from the install's crypt key, so they have the same shape as an
   account with one passkey. An unknown credential and a failed verification
   return the same error. The storefront and GraphQL use one generic message
-  for every sign-in failure; REST also reports challenge errors (such as an
-  expired challenge), which say nothing about the account. Descriptor
+  for every sign-in failure except the failed sign-in limit; REST also
+  reports challenge errors (such as an expired challenge). Neither says
+  anything about the account. Descriptor
   details (ID length, transports) of real credentials vary by authenticator
   and are not disguised.
 - **Wrong-account sign-in**: Because the decoy is never empty, a passkey
@@ -62,7 +63,7 @@ accounts and admin two-factor authentication. Key properties relied on:
   signed in to the storefront as the customer. This reads the storefront
   session. A customer token from `generateCustomerTokenAsAdmin` cannot be
   told apart from the customer's own, so REST and GraphQL registration with
-  such a token is not blocked.
+  such a token is not blocked. This is a known limitation.
 - **Sign-count check**: When the stored or the new signature counter is
   above zero, an assertion whose counter does not increase (possible cloned
   authenticator) is rejected. Authenticators that always report zero are

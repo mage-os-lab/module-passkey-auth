@@ -74,7 +74,7 @@
         /**
          * POST a JSON body to a storefront endpoint and resolve with the JSON
          * reply. Rejects with the server's message (or fallbackMessage) when
-         * the reply carries errors.
+         * the reply carries errors; the error's status is the HTTP status.
          */
         postJson: function (url, body, fallbackMessage) {
             return fetch(url, {
@@ -86,13 +86,17 @@
                 body: JSON.stringify(body),
                 credentials: 'same-origin'
             }).then(function (response) {
-                return response.json();
-            }).then(function (data) {
-                if (data.errors) {
-                    throw new Error(data.message || fallbackMessage || '');
-                }
+                return response.json().then(function (data) {
+                    var error;
 
-                return data;
+                    if (data.errors) {
+                        error = new Error(data.message || fallbackMessage || '');
+                        error.status = response.status;
+                        throw error;
+                    }
+
+                    return data;
+                });
             });
         },
 

@@ -20,9 +20,21 @@ class AdminImpersonationGuardTest extends TestCase
         $session = $this->createStub(Session::class);
         $session->method('getData')->willReturn(null);
 
-        (new AdminImpersonationGuard($session))->assertNotImpersonated();
+        $guard = new AdminImpersonationGuard($session);
+        $guard->assertNotImpersonated();
 
-        $this->addToAssertionCount(1);
+        $this->assertFalse($guard->isImpersonated());
+    }
+
+    public function testReportsLoginAsCustomerSession(): void
+    {
+        $session = $this->createMock(Session::class);
+        $session->expects($this->once())
+            ->method('getData')
+            ->with('logged_as_customer_admind_id')
+            ->willReturn('3');
+
+        $this->assertTrue((new AdminImpersonationGuard($session))->isImpersonated());
     }
 
     public function testRefusesLoginAsCustomerSession(): void

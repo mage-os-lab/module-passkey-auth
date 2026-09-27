@@ -226,7 +226,7 @@ Templates are in `view/frontend/templates/` and can be overridden via theme fall
 - **Anti-enumeration**: Authentication options for an email with no passkeys (or no account) carry a stable, secret-derived decoy credential descriptor instead of an empty list.
 - **Ownership enforcement**: All credential operations validate that the credential belongs to the requesting customer.
 - **Per-website accounts**: With customer accounts shared per website, a passkey only signs in on its own customer's website.
-- **Login as Customer**: Passkey registration is refused while an admin is signed in as the customer on the storefront.
+- **Login as Customer**: Passkey registration is refused while an admin is signed in as the customer on the storefront. Known limitation: REST and GraphQL registration with a token from `generateCustomerTokenAsAdmin` is not blocked.
 
 ## Contributing
 

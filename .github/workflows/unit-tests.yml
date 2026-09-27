@@ -22,7 +22,7 @@ jobs:
           - 8.5
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: mage-os/github-actions/unit-test@d27b0e883b655809e7399c8e5c831e1f6f503f3e # main, 2026-09-08
         with:
           php_version: ${{ matrix.php_version }}

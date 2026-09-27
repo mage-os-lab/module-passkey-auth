@@ -23,7 +23,7 @@ The banner only shows when all of these are true:
 - The browser supports passkeys.
 - The customer has not clicked **Not now** in the last 30 days, and has clicked it fewer than 3 times. This is stored in the browser, so it is per device.
 
-The banner does not show on the **My Account > Passkeys** page itself.
+The banner does not show on the **My Account > Passkeys** page itself, or while an admin is signed in as the customer with Login as Customer.
 
 ### Scope
 

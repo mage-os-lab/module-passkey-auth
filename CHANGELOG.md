@@ -6,7 +6,7 @@ All notable changes to this module are listed here. The format follows [Keep a C
 
 ### Breaking changes
 
-- **Customer passkeys are off by default on new installs.** `customer/passkey/enabled` now defaults to No. On upgrade, a store that already has customer passkeys and never saved the setting gets it saved as Yes, so passkey sign-in keeps working. A value you saved yourself, at any scope, is kept. (#10)
+- **Customer passkeys are off by default on new installs.** `customer/passkey/enabled` now defaults to No. On upgrade, a store that already has customer passkeys and never saved the setting in Default Config gets Yes saved in Default Config, so passkey sign-in keeps working. A Default Config value you saved yourself is kept, and so are website and store view values. (#10)
 - **Enable and prompt settings are read at store scope.** Before, `Config::isEnabled()`, `isPromptAfterLoginEnabled()` and `isPromptOnRegistrationEnabled()` read Default Config only. A website-level value for these settings now takes effect. (#11)
 - **Removed the unused ACL resource `MageOS_PasskeyAuth::config`.** No config section used it. Roles that granted it keep working. (#11)
 - **Smaller REST passkey objects.** `GET /V1/passkey/credentials`, `PUT /V1/passkey/credentials/:entityId` and `POST /V1/passkey/registration/verify` now return `{id, name, transports, created_at, last_used_at}`, the same fields as GraphQL. `name` and `last_used_at` are left out when empty. The old full record (`entity_id`, `friendly_name`, `credential_id`, the public key record, `user_handle`, `sign_count`, `aaguid`) is no longer returned. Request parameters are unchanged. `DELETE` still returns `true`.
@@ -20,17 +20,19 @@ All notable changes to this module are listed here. The format follows [Keep a C
   - `Api\Data\CredentialInterface` now extends `ExtensibleDataInterface` and has `getExtensionAttributes()` and `setExtensionAttributes()`.
   - `Api\CredentialRepositoryInterface::getList()`.
 - **Constructor changes in non-API classes.** If you extend these classes or configure their arguments in `di.xml`, update your code.
-  - `Controller\Authentication\Verify`: drops `RateLimiter`, adds `PostLoginRedirect`.
+  - `Controller\Authentication\Verify`: drops `RateLimiter`, adds `PostLoginRedirect` and `Magento\Customer\Model\Url`.
+  - `CustomerData\PasskeySection`: adds `AdminImpersonationGuard`.
   - `Controller\Registration\Options`: drops `RequestInterface`.
   - `Model\Authentication\Verifier`: adds `RateLimiter`, `RemoteAddress`, `Share`, `CustomerRepositoryInterface` and `StoreManagerInterface`.
   - `Model\CredentialRepository`: adds `CollectionProcessorInterface` and `CredentialSearchResultsInterfaceFactory`.
   - `Model\Registration\OptionsGenerator` and `Model\Registration\Verifier`: add `AdminImpersonationGuard`.
   - `Model\Resolver\CredentialFormatter`: new constructor with `CustomerPasskeyMapper`.
-  - `Model\Resolver\VerifyAuthentication`: drops `RateLimiter` and `RemoteAddress`.
+  - `Model\Resolver\VerifyAuthentication`: drops `RateLimiter`, `RemoteAddress` and `LoggerInterface`.
   - `Ui\Component\Listing\Column\CredentialActions`: adds `Escaper` before `$components`.
   - `Model\UserHandleGenerator::getOrGenerate()` now returns raw bytes, not base64.
-- **Requires `web-auth/webauthn-lib` ^5.2** (was ^5.0). `composer.json` also lists the Magento modules the code uses directly. In practice this needs Magento Open Source or Mage-OS 2.4.6 or later.
+- **Requires `web-auth/webauthn-lib` ^5.2** (was ^5.0). `composer.json` also lists the packages the code uses directly: the Magento modules, `web-auth/cose-lib` and `symfony/serializer`. In practice this needs Magento Open Source or Mage-OS 2.4.6 or later. The unit tests need PHPUnit 10.5 or later.
 - **The failed sign-in limit now covers REST.** `POST /V1/passkey/authentication/verify` had no limit. It now shares the per-IP counter with the storefront and GraphQL. A headless frontend that calls REST from one server sends every customer's sign-in from that server's IP, so they all share one counter. (#11)
+- **Per-website accounts need the right store in API calls.** With **Share Customer Accounts** set to **Per Website**, a passkey only signs in on its customer's website. A REST or GraphQL client that calls without the store code in the URL or the `Store` header targets the default store, so customers of other websites now get the generic sign-in failure.
 
 ### Added
 
@@ -39,6 +41,9 @@ All notable changes to this module are listed here. The format follows [Keep a C
 - Extension attributes on `CredentialInterface` and `CustomerPasskeyInterface`.
 - `Model\PasskeyEvents` (`@api`) with the event names and reason codes.
 - `WebAuthnConfigInterface` is now `@api`.
+- `Model\Exception\RateLimitExceededException`, a `LocalizedException` thrown by `Model\RateLimiter` when a limit is hit.
+- `Model\Registration\AdminImpersonationGuard::isImpersonated()`.
+- `passkeyCore.postJson()` errors carry the HTTP status as `status`.
 - REST, SOAP and GraphQL passkey sign-ins fire core `customer_login`, as password token requests do. The customer's last login time is updated.
 - The storefront verify endpoint returns `redirect_url`: the page a password sign-in would land on. The login page follows it instead of reloading. `passkeyCore.completeSignIn()` does this, and `startConditional`'s `onSuccess` now receives the verify reply. Checkout autofill still reloads the page.
 - A user manual in `docs/`. (#11)
@@ -49,26 +54,29 @@ All notable changes to this module are listed here. The format follows [Keep a C
 ### Changed
 
 - Routine rejections are logged as warnings with a `reason` in `var/log/system.log`. Unexpected errors still go to `var/log/exception.log`. Failed registration was an error and is now a warning.
+- Rejected sign-ins (passkeys turned off, bad or expired challenge, malformed response, failed sign-in limit) are logged once by the sign-in service, so REST sign-ins are now logged too. The storefront and GraphQL no longer log them a second time.
 - Rate-limit cache keys use SHA-256 instead of MD5.
 - The unreachable "log a warning and allow" sign-count code was removed. webauthn-lib already rejects a counter that doesn't increase, so behavior is unchanged. (#11)
 - Unit tests run on PHPUnit 10 and 12. (#13)
-- CI uses a read-only token, a pinned action, and `actions/checkout@v4`.
+- CI uses a read-only token and pins its actions to commits, including `actions/checkout` v4.4.0.
 
 ### Fixed
 
 - New passkeys reused the stored, base64-encoded user handle as the raw handle, so the handle grew with each passkey. The oldest valid handle is now reused. Passkeys from earlier releases may keep their own handle and still work.
 - Malformed passkey responses caused HTTP 500 errors. They are now rejected as invalid.
 - Looking up a passkey by its credential ID scanned the table and ignored letter case. It now uses the indexed hash of the ID and an exact match.
-- Notification emails for customers created in the admin used the default website's store view. They now use the customer's own website's default store view.
+- Notification emails for customers created in the admin used the default website's store view. They now use the customer's own website's default store view, or the default store view if that website no longer exists.
+- A PHP error (not an exception) while sending a notification email could break the action that triggered it. It is now logged like other email failures.
 - Hyvä: the passkey components could miss Alpine's start and not load. They now register before Alpine starts.
 - Hyvä My Account > Passkeys: server errors are shown, the Add button is disabled while busy, the empty state returns after the last passkey is deleted, and Delete removes the whole row.
 - Admin two-factor failure messages were not picked up for translation.
+- Customers never saw "Too many failed passkey attempts. Please try again later." The storefront and GraphQL showed the generic failure instead. They now show it, and the storefront replies with HTTP 429. Luma and Hyvä show it for autofill sign-ins too. Every other failure still shows the generic message.
 
 ### Security
 
 - Challenges are claimed atomically. Two requests with the same token can't both use it.
 - With per-website customer accounts, a passkey only signs in on its own customer's website, even when websites share a domain.
-- Passkey registration is refused while an admin is signed in as the customer with Login as Customer. This covers the storefront session only. Tokens from `generateCustomerTokenAsAdmin` can't be told apart from the customer's own.
+- Passkey registration is refused, and the enrollment banner hidden, while an admin is signed in as the customer with Login as Customer. This covers the storefront session only. Known limitation: tokens from `generateCustomerTokenAsAdmin` can't be told apart from the customer's own, so REST and GraphQL registration with them is not blocked.
 - The sign-in options limit counts the email trimmed and lowercased, so changing the case of the email no longer gets a fresh counter.
 - The failed sign-in limit covers REST. (#11)
 - The passkey name and customer email are escaped in the admin revoke confirmation, and the passkey name in the Luma delete confirmation.

@@ -31,11 +31,19 @@ class AdminImpersonationGuard
     }
 
     /**
+     * Whether an admin is signed in as the customer with Login as Customer.
+     */
+    public function isImpersonated(): bool
+    {
+        return (int) $this->customerSession->getData(self::SESSION_KEY_ADMIN_ID) > 0;
+    }
+
+    /**
      * @throws LocalizedException While an admin is signed in as the customer
      */
     public function assertNotImpersonated(): void
     {
-        if ((int) $this->customerSession->getData(self::SESSION_KEY_ADMIN_ID) > 0) {
+        if ($this->isImpersonated()) {
             throw new LocalizedException(
                 __('Passkeys can\'t be added while an admin is signed in as this customer.')
             );

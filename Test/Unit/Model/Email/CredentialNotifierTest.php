@@ -13,6 +13,7 @@ use MageOS\PasskeyAuth\Model\Email\CredentialNotifier;
 use Magento\Customer\Api\CustomerNameGenerationInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Mail\Template\TransportBuilder;
 use Magento\Framework\Mail\TransportInterface;
 use Magento\Store\Model\Store;
@@ -27,12 +28,14 @@ class CredentialNotifierTest extends TestCase
     private CustomerRepositoryInterface&Stub $customerRepository;
     private StoreManagerInterface&Stub $storeManager;
     private ?int $sentFromStoreId = null;
+    private LoggerInterface&Stub $logger;
     private ?CredentialNotifier $notifier = null;
 
     protected function setUp(): void
     {
         $this->customerRepository = $this->createStub(CustomerRepositoryInterface::class);
         $this->storeManager = $this->createStub(StoreManagerInterface::class);
+        $this->logger = $this->createStub(LoggerInterface::class);
 
         $store = $this->createStub(Store::class);
         $store->method('getFrontendName')->willReturn('Main Store');
@@ -64,7 +67,7 @@ class CredentialNotifierTest extends TestCase
             $this->createStub(CustomerNameGenerationInterface::class),
             $transportBuilder,
             $this->storeManager,
-            $this->createStub(LoggerInterface::class)
+            $this->logger
         );
     }
 
@@ -115,5 +118,36 @@ class CredentialNotifierTest extends TestCase
         $this->notifier()->notify(42, 'My Key', Config::XML_PATH_ADDED_EMAIL_TEMPLATE);
 
         $this->assertSame(1, $this->sentFromStoreId);
+    }
+
+    public function testFallsBackToDefaultStoreViewWhenWebsiteIsGone(): void
+    {
+        $this->configureCustomer(storeId: 0, websiteId: 7);
+        $this->storeManager->method('getWebsite')
+            ->willThrowException(new NoSuchEntityException(__('The website with id 7 was not found.')));
+        $this->storeManager->method('getDefaultStoreView')->willReturn($this->createStore(1));
+        $this->logger = $this->createMock(LoggerInterface::class);
+        $this->logger->expects($this->never())->method('error');
+
+        $this->notifier()->notify(42, 'My Key', Config::XML_PATH_ADDED_EMAIL_TEMPLATE);
+
+        $this->assertSame(1, $this->sentFromStoreId);
+    }
+
+    public function testLogsErrorsThatAreNotExceptions(): void
+    {
+        $this->customerRepository->method('getById')->willThrowException(new \TypeError('Unexpected type'));
+        $this->logger = $this->createMock(LoggerInterface::class);
+        $this->logger->expects($this->once())
+            ->method('error')
+            ->with('Failed to send passkey notification email', [
+                'exception' => 'Unexpected type',
+                'customer_id' => 42,
+                'template' => Config::XML_PATH_ADDED_EMAIL_TEMPLATE,
+            ]);
+
+        $this->notifier()->notify(42, 'My Key', Config::XML_PATH_ADDED_EMAIL_TEMPLATE);
+
+        $this->assertNull($this->sentFromStoreId);
     }
 }

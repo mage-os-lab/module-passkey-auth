@@ -15,6 +15,7 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\PasskeyEvents;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
@@ -51,12 +52,16 @@ class Verifier implements AuthenticationVerifierInterface
     public function verify(string $challengeToken, string $assertionResponseJson): AuthenticationResultInterface
     {
         if (!$this->config->isEnabled()) {
-            throw new LocalizedException(__('Passkey authentication is not enabled.'));
+            throw $this->rejected(new LocalizedException(__('Passkey authentication is not enabled.')));
         }
 
         // Counted here so every entry point (storefront, REST, GraphQL) shares one limit
         $ip = $this->remoteAddress->getRemoteAddress() ?: 'unknown';
-        $this->rateLimiter->checkVerifyFailRate($ip);
+        try {
+            $this->rateLimiter->checkVerifyFailRate($ip);
+        } catch (RateLimitExceededException $e) {
+            throw $this->rejected($e);
+        }
 
         try {
             return $this->verifyAssertion($challengeToken, $assertionResponseJson);
@@ -73,11 +78,15 @@ class Verifier implements AuthenticationVerifierInterface
         string $challengeToken,
         string $assertionResponseJson
     ): AuthenticationResultInterface {
-        [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
-            $challengeToken,
-            $assertionResponseJson,
-            ChallengeManager::TYPE_AUTHENTICATION
-        );
+        try {
+            [$publicKeyCredential, $requestOptions] = $this->ceremony->loadAssertion(
+                $challengeToken,
+                $assertionResponseJson,
+                ChallengeManager::TYPE_AUTHENTICATION
+            );
+        } catch (LocalizedException $e) {
+            throw $this->rejected($e);
+        }
 
         $credentialIdBase64 = base64_encode($publicKeyCredential->rawId);
 
@@ -166,6 +175,16 @@ class Verifier implements AuthenticationVerifierInterface
         ]]);
 
         return $result;
+    }
+
+    /**
+     * Log a routine rejection. Logged here, not by the callers, so storefront, REST and GraphQL each log it once.
+     */
+    private function rejected(LocalizedException $e): LocalizedException
+    {
+        $this->logger->warning('Passkey authentication rejected', ['reason' => $e->getMessage()]);
+
+        return $e;
     }
 
     /**

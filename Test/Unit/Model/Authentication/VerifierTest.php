@@ -13,6 +13,7 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\Authentication\Verifier;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
+use MageOS\PasskeyAuth\Model\Exception\RateLimitExceededException;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
@@ -168,6 +169,7 @@ class VerifierTest extends TestCase
     {
         $this->configureEnabled(false);
         $this->mockCeremony()->expects($this->never())->method('loadAssertion');
+        $this->expectRejectionLogged('Passkey authentication is not enabled.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey authentication is not enabled.');
@@ -184,6 +186,7 @@ class VerifierTest extends TestCase
             ->with('bad-token', '{"response":"data"}', ChallengeManager::TYPE_AUTHENTICATION)
             ->willThrowException(new LocalizedException(__('Invalid or expired challenge token.')));
         $this->mockEventManager()->expects($this->never())->method('dispatch');
+        $this->expectRejectionLogged('Invalid or expired challenge token.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid or expired challenge token.');
@@ -198,6 +201,7 @@ class VerifierTest extends TestCase
         $this->ceremonyMock->method('loadAssertion')
             ->willThrowException(new LocalizedException(__('Invalid assertion response.')));
         $this->mockCredentialRepository()->expects($this->never())->method('getByCredentialId');
+        $this->expectRejectionLogged('Invalid assertion response.');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid assertion response.');
@@ -305,6 +309,8 @@ class VerifierTest extends TestCase
         $this->mockRateLimiter()->expects($this->once())
             ->method('recordVerifyFailure')
             ->with('10.0.0.1');
+        // Unexpected errors are left to the caller's error handling
+        $this->mockLogger()->expects($this->never())->method('warning');
 
         $this->expectException(\TypeError::class);
 
@@ -389,13 +395,14 @@ class VerifierTest extends TestCase
         $this->configureEnabled(true);
         $this->mockRateLimiter()->method('checkVerifyFailRate')
             ->with('10.0.0.1')
-            ->willThrowException(new LocalizedException(
+            ->willThrowException(new RateLimitExceededException(
                 __('Too many failed passkey attempts. Please try again later.')
             ));
         $this->mockCeremony()->expects($this->never())->method('loadAssertion');
         $this->mockRateLimiter()->expects($this->never())->method('recordVerifyFailure');
+        $this->expectRejectionLogged('Too many failed passkey attempts. Please try again later.');
 
-        $this->expectException(LocalizedException::class);
+        $this->expectException(RateLimitExceededException::class);
         $this->expectExceptionMessage('Too many failed passkey attempts. Please try again later.');
 
         $this->verifier()->verify('valid-token', '{"response":"assertion"}');
@@ -474,6 +481,13 @@ class VerifierTest extends TestCase
         $this->expectExceptionMessage('Authentication succeeded but token creation failed.');
 
         $this->verifier()->verify('valid-token', '{"response":"assertion"}');
+    }
+
+    private function expectRejectionLogged(string $reason): void
+    {
+        $this->mockLogger()->expects($this->once())
+            ->method('warning')
+            ->with('Passkey authentication rejected', ['reason' => $reason]);
     }
 
     private function configureLoadAssertion(): void

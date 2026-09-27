@@ -136,12 +136,15 @@ class CredentialRepositoryTest extends TestCase
         $this->repository()->getByCredentialId('nonexistent');
     }
 
-    public function testGetByCredentialIdRejectsCaseInsensitiveMatch(): void
+    /**
+     * Defensive check: the hash lookup is exact, but a row whose stored ID differs from the requested one
+     * (here only by case) is still rejected.
+     */
+    public function testGetByCredentialIdRejectsRowWithDifferentStoredId(): void
     {
         $model = $this->createCredentialModel();
         $this->credentialModelFactory->method('create')->willReturn($model);
 
-        // The row MySQL returned differs from the requested ID only by case
         $this->resource->method('load')->willReturnCallback(function (CredentialModel $m) {
             $m->setData('entity_id', 10);
             $m->setData('credential_id', 'ABC123');

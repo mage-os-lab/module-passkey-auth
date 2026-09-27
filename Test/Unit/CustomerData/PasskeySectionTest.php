@@ -10,6 +10,7 @@ namespace MageOS\PasskeyAuth\Test\Unit\CustomerData;
 
 use MageOS\PasskeyAuth\CustomerData\PasskeySection;
 use MageOS\PasskeyAuth\Model\Enrollment\NewAccountFlag;
+use MageOS\PasskeyAuth\Model\Registration\AdminImpersonationGuard;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksConfigTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
@@ -24,6 +25,7 @@ class PasskeySectionTest extends TestCase
 
     private ?PasskeySection $section = null;
     private NewAccountFlag&Stub $newAccountFlag;
+    private AdminImpersonationGuard&Stub $impersonationGuard;
 
     protected function setUp(): void
     {
@@ -31,6 +33,7 @@ class PasskeySectionTest extends TestCase
         $this->createCustomerSessionStub();
         $this->createCredentialRepositoryStub();
         $this->newAccountFlag = $this->createStub(NewAccountFlag::class);
+        $this->impersonationGuard = $this->createStub(AdminImpersonationGuard::class);
     }
 
     private function section(): PasskeySection
@@ -39,7 +42,8 @@ class PasskeySectionTest extends TestCase
             $this->configMock,
             $this->customerSessionMock,
             $this->credentialRepositoryMock,
-            $this->newAccountFlag
+            $this->newAccountFlag,
+            $this->impersonationGuard
         );
     }
 
@@ -95,6 +99,17 @@ class PasskeySectionTest extends TestCase
         $result = $this->section()->getSectionData();
 
         $this->assertSame(['show_enrollment_prompt' => true], $result);
+    }
+
+    public function testHiddenWhileAdminIsSignedInAsCustomer(): void
+    {
+        $this->configureLoggedIn(42);
+        $this->configureEnabled(true);
+        $this->configurePromptAfterLogin(true);
+        $this->impersonationGuard->method('isImpersonated')->willReturn(true);
+        $this->mockCredentialRepository()->expects($this->never())->method('countByCustomerId');
+
+        $this->assertSame(['show_enrollment_prompt' => false], $this->section()->getSectionData());
     }
 
     public function testNewAccountFollowsRegistrationSettingWhenDisabled(): void
