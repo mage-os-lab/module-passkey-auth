@@ -49,6 +49,9 @@ class Verifier implements AuthenticationVerifierInterface
         try {
             $storedCredential = $this->credentialRepository->getByCredentialId($credentialIdBase64);
         } catch (NoSuchEntityException $e) {
+            $this->logger->warning('Passkey assertion rejected: unknown credential', [
+                'credential_id' => $credentialIdBase64,
+            ]);
             $this->eventManager->dispatch('passkey_authentication_failure', [
                 'credential_id' => $credentialIdBase64,
                 'reason' => 'credential_not_found',
@@ -65,6 +68,11 @@ class Verifier implements AuthenticationVerifierInterface
                 $credentialSource
             );
         } catch (\Exception $e) {
+            $this->logger->warning('Passkey assertion rejected', [
+                'credential_id' => $credentialIdBase64,
+                'customer_id' => $storedCredential->getCustomerId(),
+                'reason' => $e->getMessage(),
+            ]);
             $this->eventManager->dispatch('passkey_authentication_failure', [
                 'credential_id' => $credentialIdBase64,
                 'reason' => $e->getMessage(),

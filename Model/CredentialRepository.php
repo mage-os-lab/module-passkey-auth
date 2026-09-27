@@ -85,6 +85,10 @@ class CredentialRepository implements CredentialRepositoryInterface
 
         try {
             $this->resource->save($model);
+            if (!$credential->getEntityId()) {
+                // Pick up DB-defaulted columns (created_at) so a new credential is returned complete
+                $this->resource->load($model, $model->getId());
+            }
         } catch (\Exception $e) {
             throw new CouldNotSaveException(__('Could not save passkey credential: %1', $e->getMessage()), $e);
         }

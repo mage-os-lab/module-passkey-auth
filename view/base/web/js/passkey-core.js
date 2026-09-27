@@ -12,11 +12,24 @@
         conditional = null,
         webauthnFieldSelectors = null;
 
+    /**
+     * Add the "webauthn" autofill token. It must follow an autofill field
+     * name, so "off"/"on" (as on Luma's login form when autocomplete is
+     * disabled) are replaced rather than prefixed.
+     */
     function markWebauthnField(el) {
-        var current = el.getAttribute('autocomplete') || 'username';
+        var tokens = (el.getAttribute('autocomplete') || '').split(/\s+/).filter(function (token) {
+                return token && token !== 'off' && token !== 'on' && token !== 'webauthn';
+            }),
+            value;
 
-        if (current.indexOf('webauthn') === -1) {
-            el.setAttribute('autocomplete', current + ' webauthn');
+        if (!tokens.length) {
+            tokens.push('username');
+        }
+        value = tokens.concat('webauthn').join(' ');
+
+        if (el.getAttribute('autocomplete') !== value) {
+            el.setAttribute('autocomplete', value);
         }
     }
 
@@ -99,7 +112,8 @@
          * navigator.credentials.get() lets the browser offer saved passkeys in
          * the email field's autofill dropdown. No-op when unsupported.
          *
-         * config: {optionsUrl, verifyUrl, selectors?, onError?}
+         * config: {optionsUrl, verifyUrl, selectors?, onError?, onSuccess?}
+         * onSuccess defaults to reloading the page.
          */
         startConditional: function (config) {
             var self = this;
@@ -135,6 +149,7 @@
          */
         restartConditional: function () {
             var self = this,
+                picked = false,
                 controller;
 
             if (!conditional) {
@@ -147,6 +162,8 @@
             this.postJson(conditional.config.optionsUrl, {}).then(function (options) {
                 var request = self.prepareRequestOptions(options);
 
+                // A pending autofill request should last as long as the page.
+                delete request.publicKey.timeout;
                 request.mediation = 'conditional';
                 request.signal = controller.signal;
 
@@ -154,6 +171,7 @@
                     if (!credential) {
                         throw new Error('cancelled');
                     }
+                    picked = true;
 
                     return self.postJson(conditional.config.verifyUrl, {
                         challengeToken: options.challengeToken,
@@ -161,7 +179,11 @@
                     });
                 });
             }).then(function () {
-                window.location.reload();
+                if (typeof conditional.config.onSuccess === 'function') {
+                    conditional.config.onSuccess();
+                } else {
+                    window.location.reload();
+                }
             }).catch(function (err) {
                 // Aborting is the expected path when the user signs in another
                 // way or we hand off to a modal ceremony.
@@ -169,12 +191,13 @@
                     return;
                 }
 
-                // The user picked a passkey but verification failed (most often
-                // an expired challenge on a long-idle tab): surface it and
-                // re-arm so the autofill entry keeps working, with a cap.
+                // Re-arm so the autofill entry keeps working, with a cap. Only
+                // report failures after the user picked a passkey (most often an
+                // expired challenge on a long-idle tab); the browser ending the
+                // request on its own is not something the user did.
                 if (conditional.restartsLeft > 0) {
                     conditional.restartsLeft--;
-                    if (typeof conditional.config.onError === 'function') {
+                    if (picked && typeof conditional.config.onError === 'function') {
                         conditional.config.onError(err);
                     }
                     self.restartConditional();

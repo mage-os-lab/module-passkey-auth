@@ -14,6 +14,7 @@ use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Serialize\Serializer\Json;
@@ -49,6 +50,9 @@ class OptionsGeneratorTest extends TestCase
         $remoteAddressStub = $this->createStub(RemoteAddress::class);
         $remoteAddressStub->method('getRemoteAddress')->willReturn('127.0.0.1');
 
+        $encryptorStub = $this->createStub(EncryptorInterface::class);
+        $encryptorStub->method('hash')->willReturnCallback(fn (string $data) => hash_hmac('sha256', $data, 'key'));
+
         $this->optionsGenerator = new OptionsGenerator(
             $this->configMock,
             $this->customerRepositoryMock,
@@ -57,7 +61,8 @@ class OptionsGeneratorTest extends TestCase
             $storeManagerStub,
             new Json(),
             $this->rateLimiterMock,
-            $remoteAddressStub
+            $remoteAddressStub,
+            $encryptorStub
         );
     }
 
@@ -154,19 +159,47 @@ class OptionsGeneratorTest extends TestCase
 
         $this->ceremonyMock->expects($this->once())
             ->method('createAuthenticationOptions')
-            ->with([], ChallengeManager::TYPE_AUTHENTICATION, null)
+            ->with(
+                $this->callback(fn (array $allow) => count($allow) === 1
+                    && $allow[0]->id === hex2bin(hash_hmac('sha256', 'passkey-decoy|nonexistent@example.com', 'key'))),
+                ChallengeManager::TYPE_AUTHENTICATION,
+                null
+            )
             ->willReturn([
                 'challenge' => 'abc',
                 'rpId' => 'example.com',
                 'challengeToken' => 'token-for-unknown',
             ]);
 
-        $decoded = json_decode($this->optionsGenerator->generate('nonexistent@example.com'), true);
+        $decoded = json_decode($this->optionsGenerator->generate(' Nonexistent@Example.com'), true);
 
         $this->assertNotNull($decoded, 'Anti-enumeration: should return valid JSON even for nonexistent email');
         $this->assertArrayHasKey('challenge', $decoded);
         $this->assertArrayHasKey('rpId', $decoded);
         $this->assertSame('token-for-unknown', $decoded['challengeToken']);
+    }
+
+    public function testGenerateWithEmailCustomerWithoutPasskeysGetsDecoy(): void
+    {
+        $this->configureEnabled(true);
+
+        $customer = $this->createStub(CustomerInterface::class);
+        $customer->method('getId')->willReturn(42);
+        $this->customerRepositoryMock->method('get')->willReturn($customer);
+        $this->credentialRepositoryMock->method('getByCustomerId')->willReturn([]);
+
+        $this->ceremonyMock->expects($this->once())
+            ->method('createAuthenticationOptions')
+            ->with(
+                $this->callback(fn (array $allow) => count($allow) === 1
+                    && $allow[0]->id === hex2bin(hash_hmac('sha256', 'passkey-decoy|jane@example.com', 'key'))
+                    && $allow[0]->transports === ['hybrid', 'internal']),
+                ChallengeManager::TYPE_AUTHENTICATION,
+                42
+            )
+            ->willReturn(['challenge' => 'abc', 'challengeToken' => 't']);
+
+        $this->optionsGenerator->generate('jane@example.com');
     }
 
     public function testGenerateWithoutEmail(): void
