@@ -1,3 +1,8 @@
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
 define([
     'MageOS_PasskeyAuth/js/passkey-core',
     'Magento_Customer/js/customer-data'

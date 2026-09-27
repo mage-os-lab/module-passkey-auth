@@ -1,3 +1,8 @@
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
 window.addEventListener('alpine:init', () => {
     Alpine.data('passkeyLogin', () => ({
         available: false,

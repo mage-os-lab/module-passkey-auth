@@ -1,5 +1,10 @@
 <?php
 /**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+/**
  * Creates a passkey credential for the standard fixture customer (ID 1).
  */
 

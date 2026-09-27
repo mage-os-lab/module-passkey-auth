@@ -1,5 +1,11 @@
 <?xml version="1.0"?>
 <!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+-->
+<!--
     Events dispatched by MageOS_PasskeyAuth:
 
     passkey_credential_register_after
