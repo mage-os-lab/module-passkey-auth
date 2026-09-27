@@ -15,9 +15,12 @@ use ParagonIE\ConstantTime\Base64UrlSafe;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\PublicKeyCredentialDescriptor;
+use Webauthn\PublicKeyCredentialSource;
 use Webauthn\PublicKeyCredentialUserEntity;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 class CeremonyTest extends TestCase
 {
@@ -246,6 +249,62 @@ class CeremonyTest extends TestCase
 
         $this->assertSame('raw-credential-id', $credential->rawId);
         $this->assertSame(self::RP_ID, $requestOptions->rpId);
+    }
+
+    public function testDeserializeSourceRoundTripsStoredCredential(): void
+    {
+        $source = PublicKeyCredentialSource::create(
+            'raw-credential-id',
+            'public-key',
+            ['internal'],
+            'none',
+            EmptyTrustPath::create(),
+            Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+            'credential-public-key',
+            'user-handle-bytes',
+            7
+        );
+
+        $restored = $this->ceremony->deserializeSource($this->ceremony->serializeSource($source));
+
+        $this->assertSame('raw-credential-id', $restored->publicKeyCredentialId);
+        $this->assertSame('user-handle-bytes', $restored->userHandle);
+        $this->assertSame(7, $restored->counter);
+    }
+
+    public function testVerifyAssertionAcceptsDeserializedSource(): void
+    {
+        $this->captureStoredOptions();
+        $this->ceremony->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $this->challengeManagerMock->method('consume')->willReturnCallback(fn () => $this->storedOptionsJson);
+        [$credential, $requestOptions] = $this->ceremony->loadAssertion(
+            'auth-token',
+            $this->buildAssertionCredentialJson(),
+            ChallengeManager::TYPE_AUTHENTICATION
+        );
+        $stored = $this->ceremony->deserializeSource($this->ceremony->serializeSource(
+            PublicKeyCredentialSource::create(
+                'raw-credential-id',
+                'public-key',
+                [],
+                'none',
+                EmptyTrustPath::create(),
+                Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+                'credential-public-key',
+                'uh',
+                0
+            )
+        ));
+
+        try {
+            $this->ceremony->verifyAssertion($credential, $requestOptions, $stored);
+            $this->fail('A fabricated assertion must not verify.');
+        } catch (\TypeError $e) {
+            $this->fail('Stored credential type rejected: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // Rejected by webauthn-lib validation, as expected for fake data
+            $this->assertNotInstanceOf(\TypeError::class, $e);
+        }
     }
 
     private function captureStoredOptions(): void
