@@ -59,11 +59,35 @@ define([
                     if (err && err.name === 'AbortError') {
                         self.currentStep('idle');
                     } else {
-                        self.errorMessage(err && err.message ? err.message : $t(self.failureMessage));
+                        self.errorMessage(self.describeError(err));
                         self.currentStep('error');
                     }
                     return false;
                 });
+        },
+
+        /**
+         * Browser WebAuthn failures arrive as DOMExceptions whose messages are
+         * written for developers; server failures carry a message for the user.
+         *
+         * @param {Error} err
+         * @returns {String}
+         */
+        describeError: function (err) {
+            if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
+                switch (err.name) {
+                    case 'NotAllowedError':
+                        return $t('The passkey request was cancelled or timed out, or no matching passkey was found on this device.');
+                    case 'InvalidStateError':
+                        return $t('This authenticator is already registered.');
+                    case 'SecurityError':
+                        return $t('Passkeys are not allowed on this domain. Check that the admin URL uses HTTPS and matches the store domain.');
+                    default:
+                        return $t(this.failureMessage);
+                }
+            }
+
+            return err && err.message ? err.message : $t(this.failureMessage);
         },
 
         /**
