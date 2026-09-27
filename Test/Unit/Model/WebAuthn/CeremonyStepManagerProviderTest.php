@@ -21,7 +21,7 @@ class CeremonyStepManagerProviderTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->config = $this->createMock(WebAuthnConfigInterface::class);
+        $this->config = $this->createStub(WebAuthnConfigInterface::class);
         $this->config->method('getAllowedOrigins')->willReturn(['https://example.com']);
 
         $this->provider = new CeremonyStepManagerProvider(new AttestationStatementSupportManager());

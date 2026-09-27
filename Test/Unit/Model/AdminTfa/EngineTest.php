@@ -16,6 +16,7 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\TwoFactorAuth\Api\UserConfigManagerInterface;
 use Magento\User\Model\User;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Uid\Uuid;
@@ -30,38 +31,81 @@ class EngineTest extends TestCase
 {
     private const USER_ID = 42;
 
-    private UserConfigManagerInterface&MockObject $userConfigManager;
-    private Ceremony&MockObject $ceremony;
-    private AdminTfaConfig&MockObject $adminTfaConfig;
-    private LoggerInterface&MockObject $logger;
-    private User&MockObject $user;
-    private Engine $engine;
+    private UserConfigManagerInterface&Stub $userConfigManager;
+    private Ceremony&Stub $ceremony;
+    private AdminTfaConfig&Stub $adminTfaConfig;
+    private LoggerInterface&Stub $logger;
+    private User&Stub $user;
+    private ?Engine $engine = null;
+    private bool $userConfigManagerIsMock = false;
+    private bool $ceremonyIsMock = false;
+    private bool $loggerIsMock = false;
 
     protected function setUp(): void
     {
-        $this->userConfigManager = $this->createMock(UserConfigManagerInterface::class);
-        $this->ceremony = $this->createMock(Ceremony::class);
-        $this->adminTfaConfig = $this->createMock(AdminTfaConfig::class);
+        $this->userConfigManager = $this->createStub(UserConfigManagerInterface::class);
+        $this->ceremony = $this->createStub(Ceremony::class);
+        $this->adminTfaConfig = $this->createStub(AdminTfaConfig::class);
         $this->adminTfaConfig->method('getRpId')->willReturn('admin.example.com');
-        $this->logger = $this->createMock(LoggerInterface::class);
+        $this->logger = $this->createStub(LoggerInterface::class);
 
-        $this->user = $this->createMock(User::class);
+        $this->user = $this->createStub(User::class);
         $this->user->method('getId')->willReturn(self::USER_ID);
         $this->user->method('getUserName')->willReturn('admin');
         $this->user->method('getFirstName')->willReturn('Ada');
         $this->user->method('getLastName')->willReturn('Admin');
 
-        $this->engine = new Engine($this->userConfigManager, $this->ceremony, $this->adminTfaConfig, $this->logger);
+    }
+
+    private function engine(): Engine
+    {
+        return $this->engine ??= new Engine(
+            $this->userConfigManager,
+            $this->ceremony,
+            $this->adminTfaConfig,
+            $this->logger
+        );
+    }
+
+    /**
+     * The mockX() helpers replace a stub with a mock object for tests that set expectations.
+     * Call them before the engine is built.
+     */
+    private function mockUserConfigManager(): UserConfigManagerInterface&MockObject
+    {
+        if (!$this->userConfigManagerIsMock) {
+            $this->userConfigManager = $this->createMock(UserConfigManagerInterface::class);
+            $this->userConfigManagerIsMock = true;
+        }
+        return $this->userConfigManager;
+    }
+
+    private function mockCeremony(): Ceremony&MockObject
+    {
+        if (!$this->ceremonyIsMock) {
+            $this->ceremony = $this->createMock(Ceremony::class);
+            $this->ceremonyIsMock = true;
+        }
+        return $this->ceremony;
+    }
+
+    private function mockLogger(): LoggerInterface&MockObject
+    {
+        if (!$this->loggerIsMock) {
+            $this->logger = $this->createMock(LoggerInterface::class);
+            $this->loggerIsMock = true;
+        }
+        return $this->logger;
     }
 
     public function testIsEnabled(): void
     {
-        $this->assertTrue($this->engine->isEnabled());
+        $this->assertTrue($this->engine()->isEnabled());
     }
 
     public function testGetRegistrationOptionsDescribesAdminUser(): void
     {
-        $this->ceremony->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createRegistrationOptions')
             ->willReturnCallback(function (
                 PublicKeyCredentialUserEntity $userEntity,
@@ -76,18 +120,19 @@ class EngineTest extends TestCase
                 return ['challengeToken' => 'tok'];
             });
 
-        $this->assertSame(['challengeToken' => 'tok'], $this->engine->getRegistrationOptions($this->user));
+        $this->assertSame(['challengeToken' => 'tok'], $this->engine()->getRegistrationOptions($this->user));
     }
 
     public function testActivateStoresActiveCredential(): void
     {
         $source = $this->source('new-cred', 3);
-        $this->ceremony->method('verifyRegistration')
+        $ceremony = $this->mockCeremony();
+        $ceremony->method('verifyRegistration')
             ->with('tok', '{"attestation":1}', 'admin_registration')
             ->willReturn($source);
-        $this->ceremony->method('serializeSource')->with($source)->willReturn('{"source":1}');
+        $ceremony->method('serializeSource')->with($source)->willReturn('{"source":1}');
 
-        $this->userConfigManager->expects($this->once())
+        $this->mockUserConfigManager()->expects($this->once())
             ->method('setProviderConfig')
             ->willReturnCallback(function (int $userId, string $code, array $config): bool {
                 $this->assertSame(self::USER_ID, $userId);
@@ -100,20 +145,20 @@ class EngineTest extends TestCase
                 return true;
             });
 
-        $this->engine->activate($this->user, 'tok', '{"attestation":1}');
+        $this->engine()->activate($this->user, 'tok', '{"attestation":1}');
     }
 
     public function testActivateHidesLibraryErrorsBehindGenericMessage(): void
     {
         $this->ceremony->method('verifyRegistration')
             ->willThrowException(new \InvalidArgumentException('internal detail'));
-        $this->userConfigManager->expects($this->never())->method('setProviderConfig');
-        $this->logger->expects($this->once())->method('warning');
+        $this->mockUserConfigManager()->expects($this->never())->method('setProviderConfig');
+        $this->mockLogger()->expects($this->once())->method('warning');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey registration failed. Please try again.');
 
-        $this->engine->activate($this->user, 'tok', '{}');
+        $this->engine()->activate($this->user, 'tok', '{}');
     }
 
     public function testActivatePassesThroughLocalizedErrors(): void
@@ -123,14 +168,14 @@ class EngineTest extends TestCase
 
         $this->expectExceptionMessage('Challenge has expired.');
 
-        $this->engine->activate($this->user, 'tok', '{}');
+        $this->engine()->activate($this->user, 'tok', '{}');
     }
 
     public function testGetAuthenticationOptionsAllowsOnlyRegisteredCredential(): void
     {
         $this->givenProviderConfigs([Engine::CODE => $this->registration('cred-a')]);
 
-        $this->ceremony->expects($this->once())
+        $this->mockCeremony()->expects($this->once())
             ->method('createAuthenticationOptions')
             ->willReturnCallback(function (array $allow, string $type): array {
                 $this->assertCount(1, $allow);
@@ -139,7 +184,7 @@ class EngineTest extends TestCase
                 return ['challengeToken' => 'tok'];
             });
 
-        $this->assertSame(['challengeToken' => 'tok'], $this->engine->getAuthenticationOptions($this->user));
+        $this->assertSame(['challengeToken' => 'tok'], $this->engine()->getAuthenticationOptions($this->user));
     }
 
     public function testGetAuthenticationOptionsThrowsWhenNotConfigured(): void
@@ -149,7 +194,7 @@ class EngineTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('not configured');
 
-        $this->engine->getAuthenticationOptions($this->user);
+        $this->engine()->getAuthenticationOptions($this->user);
     }
 
     public function testGetAuthenticationOptionsThrowsWhenAdminDomainChanged(): void
@@ -157,22 +202,23 @@ class EngineTest extends TestCase
         $this->givenProviderConfigs([
             Engine::CODE => $this->registration('cred-a', 'old.example.com'),
         ]);
-        $this->ceremony->expects($this->never())->method('createAuthenticationOptions');
+        $this->mockCeremony()->expects($this->never())->method('createAuthenticationOptions');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('admin domain has changed');
 
-        $this->engine->getAuthenticationOptions($this->user);
+        $this->engine()->getAuthenticationOptions($this->user);
     }
 
     public function testVerifyUpdatesCounterAndKeepsActiveFlag(): void
     {
+        $userConfigManager = $this->mockUserConfigManager();
         $config = $this->registration('cred-a') + [UserConfigManagerInterface::ACTIVE_CONFIG_KEY => true];
         $this->givenProviderConfigs([Engine::CODE => $config]);
         $this->givenAssertionVerifies($this->source('cred-a', 8));
-        $this->logger->expects($this->never())->method('warning');
+        $this->mockLogger()->expects($this->never())->method('warning');
 
-        $this->userConfigManager->expects($this->once())
+        $userConfigManager->expects($this->once())
             ->method('setProviderConfig')
             ->willReturnCallback(function (int $userId, string $code, array $saved): bool {
                 $this->assertSame(Engine::CODE, $code);
@@ -183,30 +229,31 @@ class EngineTest extends TestCase
                 return true;
             });
 
-        $this->assertTrue($this->engine->verify($this->user, $this->assertionRequest()));
+        $this->assertTrue($this->engine()->verify($this->user, $this->assertionRequest()));
     }
 
     public function testVerifyHidesLibraryErrorsBehindGenericMessage(): void
     {
+        $userConfigManager = $this->mockUserConfigManager();
         $this->givenProviderConfigs([Engine::CODE => $this->registration('cred-a')]);
         $this->ceremony->method('loadAssertion')->willThrowException(new \RuntimeException('bad signature'));
-        $this->userConfigManager->expects($this->never())->method('setProviderConfig');
+        $userConfigManager->expects($this->never())->method('setProviderConfig');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Passkey verification failed. Please try again.');
 
-        $this->engine->verify($this->user, $this->assertionRequest());
+        $this->engine()->verify($this->user, $this->assertionRequest());
     }
 
     public function testVerifyThrowsWhenNotConfigured(): void
     {
         $this->givenProviderConfigs([]);
-        $this->ceremony->expects($this->never())->method('loadAssertion');
+        $this->mockCeremony()->expects($this->never())->method('loadAssertion');
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('not configured');
 
-        $this->engine->verify($this->user, $this->assertionRequest());
+        $this->engine()->verify($this->user, $this->assertionRequest());
     }
 
     private function givenProviderConfigs(array $configs): void
@@ -217,16 +264,17 @@ class EngineTest extends TestCase
 
     private function givenAssertionVerifies(PublicKeyCredentialSource $updated): void
     {
-        $credential = $this->createMock(PublicKeyCredential::class);
+        $credential = $this->createStub(PublicKeyCredential::class);
         $options = PublicKeyCredentialRequestOptions::create('challenge');
         $stored = $this->source('cred-a', 5);
 
-        $this->ceremony->method('loadAssertion')
+        $ceremony = $this->mockCeremony();
+        $ceremony->method('loadAssertion')
             ->with('tok', '{"assertion":1}', 'admin_authentication')
             ->willReturn([$credential, $options]);
-        $this->ceremony->method('deserializeSource')->with('{"stored":1}')->willReturn($stored);
-        $this->ceremony->method('verifyAssertion')->with($credential, $options, $stored)->willReturn($updated);
-        $this->ceremony->method('serializeSource')->with($updated)->willReturn('{"updated":1}');
+        $ceremony->method('deserializeSource')->with('{"stored":1}')->willReturn($stored);
+        $ceremony->method('verifyAssertion')->with($credential, $options, $stored)->willReturn($updated);
+        $ceremony->method('serializeSource')->with($updated)->willReturn('{"updated":1}');
     }
 
     private function registration(string $credentialId, string $rpId = 'admin.example.com'): array

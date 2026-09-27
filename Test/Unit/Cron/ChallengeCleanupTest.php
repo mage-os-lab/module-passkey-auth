@@ -22,8 +22,8 @@ class ChallengeCleanupTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->createChallengeManagerMock();
-        $this->createLoggerMock();
+        $this->mockChallengeManager();
+        $this->mockLogger();
 
         $this->cron = new ChallengeCleanup(
             $this->challengeManagerMock,
@@ -33,11 +33,11 @@ class ChallengeCleanupTest extends TestCase
 
     public function testExecuteNoExpired(): void
     {
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('cleanExpired')
             ->willReturn(0);
 
-        $this->loggerMock->expects($this->never())
+        $this->mockLogger()->expects($this->never())
             ->method('info');
 
         $this->cron->execute();
@@ -45,11 +45,11 @@ class ChallengeCleanupTest extends TestCase
 
     public function testExecuteSomeExpired(): void
     {
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('cleanExpired')
             ->willReturn(5);
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('info')
             ->with($this->stringContains('5'));
 

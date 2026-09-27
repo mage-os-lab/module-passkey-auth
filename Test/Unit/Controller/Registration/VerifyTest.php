@@ -21,7 +21,7 @@ use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class VerifyTest extends TestCase
@@ -30,25 +30,28 @@ class VerifyTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private HttpRequest&MockObject $requestMock;
-    private RegistrationVerifierInterface&MockObject $registrationVerifierMock;
-    private JsonSerializer&MockObject $jsonSerializerMock;
-    private ResultFactory&MockObject $resultFactoryMock;
-    private Verify $controller;
+    private HttpRequest&Stub $requestMock;
+    private RegistrationVerifierInterface&Stub $registrationVerifierMock;
+    private JsonSerializer&Stub $jsonSerializerMock;
+    private ResultFactory&Stub $resultFactoryMock;
+    private ?Verify $controller = null;
 
     protected function setUp(): void
     {
-        $this->requestMock = $this->createMock(HttpRequest::class);
+        $this->requestMock = $this->createStub(HttpRequest::class);
 
-        $this->createJsonResultMock();
-        $this->createCustomerSessionMock();
-        $this->registrationVerifierMock = $this->createMock(RegistrationVerifierInterface::class);
-        $this->jsonSerializerMock = $this->createMock(JsonSerializer::class);
-        $this->createLoggerMock();
+        $this->createJsonResultStub();
+        $this->createCustomerSessionStub();
+        $this->registrationVerifierMock = $this->createStub(RegistrationVerifierInterface::class);
+        $this->jsonSerializerMock = $this->createStub(JsonSerializer::class);
+        $this->createLoggerStub();
 
-        $this->resultFactoryMock = $this->createMock(ResultFactory::class);
+        $this->resultFactoryMock = $this->createStub(ResultFactory::class);
+    }
 
-        $this->controller = new Verify(
+    private function controller(): Verify
+    {
+        return $this->controller ??= new Verify(
             $this->requestMock,
             $this->jsonFactoryMock,
             $this->customerSessionMock,
@@ -63,7 +66,7 @@ class VerifyTest extends TestCase
     {
         $this->configureNotLoggedIn();
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(401, $this->capturedHttpCode);
@@ -84,6 +87,7 @@ class VerifyTest extends TestCase
         $this->requestMock->method('getContent')
             ->willReturn(json_encode($requestBody));
 
+        $this->jsonSerializerMock = $this->createMock(JsonSerializer::class);
         $this->jsonSerializerMock->method('unserialize')
             ->with(json_encode($requestBody))
             ->willReturn($requestBody);
@@ -93,17 +97,18 @@ class VerifyTest extends TestCase
             ->with($requestBody['credential'])
             ->willReturn($serializedCredential);
 
-        $credentialMock = $this->createMock(CredentialInterface::class);
+        $credentialMock = $this->createStub(CredentialInterface::class);
         $credentialMock->method('getEntityId')->willReturn(99);
         $credentialMock->method('getFriendlyName')->willReturn('My YubiKey');
         $credentialMock->method('getCreatedAt')->willReturn('2026-03-04 12:00:00');
 
+        $this->registrationVerifierMock = $this->createMock(RegistrationVerifierInterface::class);
         $this->registrationVerifierMock->expects($this->once())
             ->method('verify')
             ->with(42, 'token-abc', $serializedCredential, 'My YubiKey')
             ->willReturn($credentialMock);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertNull($this->capturedHttpCode);
@@ -132,7 +137,7 @@ class VerifyTest extends TestCase
         $this->registrationVerifierMock->method('verify')
             ->willThrowException(new LocalizedException(new Phrase('Challenge expired.')));
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);
@@ -158,11 +163,11 @@ class VerifyTest extends TestCase
         $this->registrationVerifierMock->method('verify')
             ->willThrowException(new \RuntimeException('Something broke'));
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('error')
             ->with('Passkey registration verify error', ['exception' => 'Something broke']);
 
-        $result = $this->controller->execute();
+        $result = $this->controller()->execute();
 
         $this->assertSame($this->jsonResultMock, $result);
         $this->assertSame(400, $this->capturedHttpCode);
@@ -175,14 +180,17 @@ class VerifyTest extends TestCase
 
     public function testValidateForCsrfWithAjaxHeader(): void
     {
+        $this->requestMock = $this->createMock(HttpRequest::class);
+        $this->resultFactoryMock = $this->createMock(ResultFactory::class);
+
         $this->requestMock->method('getHeader')
             ->with('X-Requested-With')
             ->willReturn('XMLHttpRequest');
 
-        $this->assertTrue($this->controller->validateForCsrf($this->requestMock));
+        $this->assertTrue($this->controller()->validateForCsrf($this->requestMock));
 
         // Test createCsrfValidationException returns InvalidRequestException
-        $csrfJsonMock = $this->createMock(Json::class);
+        $csrfJsonMock = $this->createStub(Json::class);
         $csrfJsonMock->method('setHttpResponseCode')->willReturnSelf();
         $csrfJsonMock->method('setData')->willReturnSelf();
 
@@ -190,7 +198,7 @@ class VerifyTest extends TestCase
             ->with(ResultFactory::TYPE_JSON)
             ->willReturn($csrfJsonMock);
 
-        $exception = $this->controller->createCsrfValidationException($this->requestMock);
+        $exception = $this->controller()->createCsrfValidationException($this->requestMock);
         $this->assertInstanceOf(InvalidRequestException::class, $exception);
     }
 }

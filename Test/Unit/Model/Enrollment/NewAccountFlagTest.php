@@ -28,7 +28,7 @@ class NewAccountFlagTest extends TestCase
 
     public function testNotSetByDefault(): void
     {
-        $session = $this->createMock(Session::class);
+        $session = $this->createStub(Session::class);
         $session->method('getData')->willReturn(null);
 
         $this->assertFalse((new NewAccountFlag($session))->isSetFor(42));

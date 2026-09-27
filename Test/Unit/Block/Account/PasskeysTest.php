@@ -13,7 +13,7 @@ use MageOS\PasskeyAuth\Block\Account\Passkeys;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCredentialRepositoryTrait;
 use MageOS\PasskeyAuth\Test\Unit\Traits\MocksCustomerSessionTrait;
 use Magento\Framework\View\Element\Template\Context;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class PasskeysTest extends TestCase
@@ -21,16 +21,19 @@ class PasskeysTest extends TestCase
     use MocksCustomerSessionTrait;
     use MocksCredentialRepositoryTrait;
 
-    private Context&MockObject $contextMock;
-    private Passkeys $block;
+    private Context&Stub $contextMock;
+    private ?Passkeys $block = null;
 
     protected function setUp(): void
     {
-        $this->contextMock = $this->createMock(Context::class);
-        $this->createCustomerSessionMock();
-        $this->createCredentialRepositoryMock();
+        $this->contextMock = $this->createStub(Context::class);
+        $this->createCustomerSessionStub();
+        $this->createCredentialRepositoryStub();
+    }
 
-        $this->block = new Passkeys(
+    private function block(): Passkeys
+    {
+        return $this->block ??= new Passkeys(
             $this->contextMock,
             $this->customerSessionMock,
             $this->credentialRepositoryMock
@@ -41,13 +44,13 @@ class PasskeysTest extends TestCase
     {
         $customerId = 42;
         $credentials = [
-            $this->createMock(CredentialInterface::class),
-            $this->createMock(CredentialInterface::class),
+            $this->createStub(CredentialInterface::class),
+            $this->createStub(CredentialInterface::class),
         ];
 
         $this->configureLoggedIn($customerId);
         $this->configureGetByCustomerId($customerId, $credentials);
 
-        $this->assertSame($credentials, $this->block->getCredentials());
+        $this->assertSame($credentials, $this->block()->getCredentials());
     }
 }

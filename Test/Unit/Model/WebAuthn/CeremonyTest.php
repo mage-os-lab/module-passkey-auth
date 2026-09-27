@@ -13,10 +13,10 @@ use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use MageOS\PasskeyAuth\Model\WebAuthn\CeremonyStepManagerProvider;
 use MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory;
+use MageOS\PasskeyAuth\Test\Unit\Traits\MocksChallengeManagerTrait;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Serialize\Serializer\Json;
 use ParagonIE\ConstantTime\Base64UrlSafe;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Uid\Uuid;
@@ -28,12 +28,13 @@ use Webauthn\TrustPath\EmptyTrustPath;
 
 class CeremonyTest extends TestCase
 {
+    use MocksChallengeManagerTrait;
+
     private const RP_ID = 'example.com';
     private const ORIGIN = 'https://example.com';
 
     private WebAuthnConfigInterface&Stub $configMock;
-    private ChallengeManager&MockObject $challengeManagerMock;
-    private Ceremony $ceremony;
+    private ?Ceremony $ceremony = null;
     private ?string $storedOptionsJson = null;
 
     protected function setUp(): void
@@ -47,9 +48,12 @@ class CeremonyTest extends TestCase
         $this->configMock->method('getResidentKeyRequirement')->willReturn('preferred');
         $this->configMock->method('getCeremonyTimeout')->willReturn(60000);
 
-        $this->challengeManagerMock = $this->createMock(ChallengeManager::class);
+        $this->createChallengeManagerStub();
+    }
 
-        $this->ceremony = new Ceremony(
+    private function ceremony(): Ceremony
+    {
+        return $this->ceremony ??= new Ceremony(
             $this->configMock,
             $this->challengeManagerMock,
             new SerializerFactory(new AttestationStatementSupportManager()),
@@ -63,7 +67,7 @@ class CeremonyTest extends TestCase
         $this->configMock->method('getAuthenticatorAttachment')->willReturn('platform');
 
         $capturedCreate = null;
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('create')
             ->willReturnCallback(function (string $type, string $data, ?int $customerId) use (&$capturedCreate) {
                 $capturedCreate = [$type, $data, $customerId];
@@ -79,7 +83,7 @@ class CeremonyTest extends TestCase
             ),
         ];
 
-        $options = $this->ceremony->createRegistrationOptions(
+        $options = $this->ceremony()->createRegistrationOptions(
             $user,
             $exclude,
             ChallengeManager::TYPE_REGISTRATION,
@@ -124,9 +128,9 @@ class CeremonyTest extends TestCase
     public function testCreateRegistrationOptionsOmitsNullAttachment(): void
     {
         $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
-        $this->challengeManagerMock->expects($this->once())->method('create')->willReturn('reg-token');
+        $this->mockChallengeManager()->expects($this->once())->method('create')->willReturn('reg-token');
 
-        $options = $this->ceremony->createRegistrationOptions(
+        $options = $this->ceremony()->createRegistrationOptions(
             PublicKeyCredentialUserEntity::create('jane@example.com', 'uh', 'Jane Doe'),
             [],
             ChallengeManager::TYPE_REGISTRATION
@@ -139,7 +143,7 @@ class CeremonyTest extends TestCase
     public function testCreateAuthenticationOptions(): void
     {
         $capturedCreate = null;
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('create')
             ->willReturnCallback(function (string $type, string $data, ?int $customerId) use (&$capturedCreate) {
                 $capturedCreate = [$type, $data, $customerId];
@@ -154,7 +158,7 @@ class CeremonyTest extends TestCase
             ),
         ];
 
-        $options = $this->ceremony->createAuthenticationOptions(
+        $options = $this->ceremony()->createAuthenticationOptions(
             $allow,
             ChallengeManager::TYPE_AUTHENTICATION,
             7
@@ -177,12 +181,12 @@ class CeremonyTest extends TestCase
 
     public function testCreateAuthenticationOptionsWithoutCustomer(): void
     {
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('create')
             ->with(ChallengeManager::TYPE_AUTHENTICATION, $this->callback('is_string'), null)
             ->willReturn('anon-token');
 
-        $options = $this->ceremony->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $options = $this->ceremony()->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
 
         $this->assertSame('anon-token', $options['challengeToken']);
         $this->assertNoNullValues($options);
@@ -191,15 +195,16 @@ class CeremonyTest extends TestCase
     public function testVerifyRegistrationRejectsAssertionResponse(): void
     {
         $this->configMock->method('getAuthenticatorAttachment')->willReturn(null);
+        $this->mockChallengeManager();
         $this->captureStoredOptions();
-        $this->ceremony->createRegistrationOptions(
+        $this->ceremony()->createRegistrationOptions(
             PublicKeyCredentialUserEntity::create('jane@example.com', 'uh', 'Jane Doe'),
             [],
             ChallengeManager::TYPE_REGISTRATION,
             42
         );
 
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('consume')
             ->with('reg-token', ChallengeManager::TYPE_REGISTRATION, 42)
             ->willReturnCallback(fn () => $this->storedOptionsJson);
@@ -207,7 +212,7 @@ class CeremonyTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid attestation response.');
 
-        $this->ceremony->verifyRegistration(
+        $this->ceremony()->verifyRegistration(
             'reg-token',
             $this->buildAssertionCredentialJson(),
             ChallengeManager::TYPE_REGISTRATION,
@@ -217,10 +222,11 @@ class CeremonyTest extends TestCase
 
     public function testLoadAssertionRejectsAttestationResponse(): void
     {
+        $this->mockChallengeManager();
         $this->captureStoredOptions();
-        $this->ceremony->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $this->ceremony()->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
 
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('consume')
             ->with('auth-token', ChallengeManager::TYPE_AUTHENTICATION)
             ->willReturnCallback(fn () => $this->storedOptionsJson);
@@ -228,7 +234,7 @@ class CeremonyTest extends TestCase
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('Invalid assertion response.');
 
-        $this->ceremony->loadAssertion(
+        $this->ceremony()->loadAssertion(
             'auth-token',
             $this->buildAttestationCredentialJson(),
             ChallengeManager::TYPE_AUTHENTICATION
@@ -237,15 +243,16 @@ class CeremonyTest extends TestCase
 
     public function testLoadAssertionReturnsCredentialAndOptions(): void
     {
+        $this->mockChallengeManager();
         $this->captureStoredOptions();
-        $this->ceremony->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $this->ceremony()->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
 
-        $this->challengeManagerMock->expects($this->once())
+        $this->mockChallengeManager()->expects($this->once())
             ->method('consume')
             ->with('auth-token', ChallengeManager::TYPE_AUTHENTICATION)
             ->willReturnCallback(fn () => $this->storedOptionsJson);
 
-        [$credential, $requestOptions] = $this->ceremony->loadAssertion(
+        [$credential, $requestOptions] = $this->ceremony()->loadAssertion(
             'auth-token',
             $this->buildAssertionCredentialJson(),
             ChallengeManager::TYPE_AUTHENTICATION
@@ -269,7 +276,7 @@ class CeremonyTest extends TestCase
             7
         );
 
-        $restored = $this->ceremony->deserializeSource($this->ceremony->serializeSource($source));
+        $restored = $this->ceremony()->deserializeSource($this->ceremony()->serializeSource($source));
 
         $this->assertSame('raw-credential-id', $restored->publicKeyCredentialId);
         $this->assertSame('user-handle-bytes', $restored->userHandle);
@@ -279,14 +286,14 @@ class CeremonyTest extends TestCase
     public function testVerifyAssertionAcceptsDeserializedSource(): void
     {
         $this->captureStoredOptions();
-        $this->ceremony->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
+        $this->ceremony()->createAuthenticationOptions([], ChallengeManager::TYPE_AUTHENTICATION);
         $this->challengeManagerMock->method('consume')->willReturnCallback(fn () => $this->storedOptionsJson);
-        [$credential, $requestOptions] = $this->ceremony->loadAssertion(
+        [$credential, $requestOptions] = $this->ceremony()->loadAssertion(
             'auth-token',
             $this->buildAssertionCredentialJson(),
             ChallengeManager::TYPE_AUTHENTICATION
         );
-        $stored = $this->ceremony->deserializeSource($this->ceremony->serializeSource(
+        $stored = $this->ceremony()->deserializeSource($this->ceremony()->serializeSource(
             PublicKeyCredentialSource::create(
                 'raw-credential-id',
                 'public-key',
@@ -301,7 +308,7 @@ class CeremonyTest extends TestCase
         ));
 
         try {
-            $this->ceremony->verifyAssertion($credential, $requestOptions, $stored);
+            $this->ceremony()->verifyAssertion($credential, $requestOptions, $stored);
             $this->fail('A fabricated assertion must not verify.');
         } catch (\TypeError $e) {
             $this->fail('Stored credential type rejected: ' . $e->getMessage());

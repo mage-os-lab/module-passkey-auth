@@ -12,18 +12,19 @@ use MageOS\PasskeyAuth\Block\Login\PasskeyButton;
 use Magento\Framework\UrlInterface;
 use Magento\Framework\View\Element\Template\Context;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class PasskeyButtonTest extends TestCase
 {
-    private Context&MockObject $contextMock;
+    private Context&Stub $contextMock;
     private UrlInterface&MockObject $urlBuilderMock;
     private PasskeyButton $block;
 
     protected function setUp(): void
     {
         $this->urlBuilderMock = $this->createMock(UrlInterface::class);
-        $this->contextMock = $this->createMock(Context::class);
+        $this->contextMock = $this->createStub(Context::class);
         $this->contextMock->method('getUrlBuilder')->willReturn($this->urlBuilderMock);
 
         $this->block = new PasskeyButton($this->contextMock);

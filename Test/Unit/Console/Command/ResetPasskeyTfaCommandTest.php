@@ -15,58 +15,74 @@ use Magento\User\Model\ResourceModel\User\Collection as UserCollection;
 use Magento\User\Model\ResourceModel\User\CollectionFactory as UserCollectionFactory;
 use Magento\User\Model\User;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class ResetPasskeyTfaCommandTest extends TestCase
 {
-    private UserConfigManagerInterface&MockObject $userConfigManager;
-    private UserCollectionFactory&MockObject $userCollectionFactory;
-    private ResetPasskeyTfaCommand $command;
+    private UserConfigManagerInterface&Stub $userConfigManager;
+    private UserCollectionFactory&Stub $userCollectionFactory;
+    private ?ResetPasskeyTfaCommand $command = null;
 
     protected function setUp(): void
     {
-        $this->userConfigManager = $this->createMock(UserConfigManagerInterface::class);
-        $this->userCollectionFactory = $this->createMock(UserCollectionFactory::class);
+        $this->userConfigManager = $this->createStub(UserConfigManagerInterface::class);
+        $this->userCollectionFactory = $this->createStub(UserCollectionFactory::class);
+    }
 
-        $this->command = new ResetPasskeyTfaCommand(
+    private function command(): ResetPasskeyTfaCommand
+    {
+        return $this->command ??= new ResetPasskeyTfaCommand(
             $this->userConfigManager,
             $this->userCollectionFactory
         );
     }
 
+    /**
+     * Replace the user config manager stub with a mock object. Call before the command is built.
+     */
+    private function mockUserConfigManager(): UserConfigManagerInterface&MockObject
+    {
+        $userConfigManager = $this->createMock(UserConfigManagerInterface::class);
+        $this->userConfigManager = $userConfigManager;
+        return $userConfigManager;
+    }
+
     public function testCommandHasCorrectName(): void
     {
-        $this->assertSame('security:tfa:passkey:reset-all', $this->command->getName());
+        $this->assertSame('security:tfa:passkey:reset-all', $this->command()->getName());
     }
 
     public function testForceOptionSkipsConfirmation(): void
     {
-        $definition = $this->command->getDefinition();
+        $definition = $this->command()->getDefinition();
         $this->assertTrue($definition->hasOption('force'));
     }
 
     public function testExecuteResetsMatchingUsers(): void
     {
-        $user1 = $this->createMock(User::class);
+        $userConfigManager = $this->mockUserConfigManager();
+
+        $user1 = $this->createStub(User::class);
         $user1->method('getId')->willReturn(1);
         $user1->method('getUserName')->willReturn('admin1');
 
-        $user2 = $this->createMock(User::class);
+        $user2 = $this->createStub(User::class);
         $user2->method('getId')->willReturn(2);
         $user2->method('getUserName')->willReturn('admin2');
 
         $this->mockUserCollection([$user1, $user2]);
 
-        $this->userConfigManager->method('getProviderConfig')
+        $userConfigManager->method('getProviderConfig')
             ->willReturnCallback(function (int $userId, string $code) {
                 return in_array($userId, [1, 2], true) && $code === Engine::CODE
                     ? ['registration' => ['credential_id' => 'abc' . $userId]]
                     : null;
             });
 
-        $this->userConfigManager->expects($this->exactly(2))
+        $userConfigManager->expects($this->exactly(2))
             ->method('resetProviderConfig')
             ->willReturnCallback(function (int $userId, string $code) {
                 $this->assertContains([$userId, $code], [
@@ -79,37 +95,40 @@ class ResetPasskeyTfaCommandTest extends TestCase
         $input = $this->createMock(InputInterface::class);
         $input->method('getOption')->with('force')->willReturn(true);
 
-        $output = $this->createMock(OutputInterface::class);
+        $output = $this->createStub(OutputInterface::class);
 
-        $ref = new \ReflectionMethod($this->command, 'execute');
+        $command = $this->command();
+        $ref = new \ReflectionMethod($command, 'execute');
         $ref->setAccessible(true);
-        $result = $ref->invoke($this->command, $input, $output);
+        $result = $ref->invoke($command, $input, $output);
 
         $this->assertSame(0, $result);
     }
 
     public function testExecuteReturnsSuccessWhenNoUsersConfigured(): void
     {
+        $userConfigManager = $this->mockUserConfigManager();
         $this->mockUserCollection([]);
 
-        $this->userConfigManager->expects($this->never())->method('resetProviderConfig');
+        $userConfigManager->expects($this->never())->method('resetProviderConfig');
 
-        $input = $this->createMock(InputInterface::class);
+        $input = $this->createStub(InputInterface::class);
         $output = $this->createMock(OutputInterface::class);
         $output->expects($this->once())
             ->method('writeln')
             ->with('<info>No admin users have passkey 2FA configured.</info>');
 
-        $ref = new \ReflectionMethod($this->command, 'execute');
+        $command = $this->command();
+        $ref = new \ReflectionMethod($command, 'execute');
         $ref->setAccessible(true);
-        $result = $ref->invoke($this->command, $input, $output);
+        $result = $ref->invoke($command, $input, $output);
 
         $this->assertSame(0, $result);
     }
 
     private function mockUserCollection(array $users): void
     {
-        $collection = $this->createMock(UserCollection::class);
+        $collection = $this->createStub(UserCollection::class);
         $collection->method('addFieldToSelect')->willReturnSelf();
         $collection->method('setPageSize')->willReturnSelf();
         $collection->method('setCurPage')->willReturnSelf();

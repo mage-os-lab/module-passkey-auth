@@ -19,7 +19,7 @@ use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Phrase;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class RenameTest extends TestCase
@@ -28,24 +28,27 @@ class RenameTest extends TestCase
     use MocksJsonResultTrait;
     use MocksLoggerTrait;
 
-    private HttpRequest&MockObject $requestMock;
-    private CredentialManagementInterface&MockObject $credentialManagementMock;
-    private JsonSerializer&MockObject $jsonSerializerMock;
-    private ResultFactory&MockObject $resultFactoryMock;
-    private Rename $controller;
+    private HttpRequest&Stub $requestMock;
+    private CredentialManagementInterface&Stub $credentialManagementMock;
+    private JsonSerializer&Stub $jsonSerializerMock;
+    private ResultFactory&Stub $resultFactoryMock;
+    private ?Rename $controller = null;
 
     protected function setUp(): void
     {
-        $this->requestMock = $this->createMock(HttpRequest::class);
+        $this->requestMock = $this->createStub(HttpRequest::class);
 
-        $this->createJsonResultMock();
-        $this->createCustomerSessionMock();
-        $this->credentialManagementMock = $this->createMock(CredentialManagementInterface::class);
-        $this->jsonSerializerMock = $this->createMock(JsonSerializer::class);
-        $this->createLoggerMock();
-        $this->resultFactoryMock = $this->createMock(ResultFactory::class);
+        $this->createJsonResultStub();
+        $this->createCustomerSessionStub();
+        $this->credentialManagementMock = $this->createStub(CredentialManagementInterface::class);
+        $this->jsonSerializerMock = $this->createStub(JsonSerializer::class);
+        $this->createLoggerStub();
+        $this->resultFactoryMock = $this->createStub(ResultFactory::class);
+    }
 
-        $this->controller = new Rename(
+    private function controller(): Rename
+    {
+        return $this->controller ??= new Rename(
             $this->requestMock,
             $this->jsonFactoryMock,
             $this->customerSessionMock,
@@ -60,7 +63,7 @@ class RenameTest extends TestCase
     {
         $this->configureNotLoggedIn();
 
-        $this->controller->execute();
+        $this->controller()->execute();
 
         $this->assertSame(401, $this->capturedHttpCode);
         $this->assertTrue($this->capturedData['errors']);
@@ -73,19 +76,21 @@ class RenameTest extends TestCase
         $this->requestMock->method('getContent')
             ->willReturn('{"entity_id":55,"friendly_name":"My YubiKey"}');
 
+        $this->jsonSerializerMock = $this->createMock(JsonSerializer::class);
         $this->jsonSerializerMock->method('unserialize')
             ->with('{"entity_id":55,"friendly_name":"My YubiKey"}')
             ->willReturn(['entity_id' => 55, 'friendly_name' => 'My YubiKey']);
 
-        $credentialMock = $this->createMock(CredentialInterface::class);
+        $credentialMock = $this->createStub(CredentialInterface::class);
         $credentialMock->method('getFriendlyName')->willReturn('My YubiKey');
 
+        $this->credentialManagementMock = $this->createMock(CredentialManagementInterface::class);
         $this->credentialManagementMock->expects($this->once())
             ->method('renameCredential')
             ->with(10, 55, 'My YubiKey')
             ->willReturn($credentialMock);
 
-        $this->controller->execute();
+        $this->controller()->execute();
 
         $this->assertNull($this->capturedHttpCode);
         $this->assertFalse($this->capturedData['errors']);
@@ -105,7 +110,7 @@ class RenameTest extends TestCase
         $this->credentialManagementMock->method('renameCredential')
             ->willThrowException(new LocalizedException(new Phrase('Passkey name cannot be empty.')));
 
-        $this->controller->execute();
+        $this->controller()->execute();
 
         $this->assertSame(400, $this->capturedHttpCode);
         $this->assertTrue($this->capturedData['errors']);
@@ -125,11 +130,11 @@ class RenameTest extends TestCase
         $this->credentialManagementMock->method('renameCredential')
             ->willThrowException(new \RuntimeException('DB error'));
 
-        $this->loggerMock->expects($this->once())
+        $this->mockLogger()->expects($this->once())
             ->method('error')
             ->with('Passkey rename error', ['exception' => 'DB error']);
 
-        $this->controller->execute();
+        $this->controller()->execute();
 
         $this->assertSame(400, $this->capturedHttpCode);
         $this->assertTrue($this->capturedData['errors']);
@@ -143,7 +148,7 @@ class RenameTest extends TestCase
             ->with('X-Requested-With')
             ->willReturn('XMLHttpRequest');
 
-        $result = $this->controller->validateForCsrf($requestMock);
+        $result = $this->controller()->validateForCsrf($requestMock);
 
         $this->assertTrue($result);
     }

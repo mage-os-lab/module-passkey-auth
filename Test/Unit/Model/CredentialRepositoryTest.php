@@ -21,41 +21,43 @@ use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class CredentialRepositoryTest extends TestCase
 {
-    private CredentialResource&MockObject $resource;
-    private CredentialModelFactory&MockObject $credentialModelFactory;
-    private CredentialDTOFactory&MockObject $credentialDTOFactory;
-    private CollectionFactory&MockObject $collectionFactory;
-    private CredentialRepository $repository;
+    private CredentialResource&Stub $resource;
+    private CredentialModelFactory&Stub $credentialModelFactory;
+    private CredentialDTOFactory&Stub $credentialDTOFactory;
+    private CollectionFactory&Stub $collectionFactory;
+    private ?CredentialRepository $repository = null;
 
     protected function setUp(): void
     {
-        $this->resource = $this->createMock(CredentialResource::class);
+        $this->resource = $this->createStub(CredentialResource::class);
+        $this->credentialModelFactory = $this->createStub(CredentialModelFactory::class);
+        $this->credentialDTOFactory = $this->createStub(CredentialDTOFactory::class);
+        $this->collectionFactory = $this->createStub(CollectionFactory::class);
+    }
 
-        $this->credentialModelFactory = $this->getMockBuilder(CredentialModelFactory::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['create'])
-            ->getMock();
-
-        $this->credentialDTOFactory = $this->getMockBuilder(CredentialDTOFactory::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['create'])
-            ->getMock();
-
-        $this->collectionFactory = $this->getMockBuilder(CollectionFactory::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['create'])
-            ->getMock();
-
-        $this->repository = new CredentialRepository(
+    private function repository(): CredentialRepository
+    {
+        return $this->repository ??= new CredentialRepository(
             $this->resource,
             $this->credentialModelFactory,
             $this->credentialDTOFactory,
             $this->collectionFactory
         );
+    }
+
+    /**
+     * Replace the resource stub with a mock object, for tests that set expectations. Call before repository().
+     */
+    private function mockResource(): CredentialResource&MockObject
+    {
+        $mock = $this->createMock(CredentialResource::class);
+        $this->resource = $mock;
+        return $mock;
     }
 
     public function testGetByIdFound(): void
@@ -66,7 +68,8 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 42)
             ->willReturnCallback(function (CredentialModel $m) {
@@ -75,7 +78,7 @@ class CredentialRepositoryTest extends TestCase
                 return $this->resource;
             });
 
-        $result = $this->repository->getById(42);
+        $result = $this->repository()->getById(42);
         $this->assertSame($dto, $result);
         $this->assertSame(42, $result->getEntityId());
     }
@@ -87,7 +90,7 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(NoSuchEntityException::class);
         $this->expectExceptionMessage('Passkey credential with ID "99" does not exist.');
-        $this->repository->getById(99);
+        $this->repository()->getById(99);
     }
 
     public function testGetByCredentialIdFound(): void
@@ -98,7 +101,8 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 'abc123', 'credential_id')
             ->willReturnCallback(function (CredentialModel $m) {
@@ -107,7 +111,7 @@ class CredentialRepositoryTest extends TestCase
                 return $this->resource;
             });
 
-        $result = $this->repository->getByCredentialId('abc123');
+        $result = $this->repository()->getByCredentialId('abc123');
         $this->assertSame($dto, $result);
         $this->assertSame('abc123', $result->getCredentialId());
     }
@@ -119,7 +123,7 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(NoSuchEntityException::class);
         $this->expectExceptionMessage('Passkey credential not found.');
-        $this->repository->getByCredentialId('nonexistent');
+        $this->repository()->getByCredentialId('nonexistent');
     }
 
     public function testGetByCustomerIdWithResults(): void
@@ -143,7 +147,7 @@ class CredentialRepositoryTest extends TestCase
         $this->credentialDTOFactory->method('create')
             ->willReturnOnConsecutiveCalls($dto1, $dto2);
 
-        $results = $this->repository->getByCustomerId(5);
+        $results = $this->repository()->getByCustomerId(5);
         $this->assertCount(2, $results);
         $this->assertSame($dto1, $results[0]);
         $this->assertSame($dto2, $results[1]);
@@ -153,7 +157,7 @@ class CredentialRepositoryTest extends TestCase
 
     public function testGetByCustomerIdEmpty(): void
     {
-        $collection = $this->createMock(Collection::class);
+        $collection = $this->createStub(Collection::class);
         $collection->method('addFieldToFilter');
         $collection->method('setOrder');
         $collection->method('getIterator')
@@ -161,13 +165,13 @@ class CredentialRepositoryTest extends TestCase
 
         $this->collectionFactory->method('create')->willReturn($collection);
 
-        $results = $this->repository->getByCustomerId(999);
+        $results = $this->repository()->getByCustomerId(999);
         $this->assertSame([], $results);
     }
 
     public function testSaveNewCredential(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -181,14 +185,15 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('save')
             ->with($model)
             ->willReturnCallback(function (CredentialModel $m) {
                 $m->setData('entity_id', 9);
                 return $this->resource;
             });
-        $this->resource->expects($this->once())
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 9)
             ->willReturnCallback(function (CredentialModel $m) {
@@ -196,14 +201,14 @@ class CredentialRepositoryTest extends TestCase
                 return $this->resource;
             });
 
-        $result = $this->repository->save($credential);
+        $result = $this->repository()->save($credential);
         $this->assertSame($dto, $result);
         $this->assertSame('2026-01-01 00:00:00', $model->getData('created_at'));
     }
 
     public function testSaveExistingCredential(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: 1,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -217,24 +222,25 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 1)
             ->willReturnCallback(function (CredentialModel $m) {
                 $m->setData('entity_id', 1);
                 return $this->resource;
             });
-        $this->resource->expects($this->once())
+        $resource->expects($this->once())
             ->method('save')
             ->with($model);
 
-        $result = $this->repository->save($credential);
+        $result = $this->repository()->save($credential);
         $this->assertSame($dto, $result);
     }
 
     public function testSaveExistingCredentialNotFound(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: 77,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -247,12 +253,12 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Passkey credential with ID "77" does not exist.');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testSaveWithLastUsedAt(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -267,18 +273,19 @@ class CredentialRepositoryTest extends TestCase
         $dto = new CredentialDTO();
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('save')
             ->with($this->callback(function (CredentialModel $savedModel) {
                 return $savedModel->getData('last_used_at') === '2026-03-04 12:00:00';
             }));
 
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testSaveThrowsOnMissingCustomerId(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 0,
             credentialId: 'cred-abc',
@@ -288,12 +295,12 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Invalid customer ID for passkey credential.');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testSaveThrowsOnEmptyCredentialId(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: '',
@@ -303,12 +310,12 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Credential ID cannot be empty.');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testSaveThrowsOnEmptyPublicKey(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -318,12 +325,12 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Public key cannot be empty.');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testSaveThrowsOnNegativeSignCount(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -333,35 +340,36 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Sign count cannot be negative.');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testDeleteSuccess(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getEntityId')->willReturn(42);
 
         $model = $this->createCredentialModel();
         $this->credentialModelFactory->method('create')->willReturn($model);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 42)
             ->willReturnCallback(function (CredentialModel $m) {
                 $m->setData('entity_id', 42);
                 return $this->resource;
             });
-        $this->resource->expects($this->once())
+        $resource->expects($this->once())
             ->method('delete')
             ->with($model);
 
-        $result = $this->repository->delete($credential);
+        $result = $this->repository()->delete($credential);
         $this->assertTrue($result);
     }
 
     public function testDeleteNotFound(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getEntityId')->willReturn(99);
 
         $model = $this->createCredentialModel();
@@ -369,7 +377,7 @@ class CredentialRepositoryTest extends TestCase
 
         $this->expectException(CouldNotDeleteException::class);
         $this->expectExceptionMessage('Passkey credential does not exist.');
-        $this->repository->delete($credential);
+        $this->repository()->delete($credential);
     }
 
     public function testCountByCustomerId(): void
@@ -382,7 +390,7 @@ class CredentialRepositoryTest extends TestCase
 
         $this->collectionFactory->method('create')->willReturn($collection);
 
-        $this->assertSame(3, $this->repository->countByCustomerId(7));
+        $this->assertSame(3, $this->repository()->countByCustomerId(7));
     }
 
     public function testDeleteByIdSuccess(): void
@@ -399,7 +407,8 @@ class CredentialRepositoryTest extends TestCase
         $this->credentialDTOFactory->method('create')->willReturn($dto);
 
         $loadCount = 0;
-        $this->resource->method('load')
+        $resource = $this->mockResource();
+        $resource->method('load')
             ->willReturnCallback(function (CredentialModel $m, $id) use (&$loadCount) {
                 $loadCount++;
                 $m->setData('entity_id', 42);
@@ -407,17 +416,17 @@ class CredentialRepositoryTest extends TestCase
                 return $this->resource;
             });
 
-        $this->resource->expects($this->once())
+        $resource->expects($this->once())
             ->method('delete')
             ->with($model2);
 
-        $result = $this->repository->deleteById(42);
+        $result = $this->repository()->deleteById(42);
         $this->assertTrue($result);
     }
 
     public function testSaveWrapsResourceException(): void
     {
-        $credential = $this->createCredentialInterfaceMock(
+        $credential = $this->createCredentialInterfaceStub(
             entityId: null,
             customerId: 1,
             credentialId: 'cred-abc',
@@ -428,24 +437,26 @@ class CredentialRepositoryTest extends TestCase
         $model = $this->createCredentialModel();
         $this->credentialModelFactory->method('create')->willReturn($model);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('save')
             ->willThrowException(new \RuntimeException('DB error'));
 
         $this->expectException(CouldNotSaveException::class);
         $this->expectExceptionMessage('Could not save passkey credential: DB error');
-        $this->repository->save($credential);
+        $this->repository()->save($credential);
     }
 
     public function testDeleteWrapsResourceException(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getEntityId')->willReturn(42);
 
         $model = $this->createCredentialModel();
         $this->credentialModelFactory->method('create')->willReturn($model);
 
-        $this->resource->expects($this->once())
+        $resource = $this->mockResource();
+        $resource->expects($this->once())
             ->method('load')
             ->with($model, 42)
             ->willReturnCallback(function (CredentialModel $m) {
@@ -453,29 +464,26 @@ class CredentialRepositoryTest extends TestCase
                 return $this->resource;
             });
 
-        $this->resource->expects($this->once())
+        $resource->expects($this->once())
             ->method('delete')
             ->willThrowException(new \RuntimeException('FK violation'));
 
         $this->expectException(CouldNotDeleteException::class);
         $this->expectExceptionMessage('Could not delete passkey credential: FK violation');
-        $this->repository->delete($credential);
+        $this->repository()->delete($credential);
     }
 
     /**
-     * Create a CredentialModel mock that uses real DataObject data storage.
+     * Create a real CredentialModel that uses DataObject data storage.
      *
-     * Only _construct is mocked (to skip ResourceModel init). The idFieldName
-     * is set to 'entity_id' to match the real resource model behavior, so
-     * getId() returns the entity_id value. All other DataObject methods
+     * The constructor (and so _construct/ResourceModel init) is skipped. The
+     * idFieldName is set to 'entity_id' to match the real resource model
+     * behavior, so getId() returns the entity_id value. All DataObject methods
      * (getData, setData, getId) work as normal.
      */
-    private function createCredentialModel(array $data = []): CredentialModel&MockObject
+    private function createCredentialModel(array $data = []): CredentialModel
     {
-        $model = $this->getMockBuilder(CredentialModel::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['_construct'])
-            ->getMock();
+        $model = (new \ReflectionClass(CredentialModel::class))->newInstanceWithoutConstructor();
 
         $model->setIdFieldName('entity_id');
 
@@ -487,9 +495,9 @@ class CredentialRepositoryTest extends TestCase
     }
 
     /**
-     * Create a CredentialInterface mock with the given field values.
+     * Create a CredentialInterface stub with the given field values.
      */
-    private function createCredentialInterfaceMock(
+    private function createCredentialInterfaceStub(
         ?int $entityId,
         int $customerId,
         string $credentialId,
@@ -500,8 +508,8 @@ class CredentialRepositoryTest extends TestCase
         ?string $transports = null,
         ?string $friendlyName = null,
         ?string $aaguid = null
-    ): CredentialInterface&MockObject {
-        $mock = $this->createMock(CredentialInterface::class);
+    ): CredentialInterface&Stub {
+        $mock = $this->createStub(CredentialInterface::class);
         $mock->method('getEntityId')->willReturn($entityId);
         $mock->method('getCustomerId')->willReturn($customerId);
         $mock->method('getCredentialId')->willReturn($credentialId);

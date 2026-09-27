@@ -10,14 +10,28 @@ namespace MageOS\PasskeyAuth\Test\Unit\Traits;
 
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 
 trait MocksChallengeManagerTrait
 {
-    private ChallengeManager&MockObject $challengeManagerMock;
+    private ChallengeManager&Stub $challengeManagerMock;
+    private bool $challengeManagerIsMock = false;
 
-    private function createChallengeManagerMock(): ChallengeManager&MockObject
+    private function createChallengeManagerStub(): ChallengeManager&Stub
     {
-        $this->challengeManagerMock = $this->createMock(ChallengeManager::class);
+        $this->challengeManagerMock = $this->createStub(ChallengeManager::class);
+        return $this->challengeManagerMock;
+    }
+
+    /**
+     * Replace the stub with a mock object, for tests that set expectations. Call before the subject is built.
+     */
+    private function mockChallengeManager(): ChallengeManager&MockObject
+    {
+        if (!$this->challengeManagerIsMock) {
+            $this->challengeManagerMock = $this->createMock(ChallengeManager::class);
+            $this->challengeManagerIsMock = true;
+        }
         return $this->challengeManagerMock;
     }
 
@@ -28,7 +42,7 @@ trait MocksChallengeManagerTrait
 
     private function configureConsumeChallenge(string $token, string $data): void
     {
-        $this->challengeManagerMock->method('consume')
+        $this->mockChallengeManager()->method('consume')
             ->with($token)
             ->willReturn($data);
     }

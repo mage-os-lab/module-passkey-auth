@@ -12,19 +12,19 @@ use MageOS\PasskeyAuth\Model\ResourceModel\Credential\Collection;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
 use MageOS\PasskeyAuth\Model\UserHandleGenerator;
 use Magento\Framework\DataObject;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 class UserHandleGeneratorTest extends TestCase
 {
-    private CollectionFactory&MockObject $collectionFactory;
-    private Collection&MockObject $collection;
+    private CollectionFactory&Stub $collectionFactory;
+    private Collection&Stub $collection;
     private UserHandleGenerator $generator;
 
     protected function setUp(): void
     {
-        $this->collectionFactory = $this->createMock(CollectionFactory::class);
-        $this->collection = $this->createMock(Collection::class);
+        $this->collectionFactory = $this->createStub(CollectionFactory::class);
+        $this->collection = $this->createStub(Collection::class);
         $this->collectionFactory->method('create')->willReturn($this->collection);
 
         $this->generator = new UserHandleGenerator($this->collectionFactory);

@@ -16,7 +16,7 @@ class CredentialFormatterTest extends TestCase
 {
     public function testFormatMapsCredentialToGraphQlShape(): void
     {
-        $credential = $this->createMock(CredentialInterface::class);
+        $credential = $this->createStub(CredentialInterface::class);
         $credential->method('getEntityId')->willReturn(15);
         $credential->method('getFriendlyName')->willReturn('Chrome on Windows');
         $credential->method('getTransportsArray')->willReturn(['internal', 'hybrid']);
