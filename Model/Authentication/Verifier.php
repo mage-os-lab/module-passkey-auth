@@ -15,6 +15,7 @@ use MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterfaceFactory;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\PasskeyEvents;
 use MageOS\PasskeyAuth\Model\PasskeyTokenService;
 use MageOS\PasskeyAuth\Model\RateLimiter;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
@@ -80,6 +81,7 @@ class Verifier implements AuthenticationVerifierInterface
 
         $credentialIdBase64 = base64_encode($publicKeyCredential->rawId);
 
+        $storedCredential = null;
         try {
             $storedCredential = $this->credentialRepository->getByCredentialId($credentialIdBase64);
             $this->assertCurrentWebsite($storedCredential);
@@ -88,9 +90,12 @@ class Verifier implements AuthenticationVerifierInterface
                 'credential_id' => $credentialIdBase64,
                 'reason' => $e->getMessage(),
             ]);
-            $this->eventManager->dispatch('passkey_authentication_failure', [
+            $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_FAILURE, [
                 'credential_id' => $credentialIdBase64,
-                'reason' => 'credential_not_found',
+                // Set when the credential exists but belongs to another website
+                'customer_id' => $storedCredential?->getCustomerId(),
+                'reason' => PasskeyEvents::REASON_CREDENTIAL_NOT_FOUND,
+                'message' => $e->getMessage(),
             ]);
             throw new LocalizedException(__('Passkey verification failed. Please try again.'), $e);
         }
@@ -110,9 +115,11 @@ class Verifier implements AuthenticationVerifierInterface
                 'customer_id' => $storedCredential->getCustomerId(),
                 'reason' => $e->getMessage(),
             ]);
-            $this->eventManager->dispatch('passkey_authentication_failure', [
+            $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_FAILURE, [
                 'credential_id' => $credentialIdBase64,
-                'reason' => $e->getMessage(),
+                'customer_id' => $storedCredential->getCustomerId(),
+                'reason' => PasskeyEvents::REASON_VERIFICATION_FAILED,
+                'message' => $e->getMessage(),
             ]);
             throw new LocalizedException(
                 __('Passkey verification failed. Please try again.'),
@@ -145,8 +152,10 @@ class Verifier implements AuthenticationVerifierInterface
             throw new LocalizedException(__('Authentication succeeded but token creation failed.'), $e);
         }
 
-        $this->eventManager->dispatch('passkey_authentication_success', [
+        $this->eventManager->dispatch(PasskeyEvents::AUTHENTICATION_SUCCESS, [
             'customer_id' => $customerId,
+            'entity_id' => $storedCredential->getEntityId(),
+            'credential_id' => $credentialIdBase64,
             'credential' => $storedCredential,
         ]);
 

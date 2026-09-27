@@ -221,7 +221,9 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_failure', [
                 'credential_id' => $expectedCredentialId,
+                'customer_id' => null,
                 'reason' => 'credential_not_found',
+                'message' => 'No such entity.',
             ]);
 
         $this->expectException(LocalizedException::class);
@@ -244,7 +246,9 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_failure', [
                 'credential_id' => base64_encode(self::RAW_ID),
+                'customer_id' => self::CUSTOMER_ID,
                 'reason' => 'credential_not_found',
+                'message' => 'Passkey credential belongs to another website.',
             ]);
 
         $this->expectException(LocalizedException::class);
@@ -324,7 +328,9 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_failure', [
                 'credential_id' => base64_encode(self::RAW_ID),
-                'reason' => 'Signature verification failed',
+                'customer_id' => self::CUSTOMER_ID,
+                'reason' => 'verification_failed',
+                'message' => 'Signature verification failed',
             ]);
         $this->mockTokenService()->expects($this->never())->method('createTokenForCustomer');
 
@@ -339,6 +345,7 @@ class VerifierTest extends TestCase
         $this->configureEnabled(true);
         $this->configureLoadAssertion();
         $storedCredential = $this->createMock(CredentialInterface::class);
+        $storedCredential->method('getEntityId')->willReturn(17);
         $this->configureStoredCredential(5, $storedCredential);
         $updatedSource = $this->configureVerifiedAssertion(6);
 
@@ -368,6 +375,8 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_authentication_success', [
                 'customer_id' => self::CUSTOMER_ID,
+                'entity_id' => 17,
+                'credential_id' => base64_encode(self::RAW_ID),
                 'credential' => $storedCredential,
             ]);
         $this->mockLogger()->expects($this->never())->method('warning');

@@ -15,6 +15,10 @@
     <!-- Data interfaces -->
     <preference for="MageOS\PasskeyAuth\Api\Data\CredentialInterface"
                 type="MageOS\PasskeyAuth\Model\Data\Credential"/>
+    <preference for="MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterface"
+                type="MageOS\PasskeyAuth\Model\CredentialSearchResults"/>
+    <preference for="MageOS\PasskeyAuth\Api\Data\CustomerPasskeyInterface"
+                type="MageOS\PasskeyAuth\Model\Data\CustomerPasskey"/>
 
     <!-- Repository -->
     <preference for="MageOS\PasskeyAuth\Api\CredentialRepositoryInterface"
@@ -44,6 +48,8 @@
     <!-- Credential management -->
     <preference for="MageOS\PasskeyAuth\Api\CredentialManagementInterface"
                 type="MageOS\PasskeyAuth\Model\CredentialManagement"/>
+    <preference for="MageOS\PasskeyAuth\Api\CustomerPasskeyManagementInterface"
+                type="MageOS\PasskeyAuth\Model\CustomerPasskeyManagement"/>
 
     <!-- WebAuthn: accept every attestation format webauthn-lib can parse -->
     <type name="MageOS\PasskeyAuth\Model\WebAuthn\SerializerFactory">

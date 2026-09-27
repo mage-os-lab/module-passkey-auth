@@ -11,6 +11,7 @@ namespace MageOS\PasskeyAuth\Test\Integration\Model;
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
+use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\TestFramework\Helper\Bootstrap;
 use PHPUnit\Framework\TestCase;
@@ -54,6 +55,31 @@ class CredentialRepositoryTest extends TestCase
         $credential = $this->repository->getByCredentialId(base64_encode('integration-test-credential-id'));
 
         $this->assertSame(1, $credential->getCustomerId());
+    }
+
+    /**
+     * @magentoDataFixture MageOS_PasskeyAuth::Test/Integration/_files/customer_with_passkey.php
+     */
+    public function testGetListFiltersBySearchCriteria(): void
+    {
+        /** @var SearchCriteriaBuilder $searchCriteriaBuilder */
+        $searchCriteriaBuilder = Bootstrap::getObjectManager()->create(SearchCriteriaBuilder::class);
+
+        $result = $this->repository->getList(
+            $searchCriteriaBuilder->addFilter(CredentialInterface::CUSTOMER_ID, 1)->setPageSize(10)->create()
+        );
+
+        $this->assertSame(1, $result->getTotalCount());
+        $this->assertCount(1, $result->getItems());
+        $credential = current($result->getItems());
+        $this->assertInstanceOf(CredentialInterface::class, $credential);
+        $this->assertSame('Integration Test Passkey', $credential->getFriendlyName());
+
+        $none = $this->repository->getList(
+            $searchCriteriaBuilder->addFilter(CredentialInterface::CUSTOMER_ID, 999999)->create()
+        );
+        $this->assertSame(0, $none->getTotalCount());
+        $this->assertSame([], $none->getItems());
     }
 
     /**

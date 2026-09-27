@@ -41,9 +41,10 @@ class CredentialManagement implements CredentialManagementInterface
     {
         $this->credentialRepository->delete($credential);
 
-        $this->eventManager->dispatch('passkey_credential_remove_after', [
+        $this->eventManager->dispatch(PasskeyEvents::CREDENTIAL_REMOVE_AFTER, [
             'customer_id' => $credential->getCustomerId(),
-            'credential_id' => $credential->getEntityId(),
+            'entity_id' => $credential->getEntityId(),
+            'credential_id' => $credential->getCredentialId(),
             'credential' => $credential,
         ]);
     }

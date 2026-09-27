@@ -14,6 +14,7 @@ use MageOS\PasskeyAuth\Api\Data\CredentialInterfaceFactory;
 use MageOS\PasskeyAuth\Api\RegistrationVerifierInterface;
 use MageOS\PasskeyAuth\Model\ChallengeManager;
 use MageOS\PasskeyAuth\Model\Config;
+use MageOS\PasskeyAuth\Model\PasskeyEvents;
 use MageOS\PasskeyAuth\Model\WebAuthn\Ceremony;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\CouldNotSaveException;
@@ -69,9 +70,10 @@ class Verifier implements RegistrationVerifierInterface
                 'reason' => $e->getMessage(),
                 'customer_id' => $customerId,
             ]);
-            $this->eventManager->dispatch('passkey_registration_failure', [
+            $this->eventManager->dispatch(PasskeyEvents::REGISTRATION_FAILURE, [
                 'customer_id' => $customerId,
-                'reason' => $e->getMessage(),
+                'reason' => PasskeyEvents::REASON_VERIFICATION_FAILED,
+                'message' => $e->getMessage(),
             ]);
             throw new LocalizedException(
                 __('Passkey registration verification failed. Please try again.'),
@@ -109,8 +111,10 @@ class Verifier implements RegistrationVerifierInterface
             throw new LocalizedException(__('Passkey registration failed. Please try again.'), $e);
         }
 
-        $this->eventManager->dispatch('passkey_credential_register_after', [
+        $this->eventManager->dispatch(PasskeyEvents::CREDENTIAL_REGISTER_AFTER, [
             'customer_id' => $customerId,
+            'entity_id' => $savedCredential->getEntityId(),
+            'credential_id' => $savedCredential->getCredentialId(),
             'credential' => $savedCredential,
         ]);
 

@@ -10,11 +10,15 @@ namespace MageOS\PasskeyAuth\Model;
 
 use MageOS\PasskeyAuth\Api\CredentialRepositoryInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
+use MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterface;
+use MageOS\PasskeyAuth\Api\Data\CredentialSearchResultsInterfaceFactory;
 use MageOS\PasskeyAuth\Model\Data\Credential as CredentialDTO;
 use MageOS\PasskeyAuth\Model\Data\CredentialFactory as CredentialDTOFactory;
 use MageOS\PasskeyAuth\Model\CredentialFactory as CredentialModelFactory;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential as CredentialResource;
 use MageOS\PasskeyAuth\Model\ResourceModel\Credential\CollectionFactory;
+use Magento\Framework\Api\SearchCriteria\CollectionProcessorInterface;
+use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
@@ -25,7 +29,9 @@ class CredentialRepository implements CredentialRepositoryInterface
         private readonly CredentialResource $resource,
         private readonly CredentialModelFactory $credentialFactory,
         private readonly CredentialDTOFactory $credentialDTOFactory,
-        private readonly CollectionFactory $collectionFactory
+        private readonly CollectionFactory $collectionFactory,
+        private readonly CollectionProcessorInterface $collectionProcessor,
+        private readonly CredentialSearchResultsInterfaceFactory $searchResultsFactory
     ) {
     }
 
@@ -61,6 +67,25 @@ class CredentialRepository implements CredentialRepositoryInterface
             $results[] = $this->toDTO($model);
         }
         return $results;
+    }
+
+    public function getList(SearchCriteriaInterface $searchCriteria): CredentialSearchResultsInterface
+    {
+        $collection = $this->collectionFactory->create();
+        $this->collectionProcessor->process($searchCriteria, $collection);
+
+        $items = [];
+        foreach ($collection as $model) {
+            $items[] = $this->toDTO($model);
+        }
+
+        /** @var CredentialSearchResultsInterface $searchResults */
+        $searchResults = $this->searchResultsFactory->create();
+        $searchResults->setSearchCriteria($searchCriteria);
+        $searchResults->setItems($items);
+        $searchResults->setTotalCount($collection->getSize());
+
+        return $searchResults;
     }
 
     public function save(CredentialInterface $credential): CredentialInterface

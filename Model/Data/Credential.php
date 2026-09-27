@@ -8,9 +8,14 @@ declare(strict_types=1);
 
 namespace MageOS\PasskeyAuth\Model\Data;
 
+use MageOS\PasskeyAuth\Api\Data\CredentialExtensionInterface;
 use MageOS\PasskeyAuth\Api\Data\CredentialInterface;
 use Magento\Framework\DataObject;
 
+/**
+ * DataObject-based so the repository can fill it from a row in one call; extension attributes live under
+ * the standard extension_attributes key.
+ */
 class Credential extends DataObject implements CredentialInterface
 {
     public function getEntityId(): ?int
@@ -128,5 +133,15 @@ class Credential extends DataObject implements CredentialInterface
     {
         $transports = $this->getTransports();
         return $transports ? explode(',', $transports) : [];
+    }
+
+    public function getExtensionAttributes(): ?CredentialExtensionInterface
+    {
+        return $this->getData(self::EXTENSION_ATTRIBUTES_KEY);
+    }
+
+    public function setExtensionAttributes(CredentialExtensionInterface $extensionAttributes): CredentialInterface
+    {
+        return $this->setData(self::EXTENSION_ATTRIBUTES_KEY, $extensionAttributes);
     }
 }

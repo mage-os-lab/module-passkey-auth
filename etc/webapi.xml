@@ -20,7 +20,7 @@
     </route>
 
     <route url="/V1/passkey/registration/verify" method="POST">
-        <service class="MageOS\PasskeyAuth\Api\RegistrationVerifierInterface" method="verify"/>
+        <service class="MageOS\PasskeyAuth\Api\CustomerPasskeyManagementInterface" method="verifyRegistration"/>
         <resources>
             <resource ref="self"/>
         </resources>
@@ -44,9 +44,9 @@
         </resources>
     </route>
 
-    <!-- Credential management (authenticated customer only) -->
+    <!-- Credential management (authenticated customer only). Credentials are returned as CustomerPasskeyInterface. -->
     <route url="/V1/passkey/credentials" method="GET">
-        <service class="MageOS\PasskeyAuth\Api\CredentialManagementInterface" method="listCredentials"/>
+        <service class="MageOS\PasskeyAuth\Api\CustomerPasskeyManagementInterface" method="getPasskeys"/>
         <resources>
             <resource ref="self"/>
         </resources>
@@ -66,7 +66,7 @@
     </route>
 
     <route url="/V1/passkey/credentials/:entityId" method="PUT">
-        <service class="MageOS\PasskeyAuth\Api\CredentialManagementInterface" method="renameCredential"/>
+        <service class="MageOS\PasskeyAuth\Api\CustomerPasskeyManagementInterface" method="renamePasskey"/>
         <resources>
             <resource ref="self"/>
         </resources>

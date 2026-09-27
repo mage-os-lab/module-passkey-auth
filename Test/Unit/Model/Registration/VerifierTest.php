@@ -208,7 +208,8 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_registration_failure', [
                 'customer_id' => 42,
-                'reason' => 'Invalid origin',
+                'reason' => 'verification_failed',
+                'message' => 'Invalid origin',
             ]);
 
         $this->mockLogger()->expects($this->once())
@@ -235,7 +236,11 @@ class VerifierTest extends TestCase
             ->willThrowException(new \TypeError('Unexpected type'));
         $this->mockEventManager()->expects($this->once())
             ->method('dispatch')
-            ->with('passkey_registration_failure', ['customer_id' => 42, 'reason' => 'Unexpected type']);
+            ->with('passkey_registration_failure', [
+                'customer_id' => 42,
+                'reason' => 'verification_failed',
+                'message' => 'Unexpected type',
+            ]);
         $this->mockCredentialRepository()->expects($this->never())->method('save');
 
         $this->expectException(LocalizedException::class);
@@ -311,6 +316,8 @@ class VerifierTest extends TestCase
         $this->credentialFactoryMock->method('create')->willReturn($credential);
 
         $saved = $this->createStub(CredentialInterface::class);
+        $saved->method('getEntityId')->willReturn(17);
+        $saved->method('getCredentialId')->willReturn(base64_encode('credential-id'));
         $this->mockCredentialRepository()->expects($this->once())
             ->method('save')
             ->with($credential)
@@ -320,6 +327,8 @@ class VerifierTest extends TestCase
             ->method('dispatch')
             ->with('passkey_credential_register_after', [
                 'customer_id' => 42,
+                'entity_id' => 17,
+                'credential_id' => base64_encode('credential-id'),
                 'credential' => $saved,
             ]);
 
