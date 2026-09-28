@@ -2,7 +2,7 @@
 
 All notable changes to this module are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-09-27
 
 ### Breaking changes
 
@@ -135,7 +135,7 @@ First release.
 - Events for registration, removal, and sign-in success and failure.
 - Settings under **Customers > Customer Configuration > Passkey Authentication**.
 
-[1.0.0]: https://github.com/mage-os-lab/module-passkey-auth/compare/1.0.0-beta3...HEAD
+[1.0.0]: https://github.com/mage-os-lab/module-passkey-auth/compare/1.0.0-beta3...1.0.0
 [1.0.0-beta3]: https://github.com/mage-os-lab/module-passkey-auth/compare/1.0.0-beta2...1.0.0-beta3
 [1.0.0-beta2]: https://github.com/mage-os-lab/module-passkey-auth/compare/1.0.0-beta1...1.0.0-beta2
 [1.0.0-beta1]: https://github.com/mage-os-lab/module-passkey-auth/releases/tag/1.0.0-beta1
