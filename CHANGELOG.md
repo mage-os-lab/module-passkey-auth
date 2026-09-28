@@ -2,11 +2,11 @@
 
 All notable changes to this module are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.1] - 2026-09-28
 
 ### Fixed
 
-- With `Magento_TwoFactorAuth` disabled, every `bin/magento` command failed with "Cannot instantiate interface Magento\TwoFactorAuth\Api\UserConfigManagerInterface", because the CLI builds all console commands on start. `security:tfa:passkey:reset-all` now receives a proxy, so the CLI works without 2FA; only running that command still needs it.
+- Fixed `bin/magento` commands to work when `Magento_TwoFactorAuth` is disabled. `security:tfa:passkey:reset-all` now receives a proxy, so the CLI works without 2FA; only running that command still needs it.
 
 ## [1.0.0] - 2026-09-27
 
