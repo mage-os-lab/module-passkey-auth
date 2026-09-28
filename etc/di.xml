@@ -135,6 +135,14 @@
     </type>
 
     <!-- CLI Commands -->
+    <!-- bin/magento builds every console command on start. A proxy keeps this one from
+         needing Magento_TwoFactorAuth until it runs, so the CLI works with 2FA disabled. -->
+    <type name="MageOS\PasskeyAuth\Console\Command\ResetPasskeyTfaCommand">
+        <arguments>
+            <argument name="userConfigManager" xsi:type="object">Magento\TwoFactorAuth\Api\UserConfigManagerInterface\Proxy</argument>
+        </arguments>
+    </type>
+
     <type name="Magento\Framework\Console\CommandListInterface">
         <arguments>
             <argument name="commands" xsi:type="array">
