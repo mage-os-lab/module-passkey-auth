@@ -2,6 +2,12 @@
 
 All notable changes to this module are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.1] - 2026-09-28
+
+### Fixed
+
+- Fixed `bin/magento` commands to work when `Magento_TwoFactorAuth` is disabled. `security:tfa:passkey:reset-all` now receives a proxy, so the CLI works without 2FA; only running that command still needs it.
+
 ## [1.0.0] - 2026-09-27
 
 ### Breaking changes
