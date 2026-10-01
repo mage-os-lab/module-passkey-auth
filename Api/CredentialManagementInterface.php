@@ -19,7 +19,7 @@ interface CredentialManagementInterface
 {
     /**
      * @param int $customerId
-     * @return CredentialInterface[]
+     * @return \MageOS\PasskeyAuth\Api\Data\CredentialInterface[]
      */
     public function listCredentials(int $customerId): array;
 
@@ -39,7 +39,7 @@ interface CredentialManagementInterface
      * Delete a credential without an ownership check (admin revocation), then sign the customer out everywhere:
      * end all their storefront sessions and revoke their API tokens, for a lost or stolen device.
      *
-     * @param CredentialInterface $credential
+     * @param \MageOS\PasskeyAuth\Api\Data\CredentialInterface $credential
      * @return bool False when the credential was deleted but the customer could not be signed out (logged)
      */
     public function revokeCredential(CredentialInterface $credential): bool;
@@ -48,7 +48,7 @@ interface CredentialManagementInterface
      * @param int $customerId
      * @param int $entityId
      * @param string $friendlyName
-     * @return CredentialInterface
+     * @return \MageOS\PasskeyAuth\Api\Data\CredentialInterface
      * @throws AuthorizationException
      * @throws NoSuchEntityException
      */
