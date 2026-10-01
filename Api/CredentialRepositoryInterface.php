@@ -31,7 +31,7 @@ interface CredentialRepositoryInterface
     public function getByCredentialId(string $credentialId): CredentialInterface;
 
     /**
-     * @return CredentialInterface[]
+     * @return \MageOS\PasskeyAuth\Api\Data\CredentialInterface[]
      */
     public function getByCustomerId(int $customerId): array;
 

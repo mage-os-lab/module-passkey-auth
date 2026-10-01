@@ -20,7 +20,7 @@ interface AuthenticationVerifierInterface
      *
      * @param string $challengeToken
      * @param string $assertionResponseJson
-     * @return AuthenticationResultInterface
+     * @return \MageOS\PasskeyAuth\Api\Data\AuthenticationResultInterface
      */
     public function verify(string $challengeToken, string $assertionResponseJson): AuthenticationResultInterface;
 }

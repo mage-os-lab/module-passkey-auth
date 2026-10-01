@@ -22,7 +22,7 @@ interface RegistrationVerifierInterface
      * @param string $challengeToken
      * @param string $attestationResponseJson
      * @param string|null $friendlyName
-     * @return CredentialInterface
+     * @return \MageOS\PasskeyAuth\Api\Data\CredentialInterface
      */
     public function verify(
         int $customerId,
